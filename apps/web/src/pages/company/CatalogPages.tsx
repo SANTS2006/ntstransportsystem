@@ -1,0 +1,550 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFieldArray, useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { ErrorAlert } from '../../components/ui/Alert';
+import { Button } from '../../components/ui/Button';
+import { Card, StatusBadge } from '../../components/ui/Card';
+import { Field } from '../../components/ui/Field';
+import { Spinner } from '../../components/ui/Spinner';
+import { useToast } from '../../components/ui/Toast';
+import { api } from '../../lib/api';
+import { can, useCompany } from './company-context';
+
+const selectClass =
+  'min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900';
+const Title = ({ children }: { children: string }) => (
+  <h1 className="mb-2 text-2xl font-semibold">{children}</h1>
+);
+
+function useRefresh(key: string) {
+  const { tenantId } = useCompany();
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: ['company', tenantId, key] });
+}
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+
+// ---- Locations -------------------------------------------------------------------------------
+
+interface Location {
+  id: string;
+  name: string;
+  kind: string;
+  city: string;
+  active: boolean;
+}
+const locationSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a name').max(120),
+  city: z.string().trim().min(1, 'Enter a city').max(80),
+  kind: z.enum(['TERMINAL', 'STATION', 'STOP', 'DEPOT']),
+});
+type LocationValues = z.infer<typeof locationSchema>;
+
+export function useLocations() {
+  const { tenantId } = useCompany();
+  return useQuery({
+    queryKey: ['company', tenantId, 'locations'],
+    queryFn: ({ signal }) =>
+      api<{ locations: Location[] }>(`/tenants/${tenantId}/locations?limit=100`, { signal }),
+  });
+}
+
+export function LocationsPage() {
+  const { tenantId, access } = useCompany();
+  const toast = useToast();
+  const refresh = useRefresh('locations');
+  const q = useLocations();
+  const manage = can(access, 'route.manage');
+  const form = useForm<LocationValues>({
+    resolver: zodResolver(locationSchema),
+    defaultValues: { name: '', city: '', kind: 'TERMINAL' },
+  });
+  const create = useMutation({
+    mutationFn: (v: LocationValues) =>
+      api(`/tenants/${tenantId}/locations`, { method: 'POST', body: v }),
+    onSuccess: async () => {
+      toast('Location added', 'success');
+      form.reset();
+      await refresh();
+    },
+  });
+  const toggle = useMutation({
+    mutationFn: (l: Location) =>
+      api(`/tenants/${tenantId}/locations/${l.id}`, {
+        method: 'PATCH',
+        body: { active: !l.active },
+      }),
+    onSuccess: refresh,
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/tenants/${tenantId}/locations/${id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      toast('Location deleted', 'success');
+      await refresh();
+    },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const { errors } = form.formState;
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <Title>Locations</Title>
+      {manage && (
+        <Card title="Add a location">
+          {create.error && <ErrorAlert error={create.error} />}
+          <form
+            noValidate
+            onSubmit={form.handleSubmit((v) => create.mutate(v))}
+            className="flex flex-wrap items-start gap-3"
+          >
+            <div className="min-w-48 flex-1">
+              <Field label="Name" error={errors.name?.message} {...form.register('name')} />
+            </div>
+            <div className="min-w-36">
+              <Field label="City" error={errors.city?.message} {...form.register('city')} />
+            </div>
+            <div>
+              <label htmlFor="loc-kind" className="mb-1 block text-sm font-medium">
+                Type
+              </label>
+              <select id="loc-kind" className={selectClass} {...form.register('kind')}>
+                <option value="TERMINAL">Terminal</option>
+                <option value="STATION">Station</option>
+                <option value="STOP">Stop</option>
+                <option value="DEPOT">Depot</option>
+              </select>
+            </div>
+            <Button type="submit" className="mt-6" loading={create.isPending} loadingText="Adding…">
+              Add
+            </Button>
+          </form>
+        </Card>
+      )}
+      <Card>
+        {q.isPending && <Spinner label="Loading locations" />}
+        {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
+        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+          {q.data?.locations.length === 0 && (
+            <li className="py-2 text-slate-500">No locations yet.</li>
+          )}
+          {q.data?.locations.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <p className="font-medium">{l.name}</p>
+                <p className="text-xs text-slate-500">
+                  {l.city} · {l.kind.toLowerCase()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={l.active ? 'ACTIVE' : 'DEACTIVATED'} />
+                {manage && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      loading={toggle.isPending && toggle.variables?.id === l.id}
+                      onClick={() => toggle.mutate(l)}
+                    >
+                      {l.active ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      loading={remove.isPending && remove.variables === l.id}
+                      onClick={() => remove.mutate(l.id)}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+// ---- Vehicles --------------------------------------------------------------------------------
+
+interface Vehicle {
+  id: string;
+  registration: string;
+  type: string;
+  seatingCapacity: number;
+  status: string;
+  odometerKm: number;
+}
+const vehicleSchema = z.object({
+  registration: z.string().trim().min(2, 'Enter the registration').max(20),
+  type: z.enum(['BUS', 'MINIBUS', 'SHARED_TAXI', 'TAXI', 'SHUTTLE', 'OTHER']),
+  seatingCapacity: z
+    .number({ error: 'Enter the seat count' })
+    .int()
+    .min(1, 'At least 1')
+    .max(200, 'At most 200'),
+});
+type VehicleValues = z.infer<typeof vehicleSchema>;
+
+export function useVehicles() {
+  const { tenantId, access } = useCompany();
+  return useQuery({
+    queryKey: ['company', tenantId, 'vehicles'],
+    enabled: can(access, 'fleet.read'),
+    queryFn: ({ signal }) =>
+      api<{ vehicles: Vehicle[] }>(`/tenants/${tenantId}/vehicles?limit=100`, { signal }),
+  });
+}
+
+export function VehiclesPage() {
+  const { tenantId, access } = useCompany();
+  const toast = useToast();
+  const refresh = useRefresh('vehicles');
+  const q = useVehicles();
+  const manage = can(access, 'fleet.manage');
+  const form = useForm<VehicleValues>({
+    resolver: zodResolver(vehicleSchema),
+    defaultValues: { registration: '', type: 'BUS', seatingCapacity: 50 },
+  });
+  const create = useMutation({
+    mutationFn: (v: VehicleValues) =>
+      api(`/tenants/${tenantId}/vehicles`, { method: 'POST', body: v }),
+    onSuccess: async () => {
+      toast('Vehicle added', 'success');
+      form.reset();
+      await refresh();
+    },
+  });
+  const setStatus = useMutation({
+    mutationFn: (v: { id: string; status: string }) =>
+      api(`/tenants/${tenantId}/vehicles/${v.id}`, { method: 'PATCH', body: { status: v.status } }),
+    onSuccess: async () => {
+      toast('Vehicle updated', 'success');
+      await refresh();
+    },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const { errors } = form.formState;
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <Title>Vehicles</Title>
+      {manage && (
+        <Card title="Add a vehicle">
+          {create.error && <ErrorAlert error={create.error} />}
+          <form
+            noValidate
+            onSubmit={form.handleSubmit((v) => create.mutate(v))}
+            className="flex flex-wrap items-start gap-3"
+          >
+            <div className="min-w-40 flex-1">
+              <Field
+                label="Registration"
+                error={errors.registration?.message}
+                {...form.register('registration')}
+              />
+            </div>
+            <div>
+              <label htmlFor="veh-type" className="mb-1 block text-sm font-medium">
+                Type
+              </label>
+              <select id="veh-type" className={selectClass} {...form.register('type')}>
+                <option value="BUS">Bus</option>
+                <option value="MINIBUS">Minibus</option>
+                <option value="SHARED_TAXI">Shared taxi</option>
+                <option value="TAXI">Taxi</option>
+                <option value="SHUTTLE">Shuttle</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div className="w-28">
+              <Field
+                label="Seats"
+                type="number"
+                inputMode="numeric"
+                error={errors.seatingCapacity?.message}
+                {...form.register('seatingCapacity', { valueAsNumber: true })}
+              />
+            </div>
+            <Button type="submit" className="mt-6" loading={create.isPending} loadingText="Adding…">
+              Add
+            </Button>
+          </form>
+        </Card>
+      )}
+      <Card>
+        {q.isPending && <Spinner label="Loading vehicles" />}
+        {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
+        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+          {q.data?.vehicles.length === 0 && (
+            <li className="py-2 text-slate-500">No vehicles yet.</li>
+          )}
+          {q.data?.vehicles.map((v) => (
+            <li key={v.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <p className="font-medium">{v.registration}</p>
+                <p className="text-xs text-slate-500">
+                  {v.type.replace('_', ' ').toLowerCase()} · {v.seatingCapacity} seats ·{' '}
+                  {v.odometerKm.toLocaleString()} km
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={v.status === 'MAINTENANCE' ? 'PENDING' : v.status} />
+                {manage && v.status !== 'RETIRED' && (
+                  <select
+                    aria-label={`Status for ${v.registration}`}
+                    className={selectClass}
+                    value={v.status}
+                    disabled={setStatus.isPending}
+                    onChange={(e) => setStatus.mutate({ id: v.id, status: e.target.value })}
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="MAINTENANCE">Maintenance</option>
+                    <option value="RETIRED">Retire…</option>
+                  </select>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+// ---- Routes ----------------------------------------------------------------------------------
+
+interface RouteRow {
+  id: string;
+  name: string;
+  status: string;
+  origin: string;
+  destination: string;
+  distanceM: number;
+  durationMin: number;
+  stopCount: number;
+}
+const routeSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a name').max(120),
+  originId: z.string().min(1, 'Choose the origin'),
+  destinationId: z.string().min(1, 'Choose the destination'),
+  distanceKm: z.number({ error: 'Enter the distance' }).min(0.1, 'Must be positive').max(5000),
+  durationMin: z.number({ error: 'Enter the duration' }).int().min(1).max(2880),
+  stops: z.array(
+    z.object({
+      locationId: z.string().min(1, 'Choose a stop'),
+      offsetMin: z.number({ error: 'Minutes' }).int().min(1),
+    }),
+  ),
+});
+type RouteValues = z.infer<typeof routeSchema>;
+
+export function useRoutes() {
+  const { tenantId } = useCompany();
+  return useQuery({
+    queryKey: ['company', tenantId, 'routes'],
+    queryFn: ({ signal }) =>
+      api<{ routes: RouteRow[] }>(`/tenants/${tenantId}/routes?limit=100`, { signal }),
+  });
+}
+
+export function RoutesPage() {
+  const { tenantId, access } = useCompany();
+  const toast = useToast();
+  const refresh = useRefresh('routes');
+  const q = useRoutes();
+  const locations = useLocations();
+  const manage = can(access, 'route.manage');
+  const form = useForm<RouteValues>({
+    resolver: zodResolver(routeSchema),
+    defaultValues: {
+      name: '',
+      originId: '',
+      destinationId: '',
+      distanceKm: 100,
+      durationMin: 120,
+      stops: [],
+    },
+  });
+  const stops = useFieldArray({ control: form.control, name: 'stops' });
+  const create = useMutation({
+    mutationFn: (v: RouteValues) =>
+      api(`/tenants/${tenantId}/routes`, {
+        method: 'POST',
+        body: {
+          name: v.name,
+          originId: v.originId,
+          destinationId: v.destinationId,
+          distanceM: Math.round(v.distanceKm * 1000),
+          durationMin: v.durationMin,
+          stops: v.stops,
+        },
+      }),
+    onSuccess: async () => {
+      toast('Route saved as a draft', 'success');
+      form.reset();
+      await refresh();
+    },
+  });
+  const act = useMutation({
+    mutationFn: (v: { id: string; action: 'publish' | 'archive' | 'delete' }) =>
+      v.action === 'delete'
+        ? api(`/tenants/${tenantId}/routes/${v.id}`, { method: 'DELETE' })
+        : api(`/tenants/${tenantId}/routes/${v.id}/${v.action}`, { method: 'POST', body: {} }),
+    onSuccess: async (_d, v) => {
+      toast(`Route ${v.action === 'delete' ? 'deleted' : v.action + 'ed'}`, 'success');
+      await refresh();
+    },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const { errors } = form.formState;
+  const locs = locations.data?.locations.filter((l) => l.active) ?? [];
+  const locationSelect = (
+    name: `stops.${number}.locationId` | 'originId' | 'destinationId',
+    label: string,
+    err?: string,
+  ) => (
+    <div>
+      <label htmlFor={`rt-${name}`} className="mb-1 block text-sm font-medium">
+        {label}
+      </label>
+      <select id={`rt-${name}`} className={`${selectClass} w-full`} {...form.register(name)}>
+        <option value="">Choose…</option>
+        {locs.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+      {err && (
+        <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">
+          {err}
+        </p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <Title>Routes</Title>
+      {manage && (
+        <Card title="New route">
+          {create.error && <ErrorAlert error={create.error} />}
+          <form
+            noValidate
+            onSubmit={form.handleSubmit((v) => create.mutate(v))}
+            className="space-y-4"
+          >
+            <Field label="Route name" error={errors.name?.message} {...form.register('name')} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {locationSelect('originId', 'From', errors.originId?.message)}
+              {locationSelect('destinationId', 'To', errors.destinationId?.message)}
+              <Field
+                label="Distance (km)"
+                type="number"
+                step="0.1"
+                error={errors.distanceKm?.message}
+                {...form.register('distanceKm', { valueAsNumber: true })}
+              />
+              <Field
+                label="Duration (minutes)"
+                type="number"
+                error={errors.durationMin?.message}
+                {...form.register('durationMin', { valueAsNumber: true })}
+              />
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Intermediate stops (in order)</legend>
+              {stops.fields.map((f, i) => (
+                <div key={f.id} className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-48 flex-1">
+                    {locationSelect(
+                      `stops.${i}.locationId`,
+                      `Stop ${i + 1}`,
+                      errors.stops?.[i]?.locationId?.message,
+                    )}
+                  </div>
+                  <div className="w-36">
+                    <Field
+                      label="Minutes after departure"
+                      type="number"
+                      error={errors.stops?.[i]?.offsetMin?.message}
+                      {...form.register(`stops.${i}.offsetMin`, { valueAsNumber: true })}
+                    />
+                  </div>
+                  <Button variant="ghost" onClick={() => stops.remove(i)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="secondary"
+                onClick={() => stops.append({ locationId: '', offsetMin: 30 })}
+              >
+                Add a stop
+              </Button>
+            </fieldset>
+            <Button type="submit" loading={create.isPending} loadingText="Saving…">
+              Save draft
+            </Button>
+          </form>
+        </Card>
+      )}
+      <Card>
+        {q.isPending && <Spinner label="Loading routes" />}
+        {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
+        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+          {q.data?.routes.length === 0 && <li className="py-2 text-slate-500">No routes yet.</li>}
+          {q.data?.routes.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <p className="font-medium">{r.name}</p>
+                <p className="text-xs text-slate-500">
+                  {r.origin} → {r.destination} · {(r.distanceM / 1000).toFixed(1)} km ·{' '}
+                  {r.durationMin} min · {r.stopCount} stop(s)
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge
+                  status={
+                    r.status === 'DRAFT'
+                      ? 'PENDING'
+                      : r.status === 'PUBLISHED'
+                        ? 'ACTIVE'
+                        : 'DEACTIVATED'
+                  }
+                />
+                {manage && r.status === 'DRAFT' && (
+                  <>
+                    <Button
+                      loading={
+                        act.isPending &&
+                        act.variables?.id === r.id &&
+                        act.variables.action === 'publish'
+                      }
+                      onClick={() => act.mutate({ id: r.id, action: 'publish' })}
+                    >
+                      Publish
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => act.mutate({ id: r.id, action: 'delete' })}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+                {manage && r.status === 'PUBLISHED' && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => act.mutate({ id: r.id, action: 'archive' })}
+                  >
+                    Archive
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}

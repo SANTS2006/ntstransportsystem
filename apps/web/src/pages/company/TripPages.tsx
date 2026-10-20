@@ -11,6 +11,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useRoutes, useVehicles } from './CatalogPages';
+import { CrewPanel } from './CrewPanel';
 import { can, useCompany } from './company-context';
 
 const selectClass =
@@ -112,6 +113,7 @@ export function TripsPage() {
   });
 
   const [days, setDays] = useState(31); // Mon-Fri by default
+  const [openCrew, setOpenCrew] = useState<string | null>(null);
   const form = useForm<ScheduleValues>({
     resolver: zodResolver(scheduleSchema),
     defaultValues: {
@@ -430,6 +432,12 @@ export function TripsPage() {
                   </select>
                 )}
                 {!manageTrips && t.vehicle && <span className="text-xs">{t.vehicle}</span>}
+                <Button
+                  variant="ghost"
+                  onClick={() => setOpenCrew(openCrew === t.id ? null : t.id)}
+                >
+                  Crew
+                </Button>
                 {manageTrips &&
                   nextActions(t.status).map((a) => (
                     <Button
@@ -446,6 +454,11 @@ export function TripsPage() {
                     </Button>
                   ))}
               </div>
+              {openCrew === t.id && (
+                <div className="w-full">
+                  <CrewPanel tripId={t.id} canManage={manageTrips} open />
+                </div>
+              )}
             </li>
           ))}
         </ul>

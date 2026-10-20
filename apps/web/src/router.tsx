@@ -56,6 +56,12 @@ const RoutesPage = lazy(() =>
 const TripsPage = lazy(() =>
   import('./pages/company/TripPages').then((m) => ({ default: m.TripsPage })),
 );
+const StaffPage = lazy(() =>
+  import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
+);
+const MaintenancePage = lazy(() =>
+  import('./pages/company/CrewPages').then((m) => ({ default: m.MaintenancePage })),
+);
 const PlatformLayout = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformLayout })),
 );
@@ -111,6 +117,8 @@ export const router = createBrowserRouter([
       { path: 'vehicles', element: s(<VehiclesPage />) },
       { path: 'routes', element: s(<RoutesPage />) },
       { path: 'trips', element: s(<TripsPage />) },
+      { path: 'maintenance', element: s(<MaintenancePage />) },
+      { path: 'staff', element: s(<StaffPage />) },
     ],
   },
   {

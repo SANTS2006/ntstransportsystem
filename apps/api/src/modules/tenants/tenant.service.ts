@@ -18,6 +18,7 @@ export interface ProfileUpdate {
   name?: string | undefined;
   timezone?: string | undefined;
   defaultCurrency?: string | undefined;
+  crewMinRestMinutes?: number | undefined;
 }
 
 const slugify = (name: string) =>
@@ -140,6 +141,7 @@ export class TenantService {
       status: t.status,
       timezone: t.timezone,
       defaultCurrency: t.defaultCurrency,
+      crewMinRestMinutes: t.crewMinRestMinutes,
     };
   }
 
@@ -149,6 +151,9 @@ export class TenantService {
       ...(update.name !== undefined ? { name: update.name } : {}),
       ...(update.timezone !== undefined ? { timezone: update.timezone } : {}),
       ...(update.defaultCurrency !== undefined ? { defaultCurrency: update.defaultCurrency } : {}),
+      ...(update.crewMinRestMinutes !== undefined
+        ? { crewMinRestMinutes: update.crewMinRestMinutes }
+        : {}),
     };
     if (Object.keys(data).length === 0) throw AppError.validation('Nothing to update');
     await withDb(this.db, { tenantId: scope.tenantId, userId: scope.userId }, async (tx) => {

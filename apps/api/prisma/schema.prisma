@@ -143,14 +143,15 @@ model PlatformRoleAssignment {
 }
 
 model Tenant {
-  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String
-  slug            String       @unique
-  status          TenantStatus @default(PENDING)
-  timezone        String       @default("UTC")
-  defaultCurrency String       @default("SLE") @map("default_currency")
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  slug               String       @unique
+  status             TenantStatus @default(PENDING)
+  timezone           String       @default("UTC")
+  defaultCurrency    String       @default("SLE") @map("default_currency")
+  crewMinRestMinutes Int          @default(480) @map("crew_min_rest_minutes")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   roles       Role[]
   memberships Membership[]
@@ -161,6 +162,12 @@ model Tenant {
   routeStops  RouteStop[]
   schedules   Schedule[]
   trips       Trip[]
+
+  employees          Employee[]
+  driverLicences     DriverLicence[]
+  tripCrew           TripCrew[]
+  maintenanceRecords MaintenanceRecord[]
+  vehicleDocuments   VehicleDocument[]
 
   @@map("tenants")
 }
@@ -378,6 +385,9 @@ model Vehicle {
   role      Role?      @relation(fields: [roleId], references: [id])
   roleId    String?    @db.Uuid
 
+  maintenance MaintenanceRecord[]
+  documents   VehicleDocument[]
+
   @@unique([tenantId, registration])
   @@unique([tenantId, id])
   @@map("vehicles")
@@ -476,8 +486,154 @@ model Trip {
   role     Role?     @relation(fields: [roleId], references: [id])
   roleId   String?   @db.Uuid
 
+  crew TripCrew[]
+
   @@unique([scheduleId, serviceDate]) // a schedule yields at most one trip per service date
   @@unique([tenantId, id])
   @@index([tenantId, departureAt])
   @@map("trips")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 4 slice B: crew (employees, licences, trip crew) and maintenance (records, documents).
+// Same rules as slice A: tenant-scoped, RLS, composite (tenant_id, id) FKs.
+// ---------------------------------------------------------------------------------------------
+
+enum EmployeeRole {
+  DRIVER
+  CONDUCTOR
+  DISPATCHER
+  MECHANIC
+  OTHER
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum CrewRole {
+  DRIVER
+  CONDUCTOR
+}
+
+enum MaintenanceKind {
+  SERVICE
+  REPAIR
+  INSPECTION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum VehicleDocumentKind {
+  INSURANCE
+  INSPECTION_CERTIFICATE
+  ROAD_LICENCE
+  OTHER
+}
+
+model Employee {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  userId         String?        @map("user_id") @db.Uuid // optional link to a platform account
+  employeeNumber String         @map("employee_number")
+  fullName       String         @map("full_name")
+  role           EmployeeRole
+  status         EmployeeStatus @default(ACTIVE)
+  phone          String?
+  hiredOn        DateTime?      @map("hired_on") @db.Date
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  licences DriverLicence[]
+  crew     TripCrew[]
+
+  @@unique([tenantId, employeeNumber])
+  @@unique([tenantId, id])
+  @@map("employees")
+}
+
+model DriverLicence {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  employeeId    String   @map("employee_id") @db.Uuid
+  licenceNumber String   @map("licence_number")
+  category      String
+  expiresOn     DateTime @map("expires_on") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, licenceNumber])
+  @@index([tenantId, employeeId])
+  @@map("driver_licences")
+}
+
+model TripCrew {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  tripId     String    @map("trip_id") @db.Uuid
+  employeeId String    @map("employee_id") @db.Uuid
+  role       CrewRole
+  // The trip's time window, copied at assignment so the database can forbid overlapping duty.
+  startsAt   DateTime  @map("starts_at") @db.Timestamptz(6)
+  endsAt     DateTime  @map("ends_at") @db.Timestamptz(6)
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip     Trip     @relation(fields: [tenantId, tripId], references: [tenantId, id], onDelete: Cascade)
+  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id])
+
+  @@index([tenantId, tripId])
+  @@index([tenantId, employeeId])
+  @@map("trip_crew")
+}
+
+model MaintenanceRecord {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  vehicleId    String            @map("vehicle_id") @db.Uuid
+  kind         MaintenanceKind
+  status       MaintenanceStatus @default(SCHEDULED)
+  scheduledFor DateTime          @map("scheduled_for") @db.Date
+  completedOn  DateTime?         @map("completed_on") @db.Date
+  description  String
+  vendor       String?
+  odometerKm   Int?              @map("odometer_km")
+  costMinor    Int?              @map("cost_minor") // integer minor units in the company's currency
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [tenantId, vehicleId], references: [tenantId, id])
+
+  @@index([tenantId, vehicleId])
+  @@index([tenantId, status, scheduledFor])
+  @@map("maintenance_records")
+}
+
+model VehicleDocument {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String              @map("tenant_id") @db.Uuid
+  vehicleId   String              @map("vehicle_id") @db.Uuid
+  kind        VehicleDocumentKind
+  referenceNo String              @map("reference_no")
+  expiresOn   DateTime            @map("expires_on") @db.Date
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [tenantId, vehicleId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, expiresOn])
+  @@index([tenantId, vehicleId])
+  @@map("vehicle_documents")
 }

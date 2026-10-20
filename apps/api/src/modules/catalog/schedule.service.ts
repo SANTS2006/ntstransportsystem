@@ -371,6 +371,13 @@ export class ScheduleService {
         data: { status },
       });
       if (res.count !== 1) throw AppError.conflict('The trip changed; please refresh and retry');
+      // A cancelled trip frees its crew: their duty slot is released for other trips.
+      if (status === 'CANCELLED') {
+        await tx.tripCrew.updateMany({
+          where: { tenantId: s.tenantId, tripId, releasedAt: null },
+          data: { releasedAt: new Date() },
+        });
+      }
       await this.audit(tx, s, `trips.${status.toLowerCase()}`, 'trip', tripId, requestId, {
         from: trip.status,
       });

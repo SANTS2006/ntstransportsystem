@@ -209,7 +209,7 @@ export function TripsPage() {
           {published.length === 0 && routes.data && (
             <Alert tone="info">Publish a route first: schedules run on published routes.</Alert>
           )}
-          {createSchedule.error && <ErrorAlert error={createSchedule.error} />}
+
           <form
             noValidate
             onSubmit={form.handleSubmit((v) => createSchedule.mutate(v))}
@@ -297,6 +297,7 @@ export function TripsPage() {
                 </p>
               )}
             </fieldset>
+            {createSchedule.error && <ErrorAlert error={createSchedule.error} />}
             <Button
               type="submit"
               disabled={days === 0}
@@ -331,7 +332,10 @@ export function TripsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={s.status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'} />
+                <StatusBadge
+                  status={s.status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'}
+                  label={s.status === 'ACTIVE' ? 'Active' : 'Paused'}
+                />
                 {manageTrips && s.status === 'ACTIVE' && (
                   <Button
                     variant="secondary"
@@ -406,10 +410,9 @@ export function TripsPage() {
                         ? 'REJECTED'
                         : 'ACTIVE'
                   }
+                  label={t.status.charAt(0) + t.status.slice(1).toLowerCase().replace('_', ' ')}
                 />
-                <span className="text-xs text-slate-500">
-                  {t.status.replace('_', ' ').toLowerCase()}
-                </span>
+
                 {manageTrips && (t.status === 'SCHEDULED' || t.status === 'BOARDING') && (
                   <select
                     aria-label={`Vehicle for ${t.route} on ${t.serviceDate}`}

@@ -136,7 +136,10 @@ export function LocationsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={l.active ? 'ACTIVE' : 'DEACTIVATED'} />
+                <StatusBadge
+                  status={l.active ? 'ACTIVE' : 'DEACTIVATED'}
+                  label={l.active ? 'Active' : 'Inactive'}
+                />
                 {manage && (
                   <>
                     <Button
@@ -287,7 +290,16 @@ export function VehiclesPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={v.status === 'MAINTENANCE' ? 'PENDING' : v.status} />
+                <StatusBadge
+                  status={v.status === 'MAINTENANCE' ? 'PENDING' : v.status}
+                  label={
+                    v.status === 'MAINTENANCE'
+                      ? 'Maintenance'
+                      : v.status === 'RETIRED'
+                        ? 'Retired'
+                        : 'Active'
+                  }
+                />
                 {manage && v.status !== 'RETIRED' && (
                   <select
                     aria-label={`Status for ${v.registration}`}
@@ -427,7 +439,6 @@ export function RoutesPage() {
       <Title>Routes</Title>
       {manage && (
         <Card title="New route">
-          {create.error && <ErrorAlert error={create.error} />}
           <form
             noValidate
             onSubmit={form.handleSubmit((v) => create.mutate(v))}
@@ -482,6 +493,7 @@ export function RoutesPage() {
                 Add a stop
               </Button>
             </fieldset>
+            {create.error && <ErrorAlert error={create.error} />}
             <Button type="submit" loading={create.isPending} loadingText="Saving…">
               Save draft
             </Button>
@@ -510,6 +522,13 @@ export function RoutesPage() {
                       : r.status === 'PUBLISHED'
                         ? 'ACTIVE'
                         : 'DEACTIVATED'
+                  }
+                  label={
+                    r.status === 'DRAFT'
+                      ? 'Draft'
+                      : r.status === 'PUBLISHED'
+                        ? 'Published'
+                        : 'Archived'
                   }
                 />
                 {manage && r.status === 'DRAFT' && (

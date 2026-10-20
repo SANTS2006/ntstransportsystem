@@ -58,10 +58,10 @@ const STATUS_TONE: Record<string, keyof typeof badgeTones> = {
   DEACTIVATED: 'slate',
   REVOKED: 'slate',
 };
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <Badge tone={STATUS_TONE[status] ?? 'slate'}>
-      {status.charAt(0) + status.slice(1).toLowerCase()}
+      {label ?? status.charAt(0) + status.slice(1).toLowerCase()}
     </Badge>
   );
 }

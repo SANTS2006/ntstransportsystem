@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ErrorAlert } from '../../components/ui/Alert';
@@ -177,7 +178,16 @@ interface Vehicle {
   status: string;
   odometerKm: number;
 }
+const VEHICLE_TYPES = [
+  { value: 'BUS', label: 'Bus' },
+  { value: 'MINIBUS', label: 'Minibus' },
+  { value: 'SHARED_TAXI', label: 'Shared taxi' },
+  { value: 'TAXI', label: 'Taxi' },
+  { value: 'SHUTTLE', label: 'Shuttle' },
+  { value: 'OTHER', label: 'Other' },
+];
 const vehicleSchema = z.object({
+  seatLayoutId: z.string().optional(),
   registration: z.string().trim().min(2, 'Enter the registration').max(20),
   type: z.enum(['BUS', 'MINIBUS', 'SHARED_TAXI', 'TAXI', 'SHUTTLE', 'OTHER']),
   seatingCapacity: z
@@ -187,6 +197,19 @@ const vehicleSchema = z.object({
     .max(200, 'At most 200'),
 });
 type VehicleValues = z.infer<typeof vehicleSchema>;
+
+export function useSeatLayouts() {
+  const { tenantId, access } = useCompany();
+  return useQuery({
+    queryKey: ['company', tenantId, 'seat-layouts'],
+    enabled: can(access, 'fleet.read'),
+    queryFn: ({ signal }) =>
+      api<{ items: { id: string; name: string; seats: number; vehicles: number }[] }>(
+        `/tenants/${tenantId}/seat-layouts`,
+        { signal },
+      ),
+  });
+}
 
 export function useVehicles() {
   const { tenantId, access } = useCompany();
@@ -204,13 +227,17 @@ export function VehiclesPage() {
   const refresh = useRefresh('vehicles');
   const q = useVehicles();
   const manage = can(access, 'fleet.manage');
+  const layouts = useSeatLayouts();
   const form = useForm<VehicleValues>({
     resolver: zodResolver(vehicleSchema),
-    defaultValues: { registration: '', type: 'BUS', seatingCapacity: 50 },
+    defaultValues: { registration: '', type: 'BUS', seatingCapacity: 50, seatLayoutId: '' },
   });
   const create = useMutation({
     mutationFn: (v: VehicleValues) =>
-      api(`/tenants/${tenantId}/vehicles`, { method: 'POST', body: v }),
+      api(`/tenants/${tenantId}/vehicles`, {
+        method: 'POST',
+        body: { ...v, seatLayoutId: v.seatLayoutId || undefined },
+      }),
     onSuccess: async () => {
       toast('Vehicle added', 'success');
       form.reset();
@@ -267,6 +294,21 @@ export function VehiclesPage() {
                 {...form.register('seatingCapacity', { valueAsNumber: true })}
               />
             </div>
+            {layouts.data && layouts.data.items.length > 0 && (
+              <div>
+                <label htmlFor="veh-layout" className="mb-1 block text-sm font-medium">
+                  Seat layout
+                </label>
+                <select id="veh-layout" className={selectClass} {...form.register('seatLayoutId')}>
+                  <option value="">None</option>
+                  {layouts.data.items.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.seats} seats)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Button type="submit" className="mt-6" loading={create.isPending} loadingText="Adding…">
               Add
             </Button>
@@ -333,6 +375,8 @@ interface RouteRow {
   distanceM: number;
   durationMin: number;
   stopCount: number;
+  minSeats?: number;
+  allowedVehicleTypes?: string[];
 }
 const routeSchema = z.object({
   name: z.string().trim().min(2, 'Enter a name').max(120),
@@ -340,6 +384,7 @@ const routeSchema = z.object({
   destinationId: z.string().min(1, 'Choose the destination'),
   distanceKm: z.number({ error: 'Enter the distance' }).min(0.1, 'Must be positive').max(5000),
   durationMin: z.number({ error: 'Enter the duration' }).int().min(1).max(2880),
+  minSeats: z.number({ error: 'Enter the minimum seats' }).int().min(1, 'At least 1').max(200),
   stops: z.array(
     z.object({
       locationId: z.string().min(1, 'Choose a stop'),
@@ -373,10 +418,12 @@ export function RoutesPage() {
       destinationId: '',
       distanceKm: 100,
       durationMin: 120,
+      minSeats: 1,
       stops: [],
     },
   });
   const stops = useFieldArray({ control: form.control, name: 'stops' });
+  const [allowedTypes, setAllowedTypes] = useState<string[]>([]);
   const create = useMutation({
     mutationFn: (v: RouteValues) =>
       api(`/tenants/${tenantId}/routes`, {
@@ -387,12 +434,15 @@ export function RoutesPage() {
           destinationId: v.destinationId,
           distanceM: Math.round(v.distanceKm * 1000),
           durationMin: v.durationMin,
+          minSeats: v.minSeats,
+          allowedVehicleTypes: allowedTypes,
           stops: v.stops,
         },
       }),
     onSuccess: async () => {
       toast('Route saved as a draft', 'success');
       form.reset();
+      setAllowedTypes([]);
       await refresh();
     },
   });
@@ -461,7 +511,38 @@ export function RoutesPage() {
                 error={errors.durationMin?.message}
                 {...form.register('durationMin', { valueAsNumber: true })}
               />
+              <Field
+                label="Minimum seats"
+                type="number"
+                inputMode="numeric"
+                error={errors.minSeats?.message}
+                {...form.register('minSeats', { valueAsNumber: true })}
+              />
             </div>
+            <fieldset>
+              <legend className="mb-1 text-sm font-medium">
+                Vehicle types allowed (none ticked = any)
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {VEHICLE_TYPES.map((t) => (
+                  <label
+                    key={t.value}
+                    className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allowedTypes.includes(t.value)}
+                      onChange={(e) =>
+                        setAllowedTypes((cur) =>
+                          e.target.checked ? [...cur, t.value] : cur.filter((x) => x !== t.value),
+                        )
+                      }
+                    />
+                    {t.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Intermediate stops (in order)</legend>
               {stops.fields.map((f, i) => (
@@ -512,6 +593,10 @@ export function RoutesPage() {
                 <p className="text-xs text-slate-500">
                   {r.origin} → {r.destination} · {(r.distanceM / 1000).toFixed(1)} km ·{' '}
                   {r.durationMin} min · {r.stopCount} stop(s)
+                  {r.minSeats && r.minSeats > 1 ? ` · min ${r.minSeats} seats` : ''}
+                  {r.allowedVehicleTypes?.length
+                    ? ` · ${r.allowedVehicleTypes.map((t) => t.replace('_', ' ').toLowerCase()).join(', ')} only`
+                    : ''}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

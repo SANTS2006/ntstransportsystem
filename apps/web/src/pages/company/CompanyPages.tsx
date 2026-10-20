@@ -51,7 +51,11 @@ export function CompanyLayout() {
       nav.push({ to: `/c/${tenantId}/locations`, label: 'Locations' });
     }
     if (can(a, 'trip.read')) nav.push({ to: `/c/${tenantId}/trips`, label: 'Trips' });
+    if (can(a, 'trip.read')) nav.push({ to: `/c/${tenantId}/dispatch`, label: 'Dispatch' });
+    if (can(a, 'route.read')) nav.push({ to: `/c/${tenantId}/calendar`, label: 'Calendar' });
     if (can(a, 'fleet.read')) nav.push({ to: `/c/${tenantId}/vehicles`, label: 'Vehicles' });
+    if (can(a, 'fleet.read'))
+      nav.push({ to: `/c/${tenantId}/seat-layouts`, label: 'Seat layouts' });
     if (can(a, 'fleet.read')) nav.push({ to: `/c/${tenantId}/maintenance`, label: 'Maintenance' });
     if (can(a, 'hr.read')) nav.push({ to: `/c/${tenantId}/staff`, label: 'Staff' });
     if (can(a, 'membership.read')) nav.push({ to: `/c/${tenantId}/members`, label: 'Team' });

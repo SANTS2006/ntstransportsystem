@@ -34,7 +34,12 @@ export interface RouteInput {
   distanceM: number;
   durationMin: number;
   stops: RouteStopInput[];
+  /** Empty means any vehicle type may run the route. */
+  allowedVehicleTypes?: string[] | undefined;
+  minSeats?: number | undefined;
 }
+
+type VehicleTypeValue = 'BUS' | 'MINIBUS' | 'SHARED_TAXI' | 'TAXI' | 'SHUTTLE' | 'OTHER';
 
 const ctxOf = (s: TenantScope) => ({ tenantId: s.tenantId, userId: s.userId });
 
@@ -213,6 +218,8 @@ export class CatalogService {
       destination: r.destination.name,
       distanceM: r.distanceM,
       durationMin: r.durationMin,
+      minSeats: r.minSeats,
+      allowedVehicleTypes: r.allowedVehicleTypes,
       stopCount: r._count.stops,
     }));
   }
@@ -242,6 +249,8 @@ export class CatalogService {
       destination: r.destination.name,
       distanceM: r.distanceM,
       durationMin: r.durationMin,
+      allowedVehicleTypes: r.allowedVehicleTypes,
+      minSeats: r.minSeats,
       stops: r.stops.map((x) => ({
         sequence: x.sequence,
         locationId: x.locationId,
@@ -264,6 +273,8 @@ export class CatalogService {
               destinationId: input.destinationId,
               distanceM: input.distanceM,
               durationMin: input.durationMin,
+              allowedVehicleTypes: (input.allowedVehicleTypes ?? []) as VehicleTypeValue[],
+              minSeats: input.minSeats ?? 1,
               status: 'DRAFT',
             },
           });
@@ -320,6 +331,10 @@ export class CatalogService {
               destinationId: next.destinationId,
               ...(patch.distanceM !== undefined ? { distanceM: patch.distanceM } : {}),
               durationMin: next.durationMin,
+              ...(patch.allowedVehicleTypes !== undefined
+                ? { allowedVehicleTypes: patch.allowedVehicleTypes as VehicleTypeValue[] }
+                : {}),
+              ...(patch.minSeats !== undefined ? { minSeats: patch.minSeats } : {}),
             },
           });
           if (patch.stops !== undefined) {

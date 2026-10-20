@@ -169,6 +169,12 @@ model Tenant {
   maintenanceRecords MaintenanceRecord[]
   vehicleDocuments   VehicleDocument[]
 
+  serviceBlackouts ServiceBlackout[]
+  seatLayouts      SeatLayout[]
+  seatLayoutSeats  SeatLayoutSeat[]
+  tripEvents       TripEvent[]
+  outboxEvents     OutboxEvent[]
+
   @@map("tenants")
 }
 
@@ -376,6 +382,7 @@ model Vehicle {
   seatingCapacity Int           @map("seating_capacity")
   status          VehicleStatus @default(ACTIVE)
   odometerKm      Int           @default(0) @map("odometer_km")
+  seatLayoutId    String?       @map("seat_layout_id") @db.Uuid
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -388,22 +395,26 @@ model Vehicle {
   maintenance MaintenanceRecord[]
   documents   VehicleDocument[]
 
+  seatLayout SeatLayout? @relation(fields: [tenantId, seatLayoutId], references: [tenantId, id])
+
   @@unique([tenantId, registration])
   @@unique([tenantId, id])
   @@map("vehicles")
 }
 
 model Route {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String      @map("tenant_id") @db.Uuid
-  name          String
-  originId      String      @map("origin_id") @db.Uuid
-  destinationId String      @map("destination_id") @db.Uuid
-  distanceM     Int         @map("distance_m")
-  durationMin   Int         @map("duration_min")
-  status        RouteStatus @default(DRAFT)
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  name                String
+  originId            String        @map("origin_id") @db.Uuid
+  destinationId       String        @map("destination_id") @db.Uuid
+  distanceM           Int           @map("distance_m")
+  durationMin         Int           @map("duration_min")
+  status              RouteStatus   @default(DRAFT)
+  allowedVehicleTypes VehicleType[] @default([]) @map("allowed_vehicle_types") // empty = any type
+  minSeats            Int           @default(1) @map("min_seats")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   origin      Location    @relation("RouteOrigin", fields: [tenantId, originId], references: [tenantId, id])
@@ -413,6 +424,8 @@ model Route {
   trips       Trip[]
   role        Role?       @relation(fields: [roleId], references: [id])
   roleId      String?     @db.Uuid
+
+  blackouts ServiceBlackout[]
 
   @@unique([tenantId, name])
   @@unique([tenantId, id])
@@ -487,6 +500,8 @@ model Trip {
   roleId   String?   @db.Uuid
 
   crew TripCrew[]
+
+  events TripEvent[]
 
   @@unique([scheduleId, serviceDate]) // a schedule yields at most one trip per service date
   @@unique([tenantId, id])
@@ -636,4 +651,106 @@ model VehicleDocument {
   @@index([tenantId, expiresOn])
   @@index([tenantId, vehicleId])
   @@map("vehicle_documents")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 4 slice C: service calendars, seat layouts, trip event timeline, transactional outbox.
+// ---------------------------------------------------------------------------------------------
+
+enum TripEventKind {
+  STATUS_CHANGED
+  DELAY_SET
+  VEHICLE_ASSIGNED
+  VEHICLE_REPLACED
+  CREW_ASSIGNED
+  CREW_RELEASED
+  NOTE
+}
+
+/// Dates on which no trips run: company-wide (route_id null) or for one route.
+model ServiceBlackout {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  routeId   String?  @map("route_id") @db.Uuid
+  startsOn  DateTime @map("starts_on") @db.Date
+  endsOn    DateTime @map("ends_on") @db.Date
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route  Route? @relation(fields: [tenantId, routeId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, startsOn, endsOn])
+  @@map("service_blackouts")
+}
+
+model SeatLayout {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seats    SeatLayoutSeat[]
+  vehicles Vehicle[]
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, id])
+  @@map("seat_layouts")
+}
+
+model SeatLayoutSeat {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  layoutId   String  @map("layout_id") @db.Uuid
+  label      String // e.g. "3C"
+  rowNo      Int     @map("row_no")
+  colNo      Int     @map("col_no")
+  accessible Boolean @default(false)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  layout SeatLayout @relation(fields: [tenantId, layoutId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([layoutId, label])
+  @@index([tenantId, layoutId])
+  @@map("seat_layout_seats")
+}
+
+/// Append-only operational timeline for a trip (status, delays, vehicle and crew changes).
+model TripEvent {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  tripId      String        @map("trip_id") @db.Uuid
+  kind        TripEventKind
+  details     Json          @default("{}")
+  actorUserId String?       @map("actor_user_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip   Trip   @relation(fields: [tenantId, tripId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, tripId, createdAt])
+  @@map("trip_events")
+}
+
+/// Transactional outbox: rows are written in the same transaction as the change that caused them,
+/// then processed asynchronously (retries with backoff; dead-lettered after repeated failure).
+model OutboxEvent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  type        String
+  payload     Json      @default("{}")
+  dedupeKey   String?   @map("dedupe_key")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  failedAt    DateTime? @map("failed_at") @db.Timestamptz(6) // dead-lettered: needs an operator
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([processedAt, failedAt, availableAt])
+  @@map("outbox_events")
 }

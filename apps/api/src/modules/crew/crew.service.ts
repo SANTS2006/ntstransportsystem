@@ -1,4 +1,5 @@
 import { withDb, type Db, type Tx } from '../../platform/db.js';
+import { recordTripEvent } from '../catalog/trip-events.js';
 import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
@@ -326,6 +327,7 @@ export class CrewService {
               },
             ],
           });
+          await recordTripEvent(tx, s, tripId, 'CREW_ASSIGNED', { employeeId, role });
           await this.audit(tx, s, 'trips.crew_assigned', 'trip', tripId, requestId, { role });
         }),
       { exclusion: OVERLAP_MSG, unique: 'This person is already assigned to this trip' },
@@ -343,6 +345,7 @@ export class CrewService {
         data: { releasedAt: new Date() },
       });
       if (res.count !== 1) throw AppError.notFound();
+      await recordTripEvent(tx, s, tripId, 'CREW_RELEASED', { employeeId });
       await this.audit(tx, s, 'trips.crew_released', 'trip', tripId, requestId);
     });
   }

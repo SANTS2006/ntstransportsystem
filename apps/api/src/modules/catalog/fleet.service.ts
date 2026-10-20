@@ -1,4 +1,4 @@
-import { withDb, type Db } from '../../platform/db.js';
+import { withDb, type Db, type Tx } from '../../platform/db.js';
 import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
@@ -17,6 +17,7 @@ export interface VehicleInput {
   year?: number | undefined;
   seatingCapacity: number;
   odometerKm?: number | undefined;
+  seatLayoutId?: string | undefined;
 }
 export interface VehiclePatch {
   label?: string | undefined;
@@ -27,10 +28,25 @@ export interface VehiclePatch {
   seatingCapacity?: number | undefined;
   odometerKm?: number | undefined;
   status?: VehicleStatus | undefined;
+  seatLayoutId?: string | undefined;
 }
 
 export const normalizeRegistration = (r: string) => r.trim().toUpperCase();
 const ctxOf = (s: TenantScope) => ({ tenantId: s.tenantId, userId: s.userId });
+
+/** A vehicle linked to a seat layout must have exactly as many seats as the layout. */
+async function assertLayoutMatches(tx: Tx, tenantId: string, layoutId: string, seats: number) {
+  const layout = await tx.seatLayout.findFirst({
+    where: { id: layoutId, tenantId },
+    include: { _count: { select: { seats: true } } },
+  });
+  if (!layout) throw AppError.validation('Seat layout not found');
+  if (layout._count.seats !== seats) {
+    throw AppError.conflict(
+      `The seat layout has ${layout._count.seats} seats but the vehicle has ${seats}`,
+    );
+  }
+}
 
 export class FleetService {
   constructor(private readonly db: Db) {}
@@ -66,6 +82,9 @@ export class FleetService {
     return mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {
+          if (input.seatLayoutId) {
+            await assertLayoutMatches(tx, s.tenantId, input.seatLayoutId, input.seatingCapacity);
+          }
           const v = await tx.vehicle.create({
             data: {
               tenantId: s.tenantId,
@@ -77,6 +96,7 @@ export class FleetService {
               year: input.year ?? null,
               seatingCapacity: input.seatingCapacity,
               odometerKm: input.odometerKm ?? 0,
+              seatLayoutId: input.seatLayoutId ?? null,
             },
           });
           await writeAudit(tx, {
@@ -127,6 +147,18 @@ export class FleetService {
                 `This vehicle is assigned to ${upcoming} upcoming trip(s). Reassign them first.`,
               );
             }
+          }
+          const layoutId = patch.seatLayoutId ?? v.seatLayoutId;
+          if (
+            layoutId &&
+            (patch.seatLayoutId !== undefined || patch.seatingCapacity !== undefined)
+          ) {
+            await assertLayoutMatches(
+              tx,
+              s.tenantId,
+              layoutId,
+              patch.seatingCapacity ?? v.seatingCapacity,
+            );
           }
           const data = Object.fromEntries(
             Object.entries(patch).filter(([, val]) => val !== undefined),

@@ -87,5 +87,15 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [x] Browser-tested (real API, test branch): staff + licence, crew panel (licence refusal shown beside Assign; assignment succeeds), maintenance lifecycle (overdue alert, start, complete with odometer/cost, alert clears), document-expiry alert. Fixed: crew picker no longer offers people already on the trip. Web: 26 tests.
 - [x] OpenAPI 3.1 generated from the live route registry (platform/router.ts) + operations table + the exact validation schemas; drift test fails on undocumented routes or phantom operations; validated with swagger-parser; optional operations (Google, MFA, docs) omitted when unconfigured (a production 500 caught and fixed). Served at /api/v1/openapi.json and /api/v1/docs (default off in production). 87 operations; API unit tests 52. Gap: success response bodies are generic objects.
 - [~] CI (.github/workflows/ci.yml, dependabot, docs/CI.md): YAML parses and commands verified locally, **never executed on GitHub** (no remote). npm audit (prod) = 0 vulnerabilities.
-- [ ] Remaining Phase 4: service calendars/blackout dates, seat layouts, route/vehicle compatibility, replacement vehicles + delay notifications, dispatch board, employee documents/leave/shifts.
+- [ ] Deferred from Phase 4: employee documents, leave, shifts.
 - [ ] Still unbuilt overall: bookings/seat inventory (Phase 5), Monime payments, tickets/QR/PDF, recruitment, complaints, boarding validation, reports, maintenance mode, backups/R2, Cloudinary, notifications queue (outbox/BullMQ), real Brevo/Redis/Google verification.
+
+## Phase 4 slice C: dispatch, calendar, layouts, outbox (2026-10-20)
+- [x] Service calendar: company-wide or per-route blackouts; trip generation skips them and reports the skipped dates; adding a blackout reports open trips affected and cancels nothing.
+- [x] Seat layouts (rows x columns grid, accessible seats); a vehicle linked to a layout must have exactly that many seats (also enforced when capacity changes).
+- [x] Route/vehicle compatibility (allowed types, minimum seats) enforced for schedule default vehicle, trip assignment, generation (incompatible default left unassigned) and replacement.
+- [x] Replace vehicle on open or in-transit trips: reason, optional take-old-out-of-service, overlap enforced by the database; append-only trip timeline (status, delay, vehicle, crew events).
+- [x] Dispatch board per service date with attention flags (no vehicle, no driver, delayed, vehicle document expired).
+- [x] Transactional outbox + OutboxProcessor (SKIP LOCKED, lease, backoff+jitter, dead-letter, claims only handled types); trip.delayed / trip.cancelled / trip.vehicle_replaced are enqueued with dedupe keys. **No consumer exists yet: passengers are not actually notified until bookings (Phase 5) provide recipients.**
+- [x] OpenAPI entries for every new route (drift test passes); web: Dispatch, Calendar, Seat layouts pages, route rules and layout select on forms.
+- [x] Verified: api typecheck/lint, 52 unit tests, web 26 tests + build. DB suite test/dispatch.test.ts: 13 tests pass, but only when run in groups (a single full run hit 503 transaction timeouts from the slow Neon link; the blackout test needs a 400 s timeout). **Browser check of the new pages not yet done.**

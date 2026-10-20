@@ -3,7 +3,10 @@ import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
+import { enqueueOutbox } from '../../platform/outbox.js';
 import type { Page } from './catalog.service.js';
+import { assertVehicleCompatible } from './compat.js';
+import { recordTripEvent } from './trip-events.js';
 import { eachDate, weekdayBit, zonedTimeToUtc } from './time.js';
 
 type TripStatus = 'SCHEDULED' | 'BOARDING' | 'IN_TRANSIT' | 'COMPLETED' | 'CANCELLED';
@@ -107,6 +110,10 @@ export class ScheduleService {
             if (!v) throw AppError.validation('Vehicle not found');
             if (v.status !== 'ACTIVE')
               throw AppError.conflict('The default vehicle is not in service');
+            assertVehicleCompatible(
+              { allowedVehicleTypes: route.allowedVehicleTypes, minSeats: route.minSeats },
+              v,
+            );
           }
           const sch = await tx.schedule.create({
             data: {
@@ -186,7 +193,12 @@ export class ScheduleService {
             const validTo = schedule.validTo ? isoDate(schedule.validTo) : null;
             const hi = validTo && validTo < to ? validTo : to;
             if (lo > hi)
-              return { created: 0, skippedExisting: 0, unassignedVehicle: [] as string[] };
+              return {
+                created: 0,
+                skippedExisting: 0,
+                skippedBlackout: [] as string[],
+                unassignedVehicle: [] as string[],
+              };
             let dates: string[];
             try {
               dates = eachDate(lo, hi, MAX_GENERATE_DAYS);
@@ -194,6 +206,21 @@ export class ScheduleService {
               throw AppError.validation(`Generate at most ${MAX_GENERATE_DAYS} days at a time`);
             }
             dates = dates.filter((d) => (weekdayBit(d) & schedule.daysOfWeek) !== 0);
+
+            // Service calendar: company-wide blackouts and ones for this route.
+            const blackouts = await tx.serviceBlackout.findMany({
+              where: {
+                tenantId: s.tenantId,
+                OR: [{ routeId: null }, { routeId: schedule.routeId }],
+                startsOn: { lte: dateOnly(hi) },
+                endsOn: { gte: dateOnly(lo) },
+              },
+              select: { startsOn: true, endsOn: true },
+            });
+            const inBlackout = (d: string) =>
+              blackouts.some((b) => d >= isoDate(b.startsOn) && d <= isoDate(b.endsOn));
+            const skippedBlackout = dates.filter(inBlackout);
+            dates = dates.filter((d) => !inBlackout(d));
 
             const existing = await tx.trip.findMany({
               where: { scheduleId, serviceDate: { in: dates.map(dateOnly) } },
@@ -212,11 +239,26 @@ export class ScheduleService {
                 };
               });
 
-            const vehicle =
+            let vehicle =
               schedule.defaultVehicle && schedule.defaultVehicle.status === 'ACTIVE'
                 ? schedule.defaultVehicle
                 : null;
-            const unassigned: string[] = [];
+            let incompatible = false;
+            if (vehicle) {
+              try {
+                assertVehicleCompatible(
+                  {
+                    allowedVehicleTypes: schedule.route.allowedVehicleTypes,
+                    minSeats: schedule.route.minSeats,
+                  },
+                  vehicle,
+                );
+              } catch {
+                vehicle = null; // e.g. the vehicle was changed after the schedule was created
+                incompatible = true;
+              }
+            }
+            const unassigned: string[] = incompatible ? planned.map((p) => p.date) : [];
             const assigned = new Set<string>();
             if (vehicle && planned.length > 0) {
               const first = planned[0]!.dep;
@@ -261,11 +303,13 @@ export class ScheduleService {
             await this.audit(tx, s, 'trips.generated', 'schedule', scheduleId, requestId, {
               created: planned.length,
               skipped: have.size,
+              blackout: skippedBlackout.length,
               unassigned: unassigned.length,
             });
             return {
               created: planned.length,
               skippedExisting: have.size,
+              skippedBlackout,
               unassignedVehicle: unassigned,
             };
           },
@@ -346,8 +390,19 @@ export class ScheduleService {
             });
             if (!v) throw AppError.validation('Vehicle not found');
             if (v.status !== 'ACTIVE') throw AppError.conflict('That vehicle is not in service');
+            const route = await tx.route.findFirstOrThrow({
+              where: { id: trip.routeId, tenantId: s.tenantId },
+            });
+            assertVehicleCompatible(
+              { allowedVehicleTypes: route.allowedVehicleTypes, minSeats: route.minSeats },
+              v,
+            );
           }
           await tx.trip.update({ where: { id: tripId }, data: { vehicleId } });
+          await recordTripEvent(tx, s, tripId, 'VEHICLE_ASSIGNED', {
+            from: trip.vehicleId,
+            to: vehicleId,
+          });
           await this.audit(tx, s, 'trips.vehicle_assigned', 'trip', tripId, requestId, {
             vehicle: vehicleId,
           });
@@ -378,6 +433,15 @@ export class ScheduleService {
           data: { releasedAt: new Date() },
         });
       }
+      await recordTripEvent(tx, s, tripId, 'STATUS_CHANGED', { from: trip.status, to: status });
+      if (status === 'CANCELLED') {
+        await enqueueOutbox(tx, {
+          tenantId: s.tenantId,
+          type: 'trip.cancelled',
+          payload: { tripId },
+          dedupeKey: `trip.cancelled:${tripId}`,
+        });
+      }
       await this.audit(tx, s, `trips.${status.toLowerCase()}`, 'trip', tripId, requestId, {
         from: trip.status,
       });
@@ -391,7 +455,98 @@ export class ScheduleService {
       if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED')
         throw AppError.conflict('This trip can no longer be changed');
       await tx.trip.update({ where: { id: tripId }, data: { delayMinutes } });
+      await recordTripEvent(tx, s, tripId, 'DELAY_SET', {
+        from: trip.delayMinutes,
+        to: delayMinutes,
+      });
+      // Passengers are told through the outbox (consumed once bookings exist).
+      if (delayMinutes !== trip.delayMinutes) {
+        await enqueueOutbox(tx, {
+          tenantId: s.tenantId,
+          type: 'trip.delayed',
+          payload: { tripId, delayMinutes },
+          dedupeKey: `trip.delayed:${tripId}:${delayMinutes}`,
+        });
+      }
       await this.audit(tx, s, 'trips.delay_set', 'trip', tripId, requestId, { delayMinutes });
     });
+  }
+
+  /**
+   * Breakdown / swap: put a different vehicle on a trip that is still open (including one already
+   * on the road). Records the reason on the trip timeline, optionally takes the old vehicle out of
+   * service, and queues a passenger notice. Overlap is enforced by the database.
+   */
+  async replaceVehicle(
+    s: TenantScope,
+    tripId: string,
+    newVehicleId: string,
+    reason: string,
+    markOldOutOfService: boolean,
+    requestId?: string,
+  ) {
+    return mapDbErrors(
+      () =>
+        withDb(this.db, ctxOf(s), async (tx) => {
+          const trip = await tx.trip.findFirst({ where: { id: tripId, tenantId: s.tenantId } });
+          if (!trip) throw AppError.notFound();
+          if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED') {
+            throw AppError.conflict('This trip can no longer be changed');
+          }
+          if (trip.vehicleId === newVehicleId)
+            throw AppError.conflict('That vehicle is already on this trip');
+          const v = await tx.vehicle.findFirst({
+            where: { id: newVehicleId, tenantId: s.tenantId },
+          });
+          if (!v) throw AppError.validation('Vehicle not found');
+          if (v.status !== 'ACTIVE') throw AppError.conflict('That vehicle is not in service');
+          const route = await tx.route.findFirstOrThrow({
+            where: { id: trip.routeId, tenantId: s.tenantId },
+          });
+          assertVehicleCompatible(
+            { allowedVehicleTypes: route.allowedVehicleTypes, minSeats: route.minSeats },
+            v,
+          );
+
+          const old = trip.vehicleId
+            ? await tx.vehicle.findFirst({ where: { id: trip.vehicleId, tenantId: s.tenantId } })
+            : null;
+          await tx.trip.update({ where: { id: tripId }, data: { vehicleId: newVehicleId } });
+
+          let oldVehicleOtherTrips = 0;
+          if (old && markOldOutOfService && old.status === 'ACTIVE') {
+            await tx.vehicle.update({ where: { id: old.id }, data: { status: 'MAINTENANCE' } });
+            oldVehicleOtherTrips = await tx.trip.count({
+              where: {
+                tenantId: s.tenantId,
+                vehicleId: old.id,
+                id: { not: tripId },
+                status: { in: ['SCHEDULED', 'BOARDING'] },
+                departureAt: { gt: new Date() },
+              },
+            });
+          }
+          await recordTripEvent(tx, s, tripId, 'VEHICLE_REPLACED', {
+            from: old?.registration ?? null,
+            to: v.registration,
+            reason: reason.slice(0, 300),
+            oldVehicleOutOfService: markOldOutOfService && old?.status === 'ACTIVE',
+          });
+          await enqueueOutbox(tx, {
+            tenantId: s.tenantId,
+            type: 'trip.vehicle_replaced',
+            payload: { tripId, from: old?.registration ?? null, to: v.registration },
+            dedupeKey: `trip.vehicle_replaced:${tripId}:${newVehicleId}`,
+          });
+          await this.audit(tx, s, 'trips.vehicle_replaced', 'trip', tripId, requestId, {
+            to: v.registration,
+          });
+          return {
+            capacityReduced: old ? v.seatingCapacity < old.seatingCapacity : false,
+            oldVehicleOtherTrips,
+          };
+        }),
+      { exclusion: EXCLUSION_MSG },
+    );
   }
 }

@@ -48,6 +48,8 @@ const locationCreate = locationBase
   );
 const locationPatch = locationBase.partial().strict();
 
+const vehicleTypeEnum = z.enum(['BUS', 'MINIBUS', 'SHARED_TAXI', 'TAXI', 'SHUTTLE', 'OTHER']);
+
 const routeBase = z.object({
   name: trim.min(2).max(120),
   originId: uuid,
@@ -57,6 +59,8 @@ const routeBase = z.object({
   stops: z
     .array(z.object({ locationId: uuid, offsetMin: z.number().int().min(1).max(2_880) }).strict())
     .max(40),
+  allowedVehicleTypes: z.array(vehicleTypeEnum).max(6).optional(),
+  minSeats: z.number().int().min(1).max(200).optional(),
 });
 const routeCreate = routeBase.strict();
 const routePatch = routeBase.partial().strict();
@@ -70,6 +74,7 @@ const vehicleBase = z.object({
   year: z.number().int().min(1950).max(2100).optional(),
   seatingCapacity: z.number().int().min(1).max(200),
   odometerKm: z.number().int().min(0).max(10_000_000).optional(),
+  seatLayoutId: uuid.optional(),
 });
 const vehicleCreate = vehicleBase.strict();
 const vehiclePatch = vehicleBase
@@ -94,6 +99,13 @@ const generateBody = z.object({ from: dateStr, to: dateStr }).strict();
 const assignBody = z.object({ vehicleId: uuid.nullable() }).strict();
 const statusBody = z
   .object({ status: z.enum(['BOARDING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED']) })
+  .strict();
+const replaceBody = z
+  .object({
+    vehicleId: uuid,
+    reason: trim.min(2).max(300),
+    markOldOutOfService: z.boolean().default(false),
+  })
   .strict();
 const delayBody = z.object({ delayMinutes: z.number().int().min(0).max(1_440) }).strict();
 
@@ -276,6 +288,20 @@ export function catalogRouter({ db, catalog, fleet, schedules }: CatalogRouterDe
     res.status(204).end();
   });
 
+  t.post('/trips/:id/replace-vehicle', perm('trip.manage'), async (req, res) => {
+    const b = replaceBody.parse(req.body);
+    res.json(
+      await schedules.replaceVehicle(
+        scope(req),
+        uuidParam(req, 'id'),
+        b.vehicleId,
+        b.reason,
+        b.markOldOutOfService,
+        req.id,
+      ),
+    );
+  });
+
   const r = Router();
   r.use('/tenants/:tenantId', t);
   return r;
@@ -297,4 +323,5 @@ export const requestSchemas = {
   assignBody,
   statusBody,
   delayBody,
+  replaceBody,
 };

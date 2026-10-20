@@ -9,6 +9,7 @@ import {
   tokenSchema,
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
+import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
 import { requestSchemas as tenant } from '../modules/tenants/tenant.routes.js';
@@ -756,6 +757,86 @@ export const operations: Record<string, Operation> = {
     access: T,
     permission: 'trip.manage',
     body: catalog.delayBody,
+    ok: 204,
+  },
+
+  'POST /api/v1/tenants/{tenantId}/trips/{id}/replace-vehicle': {
+    summary: 'Replace the vehicle on an open trip (breakdown or swap)',
+    description:
+      'Records the reason on the trip timeline, can take the old vehicle out of service and queues a passenger notice. Overlaps and route compatibility are enforced.',
+    tag: 'Trips',
+    access: T,
+    permission: 'trip.manage',
+    body: catalog.replaceBody,
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/trips/{id}/events': {
+    summary: "A trip's operational timeline",
+    tag: 'Trips',
+    access: T,
+    permission: 'trip.read',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/dispatch/board': {
+    summary: "The dispatcher's board for one service date, with items needing attention",
+    tag: 'Dispatch',
+    access: T,
+    permission: 'trip.read',
+    query: [date('date', 'Service date (YYYY-MM-DD)')],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/calendar/blackouts': {
+    summary: 'List service blackouts',
+    tag: 'Dispatch',
+    access: T,
+    permission: 'route.read',
+    query: [date('from', 'Range start'), date('to', 'Range end')],
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/calendar/blackouts': {
+    summary: 'Add a service blackout (company-wide or for one route)',
+    description:
+      'Reports how many open trips fall inside the range; none are cancelled automatically.',
+    tag: 'Dispatch',
+    access: T,
+    permission: 'route.manage',
+    body: dispatch.blackoutCreate,
+    ok: 201,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/calendar/blackouts/{id}': {
+    summary: 'Remove a service blackout',
+    tag: 'Dispatch',
+    access: T,
+    permission: 'route.manage',
+    ok: 204,
+  },
+  'GET /api/v1/tenants/{tenantId}/seat-layouts': {
+    summary: 'List seat layouts',
+    tag: 'Fleet',
+    access: T,
+    permission: 'fleet.read',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/seat-layouts': {
+    summary: 'Create a seat layout (rows x columns grid)',
+    tag: 'Fleet',
+    access: T,
+    permission: 'fleet.manage',
+    body: dispatch.seatLayoutCreate,
+    ok: 201,
+  },
+  'GET /api/v1/tenants/{tenantId}/seat-layouts/{id}': {
+    summary: 'Get a seat layout with its seats',
+    tag: 'Fleet',
+    access: T,
+    permission: 'fleet.read',
+    ok: 200,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/seat-layouts/{id}': {
+    summary: 'Delete an unused seat layout',
+    tag: 'Fleet',
+    access: T,
+    permission: 'fleet.manage',
     ok: 204,
   },
 

@@ -1,0 +1,483 @@
+// Phase 2 schema: identity, sessions, tenants, memberships, RBAC, audit.
+// Tenant-owned tables carry tenant_id; RLS policies and composite FKs live in the SQL migration.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum AuthProvider {
+  GOOGLE
+}
+
+enum OneTimeTokenPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  MFA_CHALLENGE
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  OPERATIONS
+  FINANCE
+  SUPPORT
+  SECURITY_AUDIT
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  REVOKED
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
+model User {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String     @unique // stored lower-cased and trimmed by the application
+  emailVerifiedAt  DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash     String?    @map("password_hash")
+  displayName      String     @map("display_name")
+  status           UserStatus @default(ACTIVE)
+  failedLoginCount Int        @default(0) @map("failed_login_count")
+  lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(6)
+  mfaEnabled       Boolean    @default(false) @map("mfa_enabled")
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  identities    AuthIdentity[]
+  sessions      Session[]
+  tokens        OneTimeToken[]
+  memberships   Membership[]
+  platformRoles PlatformRoleAssignment[]
+  mfa           MfaCredential?
+  recoveryCodes RecoveryCode[]
+
+  @@map("users")
+}
+
+model AuthIdentity {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  provider  AuthProvider
+  subject   String // verified provider subject, never a client-supplied profile
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@index([userId])
+  @@map("auth_identities")
+}
+
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  familyId         String    @map("family_id") @db.Uuid // refresh-token rotation family, for reuse detection
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("sessions")
+}
+
+model OneTimeToken {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  purpose   OneTimeTokenPurpose
+  tokenHash String              @unique @map("token_hash") // only the hash is stored
+  expiresAt DateTime            @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime?           @map("used_at") @db.Timestamptz(6)
+  attempts  Int                 @default(0)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("one_time_tokens")
+}
+
+/// Platform-wide privilege. Deliberately separate from tenant memberships.
+model PlatformRoleAssignment {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  role      PlatformRole
+  grantedBy String?      @map("granted_by") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("platform_role_assignments")
+}
+
+model Tenant {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  slug            String       @unique
+  status          TenantStatus @default(PENDING)
+  timezone        String       @default("UTC")
+  defaultCurrency String       @default("SLE") @map("default_currency")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  roles       Role[]
+  memberships Membership[]
+  invitations Invitation[]
+  locations   Location[]
+  vehicles    Vehicle[]
+  routes      Route[]
+  routeStops  RouteStop[]
+  schedules   Schedule[]
+  trips       Trip[]
+
+  @@map("tenants")
+}
+
+model Role {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  key       String
+  name      String
+  isSystem  Boolean  @default(false) @map("is_system") // immutable safety roles (e.g. owner)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  memberships Membership[]
+  invitations Invitation[]
+  locations   Location[]
+  vehicles    Vehicle[]
+  routes      Route[]
+  routeStops  RouteStop[]
+  schedules   Schedule[]
+  trips       Trip[]
+
+  @@unique([tenantId, key])
+  @@unique([tenantId, id]) // target of composite FKs
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId     String @map("role_id") @db.Uuid
+  permission String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permission])
+  @@map("role_permissions")
+}
+
+model Membership {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String           @map("tenant_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  roleId    String           @map("role_id") @db.Uuid
+  status    MembershipStatus @default(INVITED)
+  invitedBy String?          @map("invited_by") @db.Uuid
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Composite FK: the role must belong to the same tenant as the membership.
+  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id])
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+/// Append-only (enforced by trigger in the migration). tenant_id is null for platform-scope events.
+model AuditLog {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String?      @map("tenant_id") @db.Uuid
+  actorUserId String?      @map("actor_user_id") @db.Uuid
+  action      String
+  targetType  String?      @map("target_type")
+  targetId    String?      @map("target_id")
+  outcome     AuditOutcome
+  requestId   String?      @map("request_id")
+  summary     Json?
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+/// TOTP secret, AES-256-GCM encrypted at rest (key from MFA_ENCRYPTION_KEY, never stored in the DB).
+model MfaCredential {
+  userId       String    @id @map("user_id") @db.Uuid
+  secretEnc    String    @map("secret_enc")
+  confirmedAt  DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  lastUsedStep BigInt?   @map("last_used_step") // TOTP time-step of last accepted code; blocks replay
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_credentials")
+}
+
+model RecoveryCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@map("recovery_codes")
+}
+
+/// Scoped, single-use, expiring invitation to join a tenant with a specific role.
+/// Only sha256(token) is stored. The accepting account's verified email must match `email`.
+model Invitation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  email      String
+  roleId     String    @map("role_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  invitedBy  String?   @map("invited_by") @db.Uuid
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id])
+
+  @@index([tenantId, email])
+  @@map("invitations")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 4: transport catalog and fleet. Every table is tenant-scoped (RLS in the SQL migration)
+// and every cross-table reference is a composite (tenant_id, id) FK, so a row can never point
+// at a record that belongs to a different tenant.
+// ---------------------------------------------------------------------------------------------
+
+enum LocationKind {
+  TERMINAL
+  STATION
+  STOP
+  DEPOT
+}
+
+enum VehicleType {
+  BUS
+  MINIBUS
+  SHARED_TAXI
+  TAXI
+  SHUTTLE
+  OTHER
+}
+
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+enum RouteStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum TripStatus {
+  SCHEDULED
+  BOARDING
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model Location {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  name      String
+  kind      LocationKind @default(TERMINAL)
+  city      String
+  address   String?
+  latitude  Decimal?     @db.Decimal(9, 6)
+  longitude Decimal?     @db.Decimal(9, 6)
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  originOf      Route[]     @relation("RouteOrigin")
+  destinationOf Route[]     @relation("RouteDestination")
+  stops         RouteStop[]
+  role          Role?       @relation(fields: [roleId], references: [id])
+  roleId        String?     @db.Uuid
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, id])
+  @@map("locations")
+}
+
+model Vehicle {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  registration    String // upper-cased and trimmed by the application; unique per tenant
+  label           String?
+  type            VehicleType   @default(BUS)
+  make            String?
+  model           String?
+  year            Int?
+  seatingCapacity Int           @map("seating_capacity")
+  status          VehicleStatus @default(ACTIVE)
+  odometerKm      Int           @default(0) @map("odometer_km")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trips     Trip[]
+  schedules Schedule[]
+  role      Role?      @relation(fields: [roleId], references: [id])
+  roleId    String?    @db.Uuid
+
+  @@unique([tenantId, registration])
+  @@unique([tenantId, id])
+  @@map("vehicles")
+}
+
+model Route {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  name          String
+  originId      String      @map("origin_id") @db.Uuid
+  destinationId String      @map("destination_id") @db.Uuid
+  distanceM     Int         @map("distance_m")
+  durationMin   Int         @map("duration_min")
+  status        RouteStatus @default(DRAFT)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  origin      Location    @relation("RouteOrigin", fields: [tenantId, originId], references: [tenantId, id])
+  destination Location    @relation("RouteDestination", fields: [tenantId, destinationId], references: [tenantId, id])
+  stops       RouteStop[]
+  schedules   Schedule[]
+  trips       Trip[]
+  role        Role?       @relation(fields: [roleId], references: [id])
+  roleId      String?     @db.Uuid
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, id])
+  @@map("routes")
+}
+
+model RouteStop {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  routeId    String   @map("route_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  sequence   Int // 1-based order along the route (intermediate stops only)
+  offsetMin  Int      @map("offset_min") // minutes after departure at which the vehicle reaches this stop
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route    Route    @relation(fields: [tenantId, routeId], references: [tenantId, id], onDelete: Cascade)
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  role     Role?    @relation(fields: [roleId], references: [id])
+  roleId   String?  @db.Uuid
+
+  @@unique([routeId, sequence])
+  @@unique([routeId, locationId])
+  @@map("route_stops")
+}
+
+model Schedule {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  routeId          String         @map("route_id") @db.Uuid
+  departureTime    String         @map("departure_time") // local wall-clock "HH:MM" in the tenant timezone
+  daysOfWeek       Int            @map("days_of_week") // bitmask: Mon=1 Tue=2 Wed=4 Thu=8 Fri=16 Sat=32 Sun=64
+  validFrom        DateTime       @map("valid_from") @db.Date
+  validTo          DateTime?      @map("valid_to") @db.Date
+  defaultVehicleId String?        @map("default_vehicle_id") @db.Uuid
+  serviceClass     String?        @map("service_class")
+  status           ScheduleStatus @default(ACTIVE)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route          Route    @relation(fields: [tenantId, routeId], references: [tenantId, id])
+  defaultVehicle Vehicle? @relation(fields: [tenantId, defaultVehicleId], references: [tenantId, id])
+  trips          Trip[]
+  role           Role?    @relation(fields: [roleId], references: [id])
+  roleId         String?  @db.Uuid
+
+  @@unique([tenantId, id])
+  @@index([tenantId, routeId])
+  @@map("schedules")
+}
+
+model Trip {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  scheduleId   String?    @map("schedule_id") @db.Uuid
+  routeId      String     @map("route_id") @db.Uuid
+  serviceDate  DateTime   @map("service_date") @db.Date // the local calendar date of departure
+  departureAt  DateTime   @map("departure_at") @db.Timestamptz(6)
+  arrivalAt    DateTime   @map("arrival_at") @db.Timestamptz(6)
+  vehicleId    String?    @map("vehicle_id") @db.Uuid
+  status       TripStatus @default(SCHEDULED)
+  delayMinutes Int        @default(0) @map("delay_minutes")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route    Route     @relation(fields: [tenantId, routeId], references: [tenantId, id])
+  schedule Schedule? @relation(fields: [tenantId, scheduleId], references: [tenantId, id])
+  vehicle  Vehicle?  @relation(fields: [tenantId, vehicleId], references: [tenantId, id])
+  role     Role?     @relation(fields: [roleId], references: [id])
+  roleId   String?   @db.Uuid
+
+  @@unique([scheduleId, serviceDate]) // a schedule yields at most one trip per service date
+  @@unique([tenantId, id])
+  @@index([tenantId, departureAt])
+  @@map("trips")
+}

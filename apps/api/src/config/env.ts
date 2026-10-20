@@ -1,0 +1,103 @@
+import { z } from 'zod';
+
+const bool = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((v) => v === 'true');
+
+const baseSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  APP_URL: z.url().default('http://localhost:5173'),
+  API_URL: z.url().default('http://localhost:4000'),
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:5173')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  // Neon: pooled URL for the app, direct URL for migrations.
+  DATABASE_URL: z.string().min(1).optional(),
+  DIRECT_DATABASE_URL: z.string().min(1).optional(),
+  REDIS_URL: z.string().min(1).optional(),
+  SESSION_SECRET: z.string().min(32).optional(),
+  PAYMENTS_SANDBOX: bool,
+  // Multiplies auth rate limits. Exists so test suites that create many users are not throttled;
+  // must be 1 in production (enforced below).
+  RATE_LIMIT_SCALE: z.coerce.number().int().min(1).max(1000).default(1),
+  // Brevo transactional email. The sender address must be verified in Brevo.
+  BREVO_API_KEY: z.string().min(10).optional(),
+  MAIL_FROM_EMAIL: z.email().optional(),
+  MAIL_FROM_NAME: z.string().min(1).max(80).default('NTS Transport'),
+  // Google Identity Services web client ID. Google sign-in is disabled when unset.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  // 32 random bytes, base64. Encrypts TOTP seeds at rest. Generate: openssl rand -base64 32
+  MFA_ENCRYPTION_KEY: z
+    .string()
+    .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64-encoded')
+    .optional(),
+});
+
+export const envSchema = baseSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV !== 'production') return;
+  const required = [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'SESSION_SECRET',
+    'MFA_ENCRYPTION_KEY',
+    'BREVO_API_KEY',
+    'MAIL_FROM_EMAIL',
+  ] as const;
+  for (const key of required) {
+    if (!env[key]) {
+      ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required in production` });
+    }
+  }
+  if (env.RATE_LIMIT_SCALE !== 1) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['RATE_LIMIT_SCALE'],
+      message: 'Rate limits must not be scaled in production',
+    });
+  }
+  if (env.PAYMENTS_SANDBOX) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['PAYMENTS_SANDBOX'],
+      message: 'Payment sandbox mode must not be enabled in production',
+    });
+  }
+  if (!env.APP_URL.startsWith('https://')) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['APP_URL'],
+      message: 'APP_URL must be https in production',
+    });
+  }
+  if (env.CORS_ORIGINS.includes('*')) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['CORS_ORIGINS'],
+      message: 'Wildcard CORS is not allowed',
+    });
+  }
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  // A blank value (e.g. `REDIS_URL=` copied from .env.example) means "not configured".
+  const present = Object.fromEntries(
+    Object.entries(source).filter(([, v]) => v !== undefined && v.trim() !== ''),
+  );
+  const parsed = envSchema.safeParse(present);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new Error(`Invalid environment configuration: ${details}`);
+  }
+  return parsed.data;
+}

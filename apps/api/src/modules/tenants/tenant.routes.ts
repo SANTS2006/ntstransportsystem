@@ -1,4 +1,6 @@
-import { Router, type Request } from 'express';
+import type { Request } from 'express';
+import type { Router as ExpressRouter } from 'express';
+import { Router } from '../../platform/router.js';
 import { z } from 'zod';
 import { AppError } from '../../platform/errors.js';
 import { requireAuth } from '../authentication/session.middleware.js';
@@ -43,6 +45,7 @@ const profileSchema = z
     name: z.string().trim().min(2).max(120).optional(),
     timezone: timezone.optional(),
     defaultCurrency: currency.optional(),
+    crewMinRestMinutes: z.number().int().min(0).max(1440).optional(),
   })
   .strict(); // unknown keys (e.g. status, slug) are rejected, not ignored
 const roleKey = z
@@ -81,7 +84,7 @@ export interface TenantRouterDeps {
   roles: RoleService;
 }
 
-export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps): Router {
+export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps): ExpressRouter {
   const r = Router();
   const scope = (req: Request): TenantScope => {
     if (!req.tenant) throw AppError.unauthenticated();
@@ -219,3 +222,14 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
   r.use('/tenants/:tenantId', t);
   return r;
 }
+
+/** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
+export const requestSchemas = {
+  applySchema,
+  profileSchema,
+  inviteSchema,
+  changeRoleSchema,
+  createRoleSchema,
+  setPermissionsSchema,
+  acceptSchema,
+};

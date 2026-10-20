@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+
+    # Throw-away PostgreSQL for migrations and database-backed tests. No Docker is needed locally;
+    # this is only the CI runner's service container.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-admin-only
+          POSTGRES_DB: nts_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Owner connection: runs migrations (as on Neon, the migrating role is not the app role).
+      DIRECT_DATABASE_URL: postgresql://postgres:ci-admin-only@localhost:5432/nts_ci
+      # Restricted application role, created below; tests connect as this role so row-level
+      # security is genuinely exercised (a superuser would bypass it).
+      TEST_DATABASE_URL: postgresql://nts_app:ci-app-only@localhost:5432/nts_ci
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install (lockfile only)
+        run: npm ci
+
+      - name: Formatting
+        run: npx prettier --check .
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Create the restricted application role
+        run: |
+          psql "$DIRECT_DATABASE_URL" <<'SQL'
+          CREATE ROLE nts_app LOGIN PASSWORD 'ci-app-only' NOSUPERUSER NOBYPASSRLS;
+          GRANT CONNECT ON DATABASE nts_ci TO nts_app;
+          SQL
+
+      - name: Apply migrations
+        run: npm run prisma:deploy -w @nts/api
+
+      - name: Schema matches migrations (no drift)
+        working-directory: apps/api
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
+      - name: Unit and database-backed tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Compiled API starts
+        working-directory: apps/api
+        env:
+          PORT: '4100'
+        run: |
+          node dist/server.js &
+          pid=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:4100/health/live >/dev/null; then ok=1; break; fi
+            sleep 1
+          done
+          kill $pid || true
+          test "${ok:-0}" = "1"
+
+      - name: Dependency audit (production, high or above)
+        run: npm audit --omit=dev --audit-level=high
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

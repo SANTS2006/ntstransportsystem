@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import type { Router as ExpressRouter } from 'express';
+import { Router } from '../../platform/router.js';
 
 export interface ReadinessCheck {
   name: string;
@@ -9,7 +10,7 @@ export interface ReadinessCheck {
  * Public health endpoints expose only up/down status, never internal detail.
  * /live: process is running. /ready: dependencies reachable.
  */
-export function healthRouter(checks: ReadinessCheck[]): Router {
+export function healthRouter(checks: ReadinessCheck[]): ExpressRouter {
   const router = Router();
 
   router.get('/live', (_req, res) => {

@@ -2,23 +2,24 @@
 
 All variables are read from a single `.env` at the repository root (never committed). Blank values count as unset. In production the API refuses to start if a required value is missing or unsafe.
 
-| Variable                           | Required in prod | Purpose                                                                                             |
-| ---------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                         | yes              | `development`, `test` or `production`                                                               |
-| `PORT`, `LOG_LEVEL`                | no               | HTTP port (default 4000), pino level                                                                |
-| `APP_URL`                          | yes (https)      | Public web URL, used in email links                                                                 |
-| `API_URL`                          | no               | Public API URL                                                                                      |
-| `CORS_ORIGINS`                     | yes              | Comma-separated allowlist; `*` is rejected in production                                            |
-| `DATABASE_URL`                     | yes              | **Pooled** Neon URL, connecting as the restricted `nts_app` role                                    |
-| `DIRECT_DATABASE_URL`              | for migrations   | **Direct** (non-pooled) Neon URL as the owner role. Add `&connect_timeout=120` on slow links        |
-| `TEST_DATABASE_URL`                | tests            | A separate Neon branch, as `nts_app`. Never production                                              |
-| `REDIS_URL`                        | yes              | Shared rate-limit counters (and future job queue)                                                   |
-| `SESSION_SECRET`                   | yes              | >= 32 chars                                                                                         |
-| `MFA_ENCRYPTION_KEY`               | yes              | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts TOTP seeds; keep it out of DB backups |
-| `BREVO_API_KEY`, `MAIL_FROM_EMAIL` | yes              | Brevo transactional email; the sender must be verified in Brevo. `MAIL_FROM_NAME` optional          |
-| `GOOGLE_CLIENT_ID`                 | no               | Enables Google sign-in on the API                                                                   |
-| `PAYMENTS_SANDBOX`                 | must be false    | Startup fails if true in production                                                                 |
-| `RATE_LIMIT_SCALE`                 | must be 1        | Test-only multiplier; startup fails in production if not 1                                          |
+| Variable                           | Required in prod | Purpose                                                                                                         |
+| ---------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                         | yes              | `development`, `test` or `production`                                                                           |
+| `PORT`, `LOG_LEVEL`                | no               | HTTP port (default 4000), pino level                                                                            |
+| `APP_URL`                          | yes (https)      | Public web URL, used in email links                                                                             |
+| `API_URL`                          | no               | Public API URL                                                                                                  |
+| `CORS_ORIGINS`                     | yes              | Comma-separated allowlist; `*` is rejected in production                                                        |
+| `DATABASE_URL`                     | yes              | **Pooled** Neon URL, connecting as the restricted `nts_app` role                                                |
+| `DIRECT_DATABASE_URL`              | for migrations   | **Direct** (non-pooled) Neon URL as the owner role. Add `&connect_timeout=120` on slow links                    |
+| `TEST_DATABASE_URL`                | tests            | A separate Neon branch, as `nts_app`. Never production                                                          |
+| `REDIS_URL`                        | yes              | Shared rate-limit counters (and future job queue)                                                               |
+| `SESSION_SECRET`                   | yes              | >= 32 chars                                                                                                     |
+| `MFA_ENCRYPTION_KEY`               | yes              | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts TOTP seeds; keep it out of DB backups             |
+| `BREVO_API_KEY`, `MAIL_FROM_EMAIL` | yes              | Brevo transactional email; the sender must be verified in Brevo. `MAIL_FROM_NAME` optional                      |
+| `GOOGLE_CLIENT_ID`                 | no               | Enables Google sign-in on the API                                                                               |
+| `API_DOCS_ENABLED`                 | no               | Serve `/api/v1/openapi.json` and `/api/v1/docs` (Swagger UI). Default: on outside production, off in production |
+| `PAYMENTS_SANDBOX`                 | must be false    | Startup fails if true in production                                                                             |
+| `RATE_LIMIT_SCALE`                 | must be 1        | Test-only multiplier; startup fails in production if not 1                                                      |
 
 Web (`apps/web`, Vite): `VITE_GOOGLE_CLIENT_ID` shows the Google button (same client ID as the API).
 

@@ -1,4 +1,6 @@
-import { Router, type Request } from 'express';
+import type { Request } from 'express';
+import type { Router as ExpressRouter } from 'express';
+import { Router } from '../../platform/router.js';
 import { z } from 'zod';
 import type { Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
@@ -16,7 +18,7 @@ const optionalReason = z.object({ reason: z.string().trim().max(300).optional() 
 /** Actions that must carry a recorded justification. */
 const REASON_REQUIRED: readonly TenantAction[] = ['reject', 'suspend', 'deactivate'];
 
-export function platformRouter(db: Db, tenants: TenantService): Router {
+export function platformRouter(db: Db, tenants: TenantService): ExpressRouter {
   const r = Router();
   // Lifecycle changes need OPERATIONS or SUPER_ADMIN; reads are open to support staff too.
   const readGuard = platformGuard(db, ['SUPER_ADMIN', 'OPERATIONS', 'SUPPORT']);
@@ -43,3 +45,6 @@ export function platformRouter(db: Db, tenants: TenantService): Router {
   }
   return r;
 }
+
+/** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
+export const requestSchemas = { reasonSchema, optionalReason };

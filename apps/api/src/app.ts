@@ -12,6 +12,9 @@ import {
   GoogleIdTokenVerifier,
   type GoogleVerifier,
 } from './modules/authentication/google.service.js';
+import { crewRouter } from './modules/crew/crew.routes.js';
+import { CrewService } from './modules/crew/crew.service.js';
+import { MaintenanceService } from './modules/crew/maintenance.service.js';
 import { catalogRouter } from './modules/catalog/catalog.routes.js';
 import { CatalogService } from './modules/catalog/catalog.service.js';
 import { FleetService } from './modules/catalog/fleet.service.js';
@@ -29,6 +32,8 @@ import type { Db } from './platform/db.js';
 import type { RateLimitStoreFactory } from './platform/redis.js';
 import { healthRouter, type ReadinessCheck } from './modules/health/health.routes.js';
 import { errorHandler, notFoundHandler, requestId } from './platform/http.js';
+import { mountApiDocs } from './openapi/docs.js';
+import { Router, routesOf, type RouteInfo } from './platform/router.js';
 
 export interface AppDeps {
   env: Env;
@@ -76,9 +81,10 @@ export function createApp({
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 
-  app.use('/health', healthRouter(readinessChecks));
+  const health = healthRouter(readinessChecks);
+  app.use('/health', health);
 
-  const v1 = express.Router();
+  const v1 = Router();
   v1.use(originGuard(env));
   if (db && mailer) {
     const box = env.MFA_ENCRYPTION_KEY ? new SecretBox(env.MFA_ENCRYPTION_KEY) : undefined;
@@ -108,9 +114,17 @@ export function createApp({
         schedules: new ScheduleService(db),
       }),
     );
+    v1.use(crewRouter({ db, crew: new CrewService(db), maintenance: new MaintenanceService(db) }));
   }
   // Further feature modules are mounted here phase by phase.
+  if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') mountApiDocs(app, v1);
   app.use('/api/v1', v1);
+  // Every registered route with its full path: the API documentation is generated from, and
+  // tested against, this table so the two cannot drift apart.
+  app.locals.routeTable = [
+    ...routesOf(health).map((r) => ({ ...r, path: `/health${r.path}` })),
+    ...routesOf(v1).map((r) => ({ ...r, path: `/api/v1${r.path}` })),
+  ] satisfies RouteInfo[];
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));

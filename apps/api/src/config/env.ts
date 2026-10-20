@@ -33,6 +33,11 @@ const baseSchema = z.object({
   BREVO_API_KEY: z.string().min(10).optional(),
   MAIL_FROM_EMAIL: z.email().optional(),
   MAIL_FROM_NAME: z.string().min(1).max(80).default('NTS Transport'),
+  // Serve /api/v1/openapi.json and /api/v1/docs. Defaults to on outside production, off in production.
+  API_DOCS_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
   // Google Identity Services web client ID. Google sign-in is disabled when unset.
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   // 32 random bytes, base64. Encrypts TOTP seeds at rest. Generate: openssl rand -base64 32

@@ -1,4 +1,6 @@
-import { Router, type Request, type Response } from 'express';
+import type { Request, Response } from 'express';
+import type { Router as ExpressRouter } from 'express';
+import { Router } from '../../platform/router.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import type { Env } from '../../config/env.js';
@@ -71,7 +73,7 @@ export function authRouter({
   mfa,
   google,
   rateLimitStores,
-}: AuthRouterDeps): Router {
+}: AuthRouterDeps): ExpressRouter {
   const r = Router();
   const limiter = makeLimiter(env.RATE_LIMIT_SCALE, rateLimitStores);
   const meta = (req: Request) => ({ requestId: req.id, userAgent: req.header('user-agent') });
@@ -220,3 +222,12 @@ export function authRouter({
 
   return r;
 }
+
+/** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
+export const requestSchemas = {
+  mfaVerifySchema,
+  credentialSchema,
+  googleLinkSchema,
+  disableMfaSchema,
+  codeOnlySchema,
+};

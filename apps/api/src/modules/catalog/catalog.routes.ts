@@ -1,5 +1,7 @@
 import type { Permission } from '@nts/shared';
-import { Router, type Request } from 'express';
+import type { Request } from 'express';
+import type { Router as ExpressRouter } from 'express';
+import { Router } from '../../platform/router.js';
 import { z } from 'zod';
 import type { Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
@@ -112,7 +114,7 @@ export interface CatalogRouterDeps {
 }
 
 /** Transport catalog, fleet and trips, all under /tenants/:tenantId and gated by tenant permissions. */
-export function catalogRouter({ db, catalog, fleet, schedules }: CatalogRouterDeps): Router {
+export function catalogRouter({ db, catalog, fleet, schedules }: CatalogRouterDeps): ExpressRouter {
   const t = Router({ mergeParams: true });
   t.use(requireAuth, tenantScope(db));
   const audit = createDenialAuditor(db);
@@ -281,3 +283,18 @@ export function catalogRouter({ db, catalog, fleet, schedules }: CatalogRouterDe
 
 // Exposed for tests of timezone validation at the boundary.
 export { isValidTimezone };
+
+/** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
+export const requestSchemas = {
+  locationCreate,
+  locationPatch,
+  routeCreate,
+  routePatch,
+  vehicleCreate,
+  vehiclePatch,
+  scheduleCreate,
+  generateBody,
+  assignBody,
+  statusBody,
+  delayBody,
+};

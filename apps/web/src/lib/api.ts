@@ -28,6 +28,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal | undefined;
+  /** Extra request headers, e.g. Idempotency-Key. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface RequestOptions {
  */
 export async function api<T = void>(path: string, opts: RequestOptions = {}): Promise<T> {
   const method = opts.method ?? 'GET';
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
   if (opts.body !== undefined) headers['content-type'] = 'application/json';
   if (method !== 'GET') {
     const csrf = readCookie('csrf');

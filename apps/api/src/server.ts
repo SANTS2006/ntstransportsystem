@@ -1,4 +1,5 @@
 import './config/dotenv.js';
+import { BookingService } from './modules/booking/booking.service.js';
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { BrevoMailer } from './modules/notifications/brevo.mailer.js';
@@ -47,6 +48,27 @@ const app = createApp({
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'api listening');
 });
+
+// Frees seats held by unpaid bookings whose payment window has passed.
+if (db) {
+  const bookings = new BookingService(db);
+  let sweeping = false;
+  setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    bookings
+      .expireDue()
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : 'sweep failed' },
+          'booking expiry sweep failed',
+        ),
+      )
+      .finally(() => {
+        sweeping = false;
+      });
+  }, 60_000).unref();
+}
 
 function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');

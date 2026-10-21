@@ -403,6 +403,68 @@ export function useRoutes() {
   });
 }
 
+function FareEditor({ routeId, canEdit }: { routeId: string; canEdit: boolean }) {
+  const { tenantId } = useCompany();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['company', tenantId, 'fares', routeId],
+    queryFn: ({ signal }) =>
+      api<{ fares: { serviceClass: string; amountMinor: number; currency: string }[] }>(
+        `/tenants/${tenantId}/routes/${routeId}/fares`,
+        { signal },
+      ),
+  });
+  const [amount, setAmount] = useState('');
+  const save = useMutation({
+    mutationFn: () =>
+      api(`/tenants/${tenantId}/routes/${routeId}/fares/STANDARD`, {
+        method: 'PUT',
+        body: { amountMinor: Math.round(Number(amount) * 100) },
+      }),
+    onSuccess: async () => {
+      toast('Fare saved. New bookings use it; existing ones keep their price.', 'success');
+      setAmount('');
+      await qc.invalidateQueries({ queryKey: ['company', tenantId, 'fares', routeId] });
+    },
+    onError: (e) => toast(errMsg(e), 'error'),
+  });
+  const current = q.data?.fares.find((f) => f.serviceClass === 'STANDARD');
+  return (
+    <div className="flex w-full flex-wrap items-end gap-3 pt-2 text-xs">
+      <span>
+        Fare:{' '}
+        {current
+          ? `${current.currency} ${(current.amountMinor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+          : 'not set (cannot be booked)'}
+      </span>
+      {canEdit && (
+        <>
+          <div className="w-32">
+            <Field
+              label="New fare"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            disabled={amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))}
+            loading={save.isPending}
+            onClick={() => save.mutate()}
+          >
+            Set fare
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function RoutesPage() {
   const { tenantId, access } = useCompany();
   const toast = useToast();
@@ -645,6 +707,7 @@ export function RoutesPage() {
                   </Button>
                 )}
               </div>
+              {r.status === 'PUBLISHED' && <FareEditor routeId={r.id} canEdit={manage} />}
             </li>
           ))}
         </ul>

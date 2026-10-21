@@ -3,6 +3,7 @@ import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
+import { assertSoldSeatsFit, cancelBookingsForTrip } from '../booking/booking.service.js';
 import { enqueueOutbox } from '../../platform/outbox.js';
 import type { Page } from './catalog.service.js';
 import { assertVehicleCompatible } from './compat.js';
@@ -398,6 +399,7 @@ export class ScheduleService {
               v,
             );
           }
+          await assertSoldSeatsFit(tx, s.tenantId, tripId, vehicleId);
           await tx.trip.update({ where: { id: tripId }, data: { vehicleId } });
           await recordTripEvent(tx, s, tripId, 'VEHICLE_ASSIGNED', {
             from: trip.vehicleId,
@@ -428,6 +430,7 @@ export class ScheduleService {
       if (res.count !== 1) throw AppError.conflict('The trip changed; please refresh and retry');
       // A cancelled trip frees its crew: their duty slot is released for other trips.
       if (status === 'CANCELLED') {
+        await cancelBookingsForTrip(tx, s.tenantId, tripId, s.userId);
         await tx.tripCrew.updateMany({
           where: { tenantId: s.tenantId, tripId, releasedAt: null },
           data: { releasedAt: new Date() },
@@ -511,6 +514,7 @@ export class ScheduleService {
           const old = trip.vehicleId
             ? await tx.vehicle.findFirst({ where: { id: trip.vehicleId, tenantId: s.tenantId } })
             : null;
+          await assertSoldSeatsFit(tx, s.tenantId, tripId, newVehicleId);
           await tx.trip.update({ where: { id: tripId }, data: { vehicleId: newVehicleId } });
 
           let oldVehicleOtherTrips = 0;

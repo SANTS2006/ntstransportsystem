@@ -65,6 +65,9 @@ const CalendarPage = lazy(() =>
 const SeatLayoutsPage = lazy(() =>
   import('./pages/company/DispatchPages').then((m) => ({ default: m.SeatLayoutsPage })),
 );
+const BookingsPage = lazy(() =>
+  import('./pages/company/BookingPages').then((m) => ({ default: m.BookingsPage })),
+);
 const StaffPage = lazy(() =>
   import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
 );
@@ -126,6 +129,7 @@ export const router = createBrowserRouter([
       { path: 'vehicles', element: s(<VehiclesPage />) },
       { path: 'routes', element: s(<RoutesPage />) },
       { path: 'trips', element: s(<TripsPage />) },
+      { path: 'bookings', element: s(<BookingsPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },

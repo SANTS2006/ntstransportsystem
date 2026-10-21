@@ -169,11 +169,15 @@ model Tenant {
   maintenanceRecords MaintenanceRecord[]
   vehicleDocuments   VehicleDocument[]
 
-  serviceBlackouts ServiceBlackout[]
-  seatLayouts      SeatLayout[]
-  seatLayoutSeats  SeatLayoutSeat[]
-  tripEvents       TripEvent[]
-  outboxEvents     OutboxEvent[]
+  serviceBlackouts     ServiceBlackout[]
+  seatLayouts          SeatLayout[]
+  seatLayoutSeats      SeatLayoutSeat[]
+  tripEvents           TripEvent[]
+  outboxEvents         OutboxEvent[]
+  fares                Fare[]
+  bookings             Booking[]
+  bookingPassengers    BookingPassenger[]
+  bookingStatusHistory BookingStatusHistory[]
 
   @@map("tenants")
 }
@@ -420,6 +424,7 @@ model Route {
   origin      Location    @relation("RouteOrigin", fields: [tenantId, originId], references: [tenantId, id])
   destination Location    @relation("RouteDestination", fields: [tenantId, destinationId], references: [tenantId, id])
   stops       RouteStop[]
+  fares       Fare[]
   schedules   Schedule[]
   trips       Trip[]
   role        Role?       @relation(fields: [roleId], references: [id])
@@ -501,7 +506,8 @@ model Trip {
 
   crew TripCrew[]
 
-  events TripEvent[]
+  events   TripEvent[]
+  bookings Booking[]
 
   @@unique([scheduleId, serviceDate]) // a schedule yields at most one trip per service date
   @@unique([tenantId, id])
@@ -753,4 +759,102 @@ model OutboxEvent {
   @@unique([tenantId, dedupeKey])
   @@index([processedAt, failedAt, availableAt])
   @@map("outbox_events")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 5: fares and bookings. Money is integer minor units (never floats).
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+/// A route-level price for a service class. Bookings snapshot the price they were sold at.
+model Fare {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  routeId      String   @map("route_id") @db.Uuid
+  serviceClass String   @default("STANDARD") @map("service_class")
+  amountMinor  Int      @map("amount_minor")
+  currency     String   @default("SLE")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  route  Route  @relation(fields: [tenantId, routeId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, routeId, serviceClass])
+  @@unique([tenantId, id])
+  @@map("fares")
+}
+
+model Booking {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tripId          String        @map("trip_id") @db.Uuid
+  reference       String
+  status          BookingStatus @default(PENDING_PAYMENT)
+  contactName     String        @map("contact_name")
+  contactPhone    String        @map("contact_phone")
+  contactEmail    String?       @map("contact_email")
+  totalMinor      Int           @map("total_minor")
+  currency        String
+  holdExpiresAt   DateTime?     @map("hold_expires_at") @db.Timestamptz(6)
+  idempotencyKey  String?       @map("idempotency_key")
+  requestHash     String?       @map("request_hash")
+  createdByUserId String?       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip       Trip                   @relation(fields: [tenantId, tripId], references: [tenantId, id])
+  passengers BookingPassenger[]
+  history    BookingStatusHistory[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, id])
+  @@index([tenantId, tripId])
+  @@index([status, holdExpiresAt])
+  @@map("bookings")
+}
+
+/// One seat on one booking. `releasedAt` null = the seat is taken; a partial unique index
+/// (trip, seat) over live rows is what makes seat inventory atomic under concurrency.
+model BookingPassenger {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  bookingId  String    @map("booking_id") @db.Uuid
+  tripId     String    @map("trip_id") @db.Uuid
+  seatLabel  String    @map("seat_label")
+  fullName   String    @map("full_name")
+  fareMinor  Int       @map("fare_minor")
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, bookingId])
+  @@index([tenantId, tripId])
+  @@map("booking_passengers")
+}
+
+/// Append-only history of every booking status change.
+model BookingStatusHistory {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  bookingId   String         @map("booking_id") @db.Uuid
+  fromStatus  BookingStatus? @map("from_status")
+  toStatus    BookingStatus  @map("to_status")
+  reason      String?
+  actorUserId String?        @map("actor_user_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, bookingId, createdAt])
+  @@map("booking_status_history")
 }

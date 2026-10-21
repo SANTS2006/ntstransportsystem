@@ -9,6 +9,7 @@ import {
   tokenSchema,
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
+import { requestSchemas as booking } from '../modules/booking/booking.routes.js';
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
@@ -838,6 +839,75 @@ export const operations: Record<string, Operation> = {
     access: T,
     permission: 'fleet.manage',
     ok: 204,
+  },
+
+  // ---- Bookings -------------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/routes/{id}/fares': {
+    summary: 'List fares for a route',
+    tag: 'Bookings',
+    access: T,
+    permission: 'route.read',
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/routes/{id}/fares/{serviceClass}': {
+    summary: 'Set the fare for a route and service class',
+    description:
+      'Amounts are integer minor units. Existing bookings keep the price they were sold at.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'route.manage',
+    body: booking.fareBody,
+    ok: 204,
+  },
+  'GET /api/v1/tenants/{tenantId}/trips/{id}/seats': {
+    summary: 'Seat map and availability for a trip',
+    tag: 'Bookings',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/bookings': {
+    summary: 'Create a booking and hold its seats',
+    description:
+      'Seats are held for 15 minutes pending payment. Send an Idempotency-Key header (8-100 chars) so a retry returns the original booking (200) instead of creating another. A seat taken by someone else returns 409.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'booking.manage',
+    body: booking.bookingCreate,
+    ok: 201,
+  },
+  'GET /api/v1/tenants/{tenantId}/bookings': {
+    summary: 'List bookings',
+    tag: 'Bookings',
+    access: T,
+    permission: 'booking.read',
+    paged: true,
+    query: [
+      {
+        name: 'status',
+        description: 'Filter by status',
+        enum: ['PENDING_PAYMENT', 'CONFIRMED', 'CANCELLED', 'EXPIRED'],
+      },
+      { name: 'tripId', description: 'Filter by trip', format: 'uuid' },
+      { name: 'q', description: 'Booking reference or phone number' },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/bookings/{id}': {
+    summary: 'Get a booking with its status history',
+    tag: 'Bookings',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/bookings/{id}/cancel': {
+    summary: 'Cancel a booking and release its seats',
+    description: 'Reports whether a refund is required; refunds are handled by payments.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'booking.manage',
+    body: booking.cancelBody,
+    ok: 200,
   },
 
   // ---- Crew and HR ----------------------------------------------------------------------------

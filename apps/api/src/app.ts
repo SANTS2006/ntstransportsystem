@@ -15,6 +15,8 @@ import {
 import { crewRouter } from './modules/crew/crew.routes.js';
 import { CrewService } from './modules/crew/crew.service.js';
 import { MaintenanceService } from './modules/crew/maintenance.service.js';
+import { bookingRouter } from './modules/booking/booking.routes.js';
+import { BookingService } from './modules/booking/booking.service.js';
 import { CalendarService } from './modules/catalog/calendar.service.js';
 import { catalogRouter } from './modules/catalog/catalog.routes.js';
 import { DispatchService } from './modules/catalog/dispatch.service.js';
@@ -126,6 +128,7 @@ export function createApp({
         dispatch: new DispatchService(db),
       }),
     );
+    v1.use(bookingRouter({ db, bookings: new BookingService(db) }));
     v1.use(crewRouter({ db, crew: new CrewService(db), maintenance: new MaintenanceService(db) }));
   }
   // Further feature modules are mounted here phase by phase.

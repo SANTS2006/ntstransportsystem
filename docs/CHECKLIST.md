@@ -99,3 +99,16 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [x] Transactional outbox + OutboxProcessor (SKIP LOCKED, lease, backoff+jitter, dead-letter, claims only handled types); trip.delayed / trip.cancelled / trip.vehicle_replaced are enqueued with dedupe keys. **No consumer exists yet: passengers are not actually notified until bookings (Phase 5) provide recipients.**
 - [x] OpenAPI entries for every new route (drift test passes); web: Dispatch, Calendar, Seat layouts pages, route rules and layout select on forms.
 - [x] Verified: api typecheck/lint, 52 unit tests, web 26 tests + build. DB suite test/dispatch.test.ts: 13 tests pass, but only when run in groups (a single full run hit 503 transaction timeouts from the slow Neon link; the blackout test needs a 400 s timeout). **Browser check of the new pages not yet done.**
+
+## Phase 5A: fares, bookings, seat inventory (staff side) (2026-10-21)
+- [x] Fares per route and service class (integer minor units, currency check); bookings snapshot the price they were sold at.
+- [x] Atomic seat inventory: seats are claimed by inserting rows that race on a partial unique index (trip, seat) over live rows; the loser gets 409. Tested with 6 parallel buyers for one seat (exactly one wins) and overlapping multi-seat requests.
+- [x] Booking lifecycle PENDING_PAYMENT -> CONFIRMED / CANCELLED / EXPIRED, append-only status history, 15-minute hold, lazy expiry on contention plus a 60 s background sweep (server.ts).
+- [x] Idempotency-Key header: same key + same body returns the original (200); different body 409; concurrent retries create one booking.
+- [x] Trip cancellation cancels its bookings (outbox events carry refundRequired); vehicle assign/replace refused if sold seats would not exist on the new vehicle.
+- [x] markPaid() exists for the payments module only; it is not reachable over HTTP, so nothing can be marked paid today.
+- [x] OpenAPI entries; staff UI: Bookings page (trip, seat map, contact, hold, cancel), fare editor on published routes.
+- [x] Verified: 9/9 DB tests (run in groups; one group needed a re-run after 503s on a cold database), api typecheck/lint/52 unit tests, web 26 tests + build.
+- [ ] NOT done: payments (Monime) so bookings cannot become CONFIRMED yet; passenger-facing search/booking (Phase 5B); tickets/QR/PDF; consumers for booking.* and trip.* outbox events; segment (stop-to-stop) pricing; browser check of the Bookings page.
+- [ ] Unverified: catalog and crew DB suites after slice C changes. Their last runs timed out on the slow link (no assertion failures seen); re-run them in groups.
+- Test setup note: the test branch needs TEST_OWNER_DATABASE_URL (owner role, same endpoint as TEST_DATABASE_URL, no channel_binding, connect_timeout=120) to apply migrations.

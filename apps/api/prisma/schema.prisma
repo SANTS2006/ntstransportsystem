@@ -178,6 +178,9 @@ model Tenant {
   bookings             Booking[]
   bookingPassengers    BookingPassenger[]
   bookingStatusHistory BookingStatusHistory[]
+  paymentSettings      PaymentSettings?
+  payments             Payment[]
+  paymentWebhookEvents PaymentWebhookEvent[]
 
   @@map("tenants")
 }
@@ -812,6 +815,7 @@ model Booking {
   trip       Trip                   @relation(fields: [tenantId, tripId], references: [tenantId, id])
   passengers BookingPassenger[]
   history    BookingStatusHistory[]
+  payments   Payment[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, idempotencyKey])
@@ -857,4 +861,72 @@ model BookingStatusHistory {
 
   @@index([tenantId, bookingId, createdAt])
   @@map("booking_status_history")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 6: payments (Monime). See docs/PAYMENTS.md.
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  PAID_UNFULFILLED // paid after the seats were released: needs a manual refund
+}
+
+/// A company's own Monime credentials. Secrets are stored encrypted (AES-256-GCM), never returned.
+model PaymentSettings {
+  tenantId         String   @id @map("tenant_id") @db.Uuid
+  spaceId          String   @map("space_id")
+  apiTokenEnc      String   @map("api_token_enc")
+  webhookSecretEnc String   @map("webhook_secret_enc")
+  enabled          Boolean  @default(true)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("payment_settings")
+}
+
+model Payment {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  bookingId         String        @map("booking_id") @db.Uuid
+  provider          String        @default("MONIME")
+  status            PaymentStatus @default(CREATED)
+  amountMinor       Int           @map("amount_minor")
+  currency          String
+  providerSessionId String?       @map("provider_session_id")
+  redirectUrl       String?       @map("redirect_url")
+  idempotencyKey    String        @map("idempotency_key")
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz(6)
+  lastError         String?       @map("last_error")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, bookingId])
+  @@index([tenantId, providerSessionId])
+  @@map("payments")
+}
+
+/// Processed webhook deliveries, for replay protection and an audit trail.
+model PaymentWebhookEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  eventId    String   @map("event_id")
+  name       String
+  outcome    String
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eventId])
+  @@map("payment_webhook_events")
 }

@@ -23,7 +23,7 @@ export interface DbContext {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function uuidOrEmpty(v: string | undefined): string {
-  if (v === undefined) return '';
+  if (v === undefined || v === '') return '';
   if (!UUID_RE.test(v)) throw new Error('Invalid database context identifier');
   return v;
 }

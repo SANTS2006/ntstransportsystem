@@ -15,6 +15,11 @@ import {
 import { crewRouter } from './modules/crew/crew.routes.js';
 import { CrewService } from './modules/crew/crew.service.js';
 import { MaintenanceService } from './modules/crew/maintenance.service.js';
+import { MonimeGateway, type PaymentGateway } from './modules/payment/gateway.js';
+import { passengerRouter } from './modules/passenger/passenger.routes.js';
+import { PassengerService } from './modules/passenger/passenger.service.js';
+import { PaymentService } from './modules/payment/payment.service.js';
+import { paymentRouter, webhookRouter } from './modules/payment/payment.routes.js';
 import { bookingRouter } from './modules/booking/booking.routes.js';
 import { BookingService } from './modules/booking/booking.service.js';
 import { CalendarService } from './modules/catalog/calendar.service.js';
@@ -51,6 +56,8 @@ export interface AppDeps {
   googleVerifier?: GoogleVerifier;
   /** Shared (Redis) rate-limit counters; in-memory counters are used when omitted. */
   rateLimitStores?: RateLimitStoreFactory;
+  /** Override for tests; otherwise Monime over HTTPS. */
+  paymentGateway?: PaymentGateway;
 }
 
 export function createApp({
@@ -61,6 +68,7 @@ export function createApp({
   mailer,
   googleVerifier,
   rateLimitStores,
+  paymentGateway,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -84,7 +92,15 @@ export function createApp({
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: '100kb' }));
+  // The raw bytes are kept for webhook signature verification (re-serialised JSON would differ).
+  app.use(
+    express.json({
+      limit: '100kb',
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(cookieParser());
 
   const health = healthRouter(readinessChecks);
@@ -129,6 +145,23 @@ export function createApp({
       }),
     );
     v1.use(bookingRouter({ db, bookings: new BookingService(db) }));
+    if (box) {
+      const payments = new PaymentService(
+        db,
+        box,
+        paymentGateway ?? new MonimeGateway(env.MONIME_API_BASE),
+        { appUrl: env.APP_URL, apiUrl: env.API_URL },
+      );
+      v1.use(paymentRouter({ db, payments }));
+      v1.use(
+        passengerRouter({
+          passenger: new PassengerService(db, new BookingService(db), payments),
+          env,
+          rateLimitStores,
+        }),
+      );
+      v1.use(webhookRouter({ payments }));
+    }
     v1.use(crewRouter({ db, crew: new CrewService(db), maintenance: new MaintenanceService(db) }));
   }
   // Further feature modules are mounted here phase by phase.

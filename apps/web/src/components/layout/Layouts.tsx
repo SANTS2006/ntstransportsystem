@@ -41,6 +41,12 @@ export function PublicLayout() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Brand />
           <nav className="flex items-center gap-2 text-sm">
+            <Link
+              className="rounded-lg px-3 py-2 font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+              to="/trips"
+            >
+              Find a trip
+            </Link>
             {loading ? null : user ? (
               <Link
                 className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-600"
@@ -206,6 +212,7 @@ export function DashboardShell({
 }
 
 const APP_NAV: NavItem[] = [
+  { to: '/app/bookings', label: 'My bookings' },
   { to: '/app', label: 'My companies', end: true },
   { to: '/app/apply', label: 'Register a company' },
   { to: '/app/security', label: 'Security' },

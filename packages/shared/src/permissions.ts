@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   'booking.manage',
   'ticket.validate',
   'payment.read',
+  'payment.manage',
   'finance.report.read',
   'hr.read',
   'hr.manage',

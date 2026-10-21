@@ -66,6 +66,10 @@ async function transition(
   });
   if (res.count !== 1) return null; // someone else changed it first
   if (to !== 'CONFIRMED') {
+    await tx.payment.updateMany({
+      where: { tenantId, bookingId, status: { in: ['CREATED', 'PENDING'] } },
+      data: { status: 'CANCELLED' },
+    });
     await tx.bookingPassenger.updateMany({
       where: { tenantId, bookingId, releasedAt: null },
       data: { releasedAt: new Date() },
@@ -144,6 +148,38 @@ export async function assertSoldSeatsFit(
       `Seats ${missing.join(', ')} are already sold but do not exist on that vehicle`,
     );
   }
+}
+
+/**
+ * Confirms a booking inside the caller's transaction. 'confirmed' and 'already' both mean the
+ * passenger holds the seats; 'unavailable' means the hold lapsed or the booking was released.
+ */
+export async function confirmBookingInTx(
+  tx: Tx,
+  tenantId: string,
+  bookingId: string,
+): Promise<'confirmed' | 'already' | 'unavailable'> {
+  const b = await tx.booking.findFirst({ where: { id: bookingId, tenantId } });
+  if (!b) return 'unavailable';
+  if (b.status === 'CONFIRMED') return 'already';
+  if (b.status !== 'PENDING_PAYMENT') return 'unavailable';
+  const r = await transition(
+    tx,
+    tenantId,
+    bookingId,
+    ['PENDING_PAYMENT'],
+    'CONFIRMED',
+    'Payment received',
+    null,
+  );
+  if (!r) return 'unavailable';
+  await enqueueOutbox(tx, {
+    tenantId,
+    type: 'booking.confirmed',
+    payload: { bookingId },
+    dedupeKey: `booking.confirmed:${bookingId}`,
+  });
+  return 'confirmed';
 }
 
 /** Cancels every open booking on a trip (trip cancelled). Returns how many were cancelled. */
@@ -510,43 +546,35 @@ export class BookingService {
    */
   async markPaid(tenantId: string, bookingId: string): Promise<void> {
     await withDb(this.db, { tenantId }, async (tx) => {
-      const b = await tx.booking.findFirst({ where: { id: bookingId, tenantId } });
-      if (!b) throw AppError.notFound();
-      if (b.status === 'CONFIRMED') return; // idempotent
-      if (b.status !== 'PENDING_PAYMENT' || !b.holdExpiresAt || b.holdExpiresAt <= new Date()) {
+      const r = await confirmBookingInTx(tx, tenantId, bookingId);
+      if (r === 'unavailable')
         throw AppError.conflict('The seat hold has expired or the booking was cancelled');
-      }
-      const r = await transition(
-        tx,
-        tenantId,
-        bookingId,
-        ['PENDING_PAYMENT'],
-        'CONFIRMED',
-        'Payment received',
-        null,
-      );
-      if (!r) throw AppError.conflict('The booking changed while confirming');
-      await enqueueOutbox(tx, {
-        tenantId,
-        type: 'booking.confirmed',
-        payload: { bookingId },
-        dedupeKey: `booking.confirmed:${bookingId}`,
-      });
     });
   }
 
-  /** Background sweep: expires unpaid bookings whose hold ran out and frees their seats. */
-  async expireDue(limit = 200): Promise<number> {
-    return withDb(this.db, { platform: true }, async (tx) => {
-      const due = await tx.booking.findMany({
-        where: { status: 'PENDING_PAYMENT', holdExpiresAt: { lt: new Date() } },
+  /**
+   * Background sweep: expires unpaid bookings whose hold ran out and frees their seats. Each
+   * booking is handled in its own short transaction so a large backlog (or one bad row) cannot
+   * make the whole sweep time out.
+   */
+  async expireDue(limit = 100, onlyTenantId?: string): Promise<number> {
+    const due = await withDb(this.db, { platform: true }, (tx) =>
+      tx.booking.findMany({
+        where: {
+          status: 'PENDING_PAYMENT',
+          holdExpiresAt: { lt: new Date() },
+          ...(onlyTenantId ? { tenantId: onlyTenantId } : {}),
+        },
         select: { id: true, tenantId: true },
+        orderBy: { holdExpiresAt: 'asc' },
         take: limit,
-      });
-      let n = 0;
-      for (const b of due) {
-        if (
-          await transition(
+      }),
+    );
+    let n = 0;
+    for (const b of due) {
+      try {
+        const done = await withDb(this.db, { tenantId: b.tenantId }, (tx) =>
+          transition(
             tx,
             b.tenantId,
             b.id,
@@ -554,11 +582,13 @@ export class BookingService {
             'EXPIRED',
             'Payment window passed',
             null,
-          )
-        )
-          n++;
+          ),
+        );
+        if (done) n++;
+      } catch {
+        // Skipped rows are picked up by the next sweep.
       }
-      return n;
-    });
+    }
+    return n;
   }
 }

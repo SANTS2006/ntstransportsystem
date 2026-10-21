@@ -26,6 +26,8 @@ const baseSchema = z.object({
   REDIS_URL: z.string().min(1).optional(),
   SESSION_SECRET: z.string().min(32).optional(),
   PAYMENTS_SANDBOX: bool,
+  // Monime REST base URL (override only for a mock/proxy).
+  MONIME_API_BASE: z.url().default('https://api.monime.io/v1'),
   // Multiplies auth rate limits. Exists so test suites that create many users are not throttled;
   // must be 1 in production (enforced below).
   RATE_LIMIT_SCALE: z.coerce.number().int().min(1).max(1000).default(1),

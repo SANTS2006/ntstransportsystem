@@ -68,6 +68,21 @@ const SeatLayoutsPage = lazy(() =>
 const BookingsPage = lazy(() =>
   import('./pages/company/BookingPages').then((m) => ({ default: m.BookingsPage })),
 );
+const PaymentSettingsPage = lazy(() =>
+  import('./pages/company/PaymentSettingsPage').then((m) => ({ default: m.PaymentSettingsPage })),
+);
+const TripSearchPage = lazy(() =>
+  import('./pages/passenger/PassengerPages').then((m) => ({ default: m.TripSearchPage })),
+);
+const TripBookPage = lazy(() =>
+  import('./pages/passenger/PassengerPages').then((m) => ({ default: m.TripBookPage })),
+);
+const PayReturnPage = lazy(() =>
+  import('./pages/passenger/PassengerPages').then((m) => ({ default: m.PayReturnPage })),
+);
+const MyBookingsPage = lazy(() =>
+  import('./pages/passenger/PassengerPages').then((m) => ({ default: m.MyBookingsPage })),
+);
 const StaffPage = lazy(() =>
   import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
 );
@@ -93,6 +108,9 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/', element: s(<HomePage />) },
+      { path: '/trips', element: s(<TripSearchPage />) },
+      { path: '/trips/:tenantId/:tripId', element: s(<TripBookPage />) },
+      { path: '/pay/return', element: <RequireAuth>{s(<PayReturnPage />)}</RequireAuth> },
       { path: '/login', element: s(<LoginPage />) },
       { path: '/register', element: s(<RegisterPage />) },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
@@ -113,6 +131,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: s(<MyCompaniesPage />) },
+      { path: 'bookings', element: s(<MyBookingsPage />) },
       { path: 'apply', element: s(<ApplyCompanyPage />) },
       { path: 'security', element: s(<SecurityPage />) },
     ],
@@ -130,6 +149,7 @@ export const router = createBrowserRouter([
       { path: 'routes', element: s(<RoutesPage />) },
       { path: 'trips', element: s(<TripsPage />) },
       { path: 'bookings', element: s(<BookingsPage />) },
+      { path: 'payments', element: s(<PaymentSettingsPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },

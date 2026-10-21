@@ -268,7 +268,7 @@ describe.skipIf(!TEST_DB_URL)('fares, bookings and seat inventory (database)', (
       'PENDING_PAYMENT',
       'EXPIRED',
     ]);
-    expect(await svc.expireDue()).toBeGreaterThanOrEqual(1);
+    expect(await svc.expireDue(100, tenantId)).toBeGreaterThanOrEqual(1);
     const swept = await owner
       .call('get', `/tenants/${tenantId}/bookings/${old2.body.id}`)
       .expect(200);

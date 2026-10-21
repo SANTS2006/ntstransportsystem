@@ -10,6 +10,8 @@ import {
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
 import { requestSchemas as booking } from '../modules/booking/booking.routes.js';
+import { requestSchemas as passenger } from '../modules/passenger/passenger.routes.js';
+import { requestSchemas as payment } from '../modules/payment/payment.routes.js';
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
@@ -908,6 +910,132 @@ export const operations: Record<string, Operation> = {
     permission: 'booking.manage',
     body: booking.cancelBody,
     ok: 200,
+  },
+
+  // ---- Payments -------------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/payment-settings': {
+    optional: true,
+    summary: "Show the company's payment setup (never the secrets)",
+    tag: 'Payments',
+    access: T,
+    permission: 'payment.manage',
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/payment-settings': {
+    optional: true,
+    summary: 'Save Monime credentials for the company',
+    description:
+      'Secrets are encrypted at rest and never returned. On first setup, if no webhook secret is given one is generated and returned once; register it with the webhook URL in the Monime dashboard.',
+    tag: 'Payments',
+    access: T,
+    permission: 'payment.manage',
+    body: payment.settingsBody,
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/bookings/{id}/payments': {
+    optional: true,
+    summary: 'Start a hosted-checkout payment for a booking',
+    description:
+      'The amount is the price snapshot taken when the booking was made. Returns the Monime checkout URL to send the customer to. Calling it again while a payment is open returns the same checkout.',
+    tag: 'Payments',
+    access: T,
+    permission: 'booking.manage',
+    ok: 201,
+  },
+  'GET /api/v1/tenants/{tenantId}/bookings/{id}/payments': {
+    optional: true,
+    summary: "List a booking's payment attempts",
+    tag: 'Payments',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/payments/{id}/refresh': {
+    optional: true,
+    summary: 'Re-check a payment with the provider (covers a missed webhook)',
+    tag: 'Payments',
+    access: T,
+    permission: 'booking.manage',
+    ok: 200,
+  },
+  'POST /api/v1/webhooks/monime/{tenantId}': {
+    optional: true,
+    summary: 'Monime webhook receiver',
+    description:
+      'Called by Monime. Authenticated only by the Monime-Signature header (HMAC-SHA256 over timestamp and raw body). A verified completed event is re-checked with Monime before any booking is confirmed.',
+    tag: 'Payments',
+    access: 'public',
+    ok: 200,
+  },
+
+  // ---- Passengers -----------------------------------------------------------------------------
+  'GET /api/v1/public/trips': {
+    optional: true,
+    summary: 'Search trips that can be booked online',
+    description:
+      'Public. Only trips of active companies with online payment enabled, a published route, a vehicle and a fare are returned. "from" and "to" match city names.',
+    tag: 'Passengers',
+    access: 'public',
+    query: [
+      { name: 'date', description: 'Service date (company local date)', format: 'date' },
+      { name: 'from', description: 'Origin city (partial match)' },
+      { name: 'to', description: 'Destination city (partial match)' },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/public/trips/{tenantId}/{tripId}': {
+    optional: true,
+    summary: 'Seat availability for one bookable trip',
+    tag: 'Passengers',
+    access: 'public',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/bookings': {
+    optional: true,
+    summary: 'Book seats as a signed-in passenger',
+    description:
+      'Holds the seats for 15 minutes. Send an Idempotency-Key header so a retry returns the same booking. At most 3 unpaid bookings per passenger.',
+    tag: 'Passengers',
+    access: 'session',
+    body: passenger.bookingCreate,
+    ok: 201,
+  },
+  'GET /api/v1/passenger/bookings': {
+    optional: true,
+    summary: "List the caller's own bookings",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/bookings/{id}': {
+    optional: true,
+    summary: "Get one of the caller's bookings",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/bookings/{id}/status': {
+    optional: true,
+    summary: 'Booking status after returning from payment',
+    description:
+      'Re-checks an open payment with the provider before answering; the redirect back from checkout is never taken as proof of payment.',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/bookings/{id}/pay': {
+    optional: true,
+    summary: 'Start online payment for an unpaid booking',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 201,
+  },
+  'POST /api/v1/passenger/bookings/{id}/cancel': {
+    optional: true,
+    summary: 'Cancel an unpaid booking',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 204,
   },
 
   // ---- Crew and HR ----------------------------------------------------------------------------

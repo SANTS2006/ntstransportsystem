@@ -16,6 +16,9 @@ import { crewRouter } from './modules/crew/crew.routes.js';
 import { CrewService } from './modules/crew/crew.service.js';
 import { MaintenanceService } from './modules/crew/maintenance.service.js';
 import { MonimeGateway, type PaymentGateway } from './modules/payment/gateway.js';
+import { deriveTicketKey } from './modules/ticket/ticket-core.js';
+import { ticketRouter } from './modules/ticket/ticket.routes.js';
+import { TicketService } from './modules/ticket/ticket.service.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
 import { PassengerService } from './modules/passenger/passenger.service.js';
 import { PaymentService } from './modules/payment/payment.service.js';
@@ -152,10 +155,12 @@ export function createApp({
         paymentGateway ?? new MonimeGateway(env.MONIME_API_BASE),
         { appUrl: env.APP_URL, apiUrl: env.API_URL },
       );
+      const tickets = new TicketService(db, deriveTicketKey(env.MFA_ENCRYPTION_KEY as string));
+      v1.use(ticketRouter({ db, tickets }));
       v1.use(paymentRouter({ db, payments }));
       v1.use(
         passengerRouter({
-          passenger: new PassengerService(db, new BookingService(db), payments),
+          passenger: new PassengerService(db, new BookingService(db), payments, tickets),
           env,
           rateLimitStores,
         }),

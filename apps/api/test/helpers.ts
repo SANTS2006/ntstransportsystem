@@ -16,6 +16,8 @@ import { createDb, withDb, type Db } from '../src/platform/db.js';
 import { hashPassword } from '../src/platform/crypto.js';
 import { createLogger } from '../src/platform/logger.js';
 
+// The test database may be far away: give transactions longer than production's 15 s default.
+process.env.DB_TX_TIMEOUT_MS ??= '60000';
 export const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 
 export class CaptureMailer implements Mailer {

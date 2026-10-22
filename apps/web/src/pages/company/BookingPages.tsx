@@ -344,6 +344,22 @@ export function BookingsPage() {
                   }
                   label={STATUS_LABEL[b.status]}
                 />
+                {b.status === 'CONFIRMED' && (
+                  <>
+                    <a
+                      className="text-sm text-brand-700 underline dark:text-brand-500"
+                      href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/tickets.pdf`}
+                    >
+                      Tickets
+                    </a>
+                    <a
+                      className="text-sm text-brand-700 underline dark:text-brand-500"
+                      href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/receipt.pdf`}
+                    >
+                      Receipt
+                    </a>
+                  </>
+                )}
                 {manage && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED') && (
                   <Button
                     variant="danger"

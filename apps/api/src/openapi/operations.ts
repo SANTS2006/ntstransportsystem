@@ -10,6 +10,7 @@ import {
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
 import { requestSchemas as booking } from '../modules/booking/booking.routes.js';
+import { requestSchemas as ticket } from '../modules/ticket/ticket.routes.js';
 import { requestSchemas as passenger } from '../modules/passenger/passenger.routes.js';
 import { requestSchemas as payment } from '../modules/payment/payment.routes.js';
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
@@ -1036,6 +1037,74 @@ export const operations: Record<string, Operation> = {
     tag: 'Passengers',
     access: 'session',
     ok: 204,
+  },
+
+  // ---- Tickets and boarding -------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/bookings/{id}/tickets': {
+    optional: true,
+    summary: 'Tickets of a confirmed booking, with their signed QR tokens',
+    tag: 'Tickets',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/bookings/{id}/tickets.pdf': {
+    optional: true,
+    summary: 'Ticket PDF (one page per seat, with QR code)',
+    description: 'application/pdf download. Only for confirmed bookings.',
+    tag: 'Tickets',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/bookings/{id}/receipt.pdf': {
+    optional: true,
+    summary: 'Payment receipt PDF',
+    description: 'application/pdf download. Only for confirmed bookings.',
+    tag: 'Tickets',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/tickets/scan': {
+    optional: true,
+    summary: 'Validate a ticket and board the passenger',
+    description:
+      'Send the QR token (or a typed ticket code) and optionally the trip being boarded. The signature is checked first; a ticket boards exactly once. Refusals return 409 with details.reason (INVALID_CODE, NOT_FOUND, VOID, BOOKING_NOT_CONFIRMED, TRIP_NOT_RUNNING, WRONG_TRIP, TOO_EARLY, TRIP_ENDED, ALREADY_BOARDED); every outcome is audited.',
+    tag: 'Tickets',
+    access: T,
+    permission: 'ticket.validate',
+    body: ticket.scanBody,
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/trips/{id}/manifest': {
+    optional: true,
+    summary: 'Passenger manifest for a trip with boarding status',
+    tag: 'Tickets',
+    access: T,
+    permission: 'ticket.validate',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/bookings/{id}/tickets': {
+    optional: true,
+    summary: "Tickets (with QR tokens) of the caller's confirmed booking",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/bookings/{id}/tickets.pdf': {
+    optional: true,
+    summary: 'Download ticket PDF for own booking',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/bookings/{id}/receipt.pdf': {
+    optional: true,
+    summary: 'Download payment receipt for own booking',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
   },
 
   // ---- Crew and HR ----------------------------------------------------------------------------

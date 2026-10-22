@@ -83,6 +83,12 @@ const PayReturnPage = lazy(() =>
 const MyBookingsPage = lazy(() =>
   import('./pages/passenger/PassengerPages').then((m) => ({ default: m.MyBookingsPage })),
 );
+const BoardingPage = lazy(() =>
+  import('./pages/company/BoardingPage').then((m) => ({ default: m.BoardingPage })),
+);
+const MyTicketsPage = lazy(() =>
+  import('./pages/passenger/TicketPages').then((m) => ({ default: m.MyTicketsPage })),
+);
 const StaffPage = lazy(() =>
   import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
 );
@@ -132,6 +138,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: s(<MyCompaniesPage />) },
       { path: 'bookings', element: s(<MyBookingsPage />) },
+      { path: 'bookings/:id', element: s(<MyTicketsPage />) },
       { path: 'apply', element: s(<ApplyCompanyPage />) },
       { path: 'security', element: s(<SecurityPage />) },
     ],
@@ -150,6 +157,7 @@ export const router = createBrowserRouter([
       { path: 'trips', element: s(<TripsPage />) },
       { path: 'bookings', element: s(<BookingsPage />) },
       { path: 'payments', element: s(<PaymentSettingsPage />) },
+      { path: 'boarding', element: s(<BoardingPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },

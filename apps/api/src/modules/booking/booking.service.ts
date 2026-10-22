@@ -4,6 +4,7 @@ import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
 import { enqueueOutbox } from '../../platform/outbox.js';
 import { writeAudit } from '../audit/audit.js';
+import { issueTicketsInTx, voidTicketsInTx } from '../ticket/ticket-core.js';
 import type { Page } from '../catalog/catalog.service.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
 
@@ -66,6 +67,7 @@ async function transition(
   });
   if (res.count !== 1) return null; // someone else changed it first
   if (to !== 'CONFIRMED') {
+    await voidTicketsInTx(tx, tenantId, bookingId, reason ?? to.toLowerCase());
     await tx.payment.updateMany({
       where: { tenantId, bookingId, status: { in: ['CREATED', 'PENDING'] } },
       data: { status: 'CANCELLED' },
@@ -173,6 +175,7 @@ export async function confirmBookingInTx(
     null,
   );
   if (!r) return 'unavailable';
+  await issueTicketsInTx(tx, tenantId, bookingId);
   await enqueueOutbox(tx, {
     tenantId,
     type: 'booking.confirmed',

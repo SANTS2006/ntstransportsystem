@@ -20,6 +20,15 @@ export interface DbContext {
   platform?: boolean | undefined;
 }
 
+/**
+ * How long a transaction may run (and wait for a connection) before it is abandoned. 15 s suits a
+ * database in the same region; override with DB_TX_TIMEOUT_MS on a slow or distant link.
+ */
+function defaultTxTimeoutMs(): number {
+  const v = Number(process.env.DB_TX_TIMEOUT_MS);
+  return Number.isInteger(v) && v >= 1_000 && v <= 120_000 ? v : 15_000;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function uuidOrEmpty(v: string | undefined): string {
@@ -50,7 +59,7 @@ export async function withDb<T>(
       set_config('app.platform', ${platform}, true)`;
         return fn(tx);
       },
-      { timeout: opts.timeoutMs ?? 15_000, maxWait: 20_000 },
+      { timeout: opts.timeoutMs ?? defaultTxTimeoutMs(), maxWait: defaultTxTimeoutMs() + 5_000 },
     );
   } catch (err) {
     // P2028: Prisma could not start the transaction in time (e.g. slow connection setup or an

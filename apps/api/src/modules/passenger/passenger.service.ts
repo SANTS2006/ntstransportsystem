@@ -3,6 +3,8 @@ import { AppError } from '../../platform/errors.js';
 import type { BookingService } from '../booking/booking.service.js';
 import { type BookingInput } from '../booking/booking.service.js';
 import type { PaymentService } from '../payment/payment.service.js';
+import type { TicketService } from '../ticket/ticket.service.js';
+import { receiptPdfFor, ticketsPdfFor } from '../ticket/ticket.routes.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
 
 const MAX_OPEN_BOOKINGS_PER_PASSENGER = 3;
@@ -18,6 +20,7 @@ export class PassengerService {
     private readonly db: Db,
     private readonly bookings: BookingService,
     private readonly payments: PaymentService,
+    private readonly tickets: TicketService,
   ) {}
 
   /** A scope for acting as a passenger inside one company: no company permissions at all. */
@@ -271,6 +274,19 @@ export class PassengerService {
 
   async get(userId: string, bookingId: string) {
     return this.dto(await this.ownBooking(userId, bookingId));
+  }
+
+  async ticketList(userId: string, bookingId: string) {
+    const b = await this.ownBooking(userId, bookingId);
+    return this.tickets.listForBooking(this.scopeFor(b.tenantId, userId), bookingId);
+  }
+  async ticketsPdf(userId: string, bookingId: string) {
+    const b = await this.ownBooking(userId, bookingId);
+    return ticketsPdfFor(this.tickets, this.scopeFor(b.tenantId, userId), bookingId);
+  }
+  async receiptPdf(userId: string, bookingId: string) {
+    const b = await this.ownBooking(userId, bookingId);
+    return receiptPdfFor(this.tickets, this.scopeFor(b.tenantId, userId), bookingId);
   }
 
   async pay(userId: string, bookingId: string, requestId?: string) {

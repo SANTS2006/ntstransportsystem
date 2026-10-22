@@ -409,7 +409,15 @@ export function PayReturnPage() {
         </Alert>
       )}
       <BookingCard b={b} />
-      <Link className="text-brand-700 underline" to="/app/bookings">
+      {b.status === 'CONFIRMED' && (
+        <Link
+          className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 font-medium text-white hover:bg-brand-600"
+          to={`/app/bookings/${b.id}`}
+        >
+          View my tickets
+        </Link>
+      )}
+      <Link className="block text-brand-700 underline" to="/app/bookings">
         My bookings
       </Link>
     </div>
@@ -503,6 +511,16 @@ export function MyBookingsPage() {
       )}
       {q.data?.bookings.map((b) => (
         <BookingCard key={b.id} b={b}>
+          {b.status === 'CONFIRMED' && (
+            <div className="mt-3">
+              <Link
+                className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 text-sm font-medium text-white hover:bg-brand-600"
+                to={`/app/bookings/${b.id}`}
+              >
+                View tickets
+              </Link>
+            </div>
+          )}
           {b.status === 'PENDING_PAYMENT' && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Button

@@ -1,5 +1,4 @@
 import './config/dotenv.js';
-import { BookingService } from './modules/booking/booking.service.js';
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { BrevoMailer } from './modules/notifications/brevo.mailer.js';
@@ -7,6 +6,7 @@ import { DevLogMailer, type Mailer } from './modules/notifications/mailer.js';
 import { createDb } from './platform/db.js';
 import { createLogger } from './platform/logger.js';
 import { createRedis, redisRateLimitStores } from './platform/redis.js';
+import { startWorkers } from './workers.js';
 
 const env = loadEnv();
 const logger = createLogger(env);
@@ -49,29 +49,14 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'api listening');
 });
 
-// Frees seats held by unpaid bookings whose payment window has passed.
-if (db) {
-  const bookings = new BookingService(db);
-  let sweeping = false;
-  setInterval(() => {
-    if (sweeping) return;
-    sweeping = true;
-    bookings
-      .expireDue()
-      .catch((err: unknown) =>
-        logger.error(
-          { err: err instanceof Error ? err.message : 'sweep failed' },
-          'booking expiry sweep failed',
-        ),
-      )
-      .finally(() => {
-        sweeping = false;
-      });
-  }, 60_000).unref();
-}
+// Background work: expire unpaid bookings, deliver passenger/staff emails from the outbox.
+const stopWorkers = db
+  ? startWorkers({ db, mailer: buildMailer(), appUrl: env.APP_URL, logger })
+  : () => undefined;
 
 function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');
+  stopWorkers();
   server.close(() => {
     void Promise.allSettled([db?.$disconnect(), redis?.quit()]).finally(() => process.exit(0));
   });

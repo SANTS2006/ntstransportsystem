@@ -8,6 +8,7 @@ import { Router } from '../../platform/router.js';
 import { requireAuth } from '../authentication/session.middleware.js';
 import { MAX_SEATS_PER_BOOKING } from '../booking/booking.service.js';
 import { parseDate } from '../catalog/time.js';
+import { sendPdf } from '../ticket/ticket.routes.js';
 import type { PassengerService } from './passenger.service.js';
 
 const trim = z.string().trim();
@@ -112,6 +113,18 @@ export function passengerRouter({
   });
   r.get('/passenger/bookings/:id/status', requireAuth, limit('status', 30), async (req, res) => {
     res.json(await passenger.status(userId(req), z.uuid().parse(req.params.id)));
+  });
+  r.get('/passenger/bookings/:id/tickets', requireAuth, async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json({ tickets: await passenger.ticketList(userId(req), z.uuid().parse(req.params.id)) });
+  });
+  r.get('/passenger/bookings/:id/tickets.pdf', requireAuth, limit('pdf', 20), async (req, res) => {
+    const f = await passenger.ticketsPdf(userId(req), z.uuid().parse(req.params.id));
+    sendPdf(res, f.name, f.body);
+  });
+  r.get('/passenger/bookings/:id/receipt.pdf', requireAuth, limit('pdf', 20), async (req, res) => {
+    const f = await passenger.receiptPdf(userId(req), z.uuid().parse(req.params.id));
+    sendPdf(res, f.name, f.body);
   });
   r.post('/passenger/bookings/:id/pay', requireAuth, limit('pay', 10), async (req, res) => {
     res.status(201).json(await passenger.pay(userId(req), z.uuid().parse(req.params.id), req.id));

@@ -169,18 +169,20 @@ model Tenant {
   maintenanceRecords MaintenanceRecord[]
   vehicleDocuments   VehicleDocument[]
 
-  serviceBlackouts     ServiceBlackout[]
-  seatLayouts          SeatLayout[]
-  seatLayoutSeats      SeatLayoutSeat[]
-  tripEvents           TripEvent[]
-  outboxEvents         OutboxEvent[]
-  fares                Fare[]
-  bookings             Booking[]
-  bookingPassengers    BookingPassenger[]
-  bookingStatusHistory BookingStatusHistory[]
-  paymentSettings      PaymentSettings?
-  payments             Payment[]
-  paymentWebhookEvents PaymentWebhookEvent[]
+  serviceBlackouts       ServiceBlackout[]
+  seatLayouts            SeatLayout[]
+  seatLayoutSeats        SeatLayoutSeat[]
+  tripEvents             TripEvent[]
+  outboxEvents           OutboxEvent[]
+  fares                  Fare[]
+  bookings               Booking[]
+  bookingPassengers      BookingPassenger[]
+  bookingStatusHistory   BookingStatusHistory[]
+  paymentSettings        PaymentSettings?
+  payments               Payment[]
+  tickets                Ticket[]
+  notificationDeliveries NotificationDelivery[]
+  paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
 }
@@ -816,6 +818,7 @@ model Booking {
   passengers BookingPassenger[]
   history    BookingStatusHistory[]
   payments   Payment[]
+  tickets    Ticket[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, idempotencyKey])
@@ -839,6 +842,7 @@ model BookingPassenger {
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Cascade)
+  ticket  Ticket?
 
   @@index([tenantId, bookingId])
   @@index([tenantId, tripId])
@@ -929,4 +933,60 @@ model PaymentWebhookEvent {
 
   @@unique([tenantId, eventId])
   @@map("payment_webhook_events")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 7: tickets and boarding.
+
+enum TicketStatus {
+  ISSUED
+  BOARDED
+  VOID
+}
+
+/// One ticket per seat of a confirmed booking. The QR code carries a signed token; the signature
+/// is checked before the database is consulted, and the ticket's own status decides validity.
+model Ticket {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String       @map("tenant_id") @db.Uuid
+  bookingId       String       @map("booking_id") @db.Uuid
+  passengerId     String       @unique @map("passenger_id") @db.Uuid
+  tripId          String       @map("trip_id") @db.Uuid
+  seatLabel       String       @map("seat_label")
+  passengerName   String       @map("passenger_name")
+  code            String
+  status          TicketStatus @default(ISSUED)
+  issuedAt        DateTime     @default(now()) @map("issued_at") @db.Timestamptz(6)
+  boardedAt       DateTime?    @map("boarded_at") @db.Timestamptz(6)
+  boardedByUserId String?      @map("boarded_by_user_id") @db.Uuid
+  voidedAt        DateTime?    @map("voided_at") @db.Timestamptz(6)
+  voidReason      String?      @map("void_reason")
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking   Booking          @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Cascade)
+  passenger BookingPassenger @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, tripId])
+  @@index([tenantId, bookingId])
+  @@map("tickets")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 8: notifications. One row per (outbox event, recipient) that has been sent, so a retried
+// event never emails the same person twice.
+
+model NotificationDelivery {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  outboxEventId String   @map("outbox_event_id") @db.Uuid
+  recipientKey  String   @map("recipient_key")
+  template      String
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([outboxEventId, recipientKey])
+  @@index([tenantId, sentAt])
+  @@map("notification_deliveries")
 }

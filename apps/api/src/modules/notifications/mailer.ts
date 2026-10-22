@@ -1,7 +1,15 @@
 import type { Logger } from 'pino';
 
 export type MailTemplate =
-  'verify-email' | 'password-reset' | 'password-changed' | 'tenant-invitation';
+  | 'verify-email'
+  | 'password-reset'
+  | 'password-changed'
+  | 'tenant-invitation'
+  | 'booking-confirmed'
+  | 'booking-cancelled'
+  | 'trip-delayed'
+  | 'trip-vehicle-changed'
+  | 'refund-required';
 
 export interface MailMessage {
   to: string;

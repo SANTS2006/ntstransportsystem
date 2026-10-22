@@ -47,6 +47,8 @@ export interface ProcessorOptions {
   backoffBaseMs?: number;
   now?: () => Date;
   random?: () => number;
+  /** Only process this company's events (tests, or an operator draining one company). */
+  tenantId?: string;
 }
 
 const truncate = (s: string) => s.slice(0, 300);
@@ -67,6 +69,7 @@ export class OutboxProcessor {
   private readonly backoffBaseMs: number;
   private readonly now: () => Date;
   private readonly random: () => number;
+  private readonly tenantId: string | undefined;
 
   constructor(
     private readonly db: Db,
@@ -79,6 +82,7 @@ export class OutboxProcessor {
     this.backoffBaseMs = opts.backoffBaseMs ?? 30_000;
     this.now = opts.now ?? (() => new Date());
     this.random = opts.random ?? Math.random;
+    this.tenantId = opts.tenantId;
   }
 
   private async claim(): Promise<ClaimedEvent[]> {
@@ -92,6 +96,7 @@ export class OutboxProcessor {
         SELECT "id" FROM "outbox_events"
         WHERE "processed_at" IS NULL AND "failed_at" IS NULL AND "available_at" <= ${now}
           AND "type" = ANY(${types})
+          AND (${this.tenantId ?? null}::uuid IS NULL OR "tenant_id" = ${this.tenantId ?? null}::uuid)
         ORDER BY "available_at" ASC
         LIMIT ${this.batchSize}
         FOR UPDATE SKIP LOCKED`;

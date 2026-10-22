@@ -41,3 +41,12 @@ Initial route JS <= 200 kB gzip. Measured 2026-10-20: entry chunk 81 kB gz, shar
 | Redis                  | Rate-limit store written; **unverified against a real Redis** (none available). Falls back to in-memory when `REDIS_URL` is unset; limiter fails open if Redis errors                                |
 | Google                 | Server verification via `google-auth-library`; real tokens untestable offline, tests use a verifier double. **Live sign-in unverified**                                                              |
 | Monime, Cloudinary, R2 | Not started                                                                                                                                                                                          |
+
+## Test database and payments
+
+| Variable | Purpose |
+| --- | --- |
+| `TEST_DATABASE_URL` | Restricted `nts_app` role on a separate Neon branch, used by the DB test suites. Never the owner role. |
+| `TEST_OWNER_DATABASE_URL` | Owner role on the same branch, used only to apply migrations to it (`prisma migrate deploy` with `DIRECT_DATABASE_URL` set to this value). Add `connect_timeout=120`; omit `channel_binding`. |
+| `MFA_ENCRYPTION_KEY` | 32-byte base64 key. Also encrypts each company's Monime credentials; without it payment routes are not mounted. |
+| `MONIME_API_BASE` | Defaults to `https://api.monime.io/v1`. Override only for a mock. |

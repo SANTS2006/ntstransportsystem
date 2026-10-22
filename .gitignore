@@ -7,3 +7,4 @@ coverage
 *.log
 apps/api/src/generated
 .dev-seed.json
+.dev-payments.json

@@ -6,6 +6,7 @@ import { DevLogMailer, type Mailer } from './modules/notifications/mailer.js';
 import { createDb } from './platform/db.js';
 import { createLogger } from './platform/logger.js';
 import { createRedis, redisRateLimitStores } from './platform/redis.js';
+import { DevLogSms, TwilioSms, type SmsSender } from './platform/sms.js';
 import { startWorkers } from './workers.js';
 
 const env = loadEnv();
@@ -28,7 +29,30 @@ function buildMailer(): Mailer {
   return new DevLogMailer(logger);
 }
 
+/** How sign-up codes are sent: Twilio when configured; logged in development; otherwise phone sign-up is off. */
+function buildSms(): SmsSender | undefined {
+  if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+    return new TwilioSms({
+      accountSid: env.TWILIO_ACCOUNT_SID,
+      authToken: env.TWILIO_AUTH_TOKEN,
+      from: env.TWILIO_FROM,
+      messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID,
+    });
+  }
+  if (env.NODE_ENV !== 'production' || env.ALLOW_DEV_SMS) {
+    logger.warn(
+      env.NODE_ENV === 'production'
+        ? 'ALLOW_DEV_SMS is on: sign-up codes are logged, NOT sent. Test deployments only.'
+        : 'Twilio not configured: sign-up codes are logged, not sent (development only)',
+    );
+    return new DevLogSms(logger);
+  }
+  logger.info('No text-message provider configured: sign-up with a phone number is off');
+  return undefined;
+}
+
 const db = env.DATABASE_URL ? createDb(env.DATABASE_URL) : undefined;
+const sms = db ? buildSms() : undefined;
 const redis = env.REDIS_URL ? createRedis(env.REDIS_URL) : undefined;
 redis?.on('error', (err: Error) => logger.error({ err: err.message }, 'redis error'));
 
@@ -44,6 +68,7 @@ const app = createApp({
   logger,
   readinessChecks,
   ...(db ? { db, mailer: buildMailer() } : {}),
+  ...(sms ? { sms } : {}),
   ...(redis ? { rateLimitStores: redisRateLimitStores(redis) } : {}),
 });
 

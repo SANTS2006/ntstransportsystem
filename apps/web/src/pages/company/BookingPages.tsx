@@ -40,6 +40,7 @@ interface BookingRow {
   holdExpiresAt: string | null;
   passengers: { seatLabel: string; fullName: string }[];
   desk: { method: string | null; amountMinor: number; refundedAt: string | null } | null;
+  claim?: { method: string; reference: string; createdAt: string } | null;
 }
 
 const STATUS_LABEL: Record<BookingRow['status'], string> = {
@@ -392,6 +393,9 @@ export function BookingsPage() {
                     )}
                   </>
                 )}
+                {b.status === 'PENDING_PAYMENT' && b.claim && (
+                  <StatusBadge status="PENDING" label={`QMoney paid? ${b.claim.reference}`} />
+                )}
                 {collect && b.status === 'PENDING_PAYMENT' && (
                   <Button
                     onClick={() =>
@@ -400,6 +404,7 @@ export function BookingsPage() {
                         reference: b.reference,
                         totalMinor: b.totalMinor,
                         currency: b.currency,
+                        claim: b.claim ?? null,
                       })
                     }
                   >
@@ -433,6 +438,7 @@ export function BookingsPage() {
         }}
       />
       <DeskPaymentDialog
+        key={desk?.id ?? 'none'}
         tenantId={tenantId}
         booking={desk}
         onClose={() => setDesk(null)}

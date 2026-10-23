@@ -194,7 +194,7 @@ export function DashboardShell({
         </nav>
         <div className="mt-4 hidden border-t border-slate-200 pt-4 text-xs dark:border-slate-700 lg:block">
           <p className="truncate font-medium">{user?.displayName}</p>
-          <p className="truncate text-slate-500">{user?.email}</p>
+          <p className="truncate text-slate-500">{user?.email ?? user?.phone}</p>
           <Button
             variant="ghost"
             className="mt-2 w-full"

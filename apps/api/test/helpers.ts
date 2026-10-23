@@ -13,6 +13,7 @@ import { AppError } from '../src/platform/errors.js';
 import { createApp } from '../src/app.js';
 import { loadEnv } from '../src/config/env.js';
 import type { Mailer, MailMessage } from '../src/modules/notifications/mailer.js';
+import type { SmsSender } from '../src/platform/sms.js';
 import { createDb, withDb, type Db } from '../src/platform/db.js';
 import { hashPassword } from '../src/platform/crypto.js';
 import { createLogger } from '../src/platform/logger.js';
@@ -28,6 +29,30 @@ export class CaptureMailer implements Mailer {
   }
   last(template: MailMessage['template']) {
     return [...this.sent].reverse().find((m) => m.template === template);
+  }
+}
+
+/** Records the texts the app would send, so tests can read the codes. */
+export class CaptureSms implements SmsSender {
+  sent: { to: string; text: string }[] = [];
+  failNext = false;
+  async send(to: string, text: string) {
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error('sms provider down');
+    }
+    this.sent.push({ to, text });
+  }
+  to(phone: string) {
+    return this.sent.filter((m) => m.to === phone);
+  }
+  /** The six-digit code in the latest text to this number. */
+  codeFor(phone: string): string {
+    const m = this.to(phone)
+      .at(-1)
+      ?.text.match(/\b(\d{6})\b/);
+    if (!m) throw new Error('no code was sent to ' + phone);
+    return m[1] as string;
   }
 }
 
@@ -51,7 +76,12 @@ export class FakeGoogleVerifier implements GoogleVerifier {
 
 export function makeApp(
   db: Db,
-  opts: { rateLimitScale?: number; paymentGateway?: PaymentGateway; storage?: FileStorage } = {},
+  opts: {
+    rateLimitScale?: number;
+    paymentGateway?: PaymentGateway;
+    storage?: FileStorage;
+    sms?: SmsSender;
+  } = {},
 ) {
   const env = loadEnv({
     NODE_ENV: 'test',
@@ -60,6 +90,7 @@ export function makeApp(
   });
   const mailer = new CaptureMailer();
   const google = new FakeGoogleVerifier();
+  const sms = new CaptureSms();
   return {
     app: createApp({
       env,
@@ -67,11 +98,13 @@ export function makeApp(
       db,
       mailer,
       googleVerifier: google,
+      sms: opts.sms ?? sms,
       ...(opts.paymentGateway ? { paymentGateway: opts.paymentGateway } : {}),
       ...(opts.storage ? { storage: opts.storage } : {}),
     }),
     mailer,
     google,
+    sms,
   };
 }
 
@@ -80,9 +113,10 @@ export const uniq = (p: string) => `${p}-${Date.now().toString(36)}-${++n}`;
 
 export async function createTenantWithOwner(db: Db, label: string) {
   const slug = uniq(label);
+  const email = `${slug}@example.test`;
   const user = await db.user.create({
     data: {
-      email: `${slug}@example.test`,
+      email,
       displayName: `${label} owner`,
       emailVerifiedAt: new Date(),
       passwordHash: await hashPassword('a-very-long-test-password'),
@@ -96,7 +130,7 @@ export async function createTenantWithOwner(db: Db, label: string) {
     });
     return t;
   });
-  return { tenant, user, email: user.email, password: 'a-very-long-test-password' };
+  return { tenant, user, email, password: 'a-very-long-test-password' };
 }
 
 export { createDb };

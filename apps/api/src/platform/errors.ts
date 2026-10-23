@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'SERVICE_UNAVAILABLE'
   | 'PAYMENT_PROVIDER_ERROR'
   | 'MAINTENANCE'
+  | 'PHONE_NOT_VERIFIED'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {

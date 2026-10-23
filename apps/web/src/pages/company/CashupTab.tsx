@@ -5,7 +5,10 @@ import { api } from '../../lib/api';
 
 export const METHOD_LABEL: Record<string, string> = {
   CASH: 'Cash',
-  MOBILE_MONEY: 'Mobile money',
+  ORANGE_MONEY: 'Orange Money',
+  AFRIMONEY: 'AfriMoney',
+  QMONEY: 'QMoney',
+  MOBILE_MONEY: 'Other mobile money',
   BANK_TRANSFER: 'Bank transfer',
 };
 

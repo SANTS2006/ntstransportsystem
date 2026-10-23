@@ -20,6 +20,7 @@ function app(extra: Record<string, string> = {}) {
     logger: createLogger(env),
     db: {} as Db, // routers are built but no query runs in these tests
     mailer: { send: async () => undefined },
+    sms: { send: async () => undefined }, // phone sign-up on
     googleVerifier: {
       verify: async () => ({ sub: 's', email: 'e@x.y', emailVerified: true, name: 'n' }),
     } as GoogleVerifier,
@@ -103,7 +104,7 @@ describe('OpenAPI document', () => {
 
     const login = spec.paths['/auth/login']!.post!.requestBody!.content['application/json']
       .schema as { required: string[] };
-    expect(login.required).toEqual(['email', 'password']);
+    expect(login.required).toEqual(['password']); // plus an email OR a phone number
   });
 
   it('only names permissions that exist in the permission catalog', () => {

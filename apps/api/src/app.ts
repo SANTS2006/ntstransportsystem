@@ -26,6 +26,7 @@ import { RecruitmentService } from './modules/recruitment/recruitment.service.js
 import { recruitmentRouter } from './modules/recruitment/recruitment.routes.js';
 import { FileService } from './modules/files/file.service.js';
 import { devFilesRouter, fileRouter } from './modules/files/file.routes.js';
+import { randomBytes } from 'node:crypto';
 import { deriveSubkey } from './platform/crypto.js';
 import { LocalDiskStorage, R2Storage, type FileStorage } from './platform/storage.js';
 import { reportRouter } from './modules/report/report.routes.js';
@@ -33,6 +34,8 @@ import { ReportService } from './modules/report/report.service.js';
 import { InboxService } from './modules/notifications/inbox.service.js';
 import { inboxRouter } from './modules/notifications/inbox.routes.js';
 import { CloudinaryStorage, parseCloudinaryUrl } from './platform/cloudinary.js';
+import { OtpService } from './modules/authentication/otp.service.js';
+import type { SmsSender } from './platform/sms.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
 import { PassengerService } from './modules/passenger/passenger.service.js';
 import { PaymentService } from './modules/payment/payment.service.js';
@@ -84,6 +87,8 @@ export interface AppDeps {
   paymentGateway?: PaymentGateway;
   /** Override for tests; otherwise R2 or a development directory, or uploads are off. */
   storage?: FileStorage;
+  /** How sign-up codes are sent. Without it, sign-up and sign-in by phone number are off. */
+  sms?: SmsSender;
 }
 
 export function createApp({
@@ -96,6 +101,7 @@ export function createApp({
   rateLimitStores,
   paymentGateway,
   storage,
+  sms,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -138,7 +144,23 @@ export function createApp({
   if (db && mailer) {
     const box = env.MFA_ENCRYPTION_KEY ? new SecretBox(env.MFA_ENCRYPTION_KEY) : undefined;
     const mfa = box ? new MfaService(db, box, 'NTS Transport') : undefined;
-    const auth = new AuthService(db, mailer, env.APP_URL, mfa);
+    const otp = sms
+      ? new OtpService(
+          db,
+          sms,
+          env.MFA_ENCRYPTION_KEY ? deriveSubkey(env.MFA_ENCRYPTION_KEY, 'otp') : randomBytes(32),
+          {
+            onSendError: (err) =>
+              logger.warn({ err: err.message }, 'sign-up text could not be sent'),
+          },
+        )
+      : undefined;
+    const auth = new AuthService(db, mailer, env.APP_URL, mfa, undefined, otp);
+    const features = { fileUploads: false, phoneSignup: otp !== undefined };
+    v1.get('/features', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(features);
+    });
     const verifier =
       googleVerifier ??
       (env.GOOGLE_CLIENT_ID ? new GoogleIdTokenVerifier(env.GOOGLE_CLIENT_ID) : undefined);
@@ -153,7 +175,10 @@ export function createApp({
       res.setHeader('Cache-Control', 'no-store');
       next();
     });
-    v1.use('/auth', authRouter({ auth, db, env, mfa, google, rateLimitStores }));
+    v1.use(
+      '/auth',
+      authRouter({ auth, db, env, mfa, google, phone: otp !== undefined, rateLimitStores }),
+    );
 
     const tenants = new TenantService(db);
     const members = new MembershipService(db, mailer, env.APP_URL);
@@ -210,10 +235,7 @@ export function createApp({
                 env.API_URL,
               )
             : undefined);
-      v1.get('/features', (_req, res) => {
-        res.setHeader('Cache-Control', 'no-store');
-        res.json({ fileUploads: fileStorage !== undefined });
-      });
+      features.fileUploads = fileStorage !== undefined;
       if (fileStorage) {
         v1.use(fileRouter({ db, files: new FileService(db, fileStorage), env, rateLimitStores }));
         if (fileStorage instanceof LocalDiskStorage) v1.use(devFilesRouter(fileStorage));

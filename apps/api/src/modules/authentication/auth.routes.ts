@@ -11,7 +11,11 @@ import {
   changePasswordSchema,
   forgotSchema,
   loginSchema,
+  phoneCodeSchema,
+  phoneOnlySchema,
+  registerPhoneSchema,
   registerSchema,
+  resetPhoneSchema,
   resetSchema,
   tokenSchema,
 } from './auth.schemas.js';
@@ -62,6 +66,8 @@ export interface AuthRouterDeps {
   env: Pick<Env, 'NODE_ENV' | 'RATE_LIMIT_SCALE'>;
   mfa?: MfaService | undefined;
   google?: GoogleAuthService | undefined;
+  /** Sign-up and sign-in by phone number (needs a way to send texts). */
+  phone?: boolean | undefined;
   rateLimitStores?: RateLimitStoreFactory | undefined;
 }
 
@@ -72,6 +78,7 @@ export function authRouter({
   env,
   mfa,
   google,
+  phone,
   rateLimitStores,
 }: AuthRouterDeps): ExpressRouter {
   const r = Router();
@@ -101,6 +108,37 @@ export function authRouter({
     await auth.verifyEmail(tokenSchema.parse(req.body).token, meta(req));
     res.json({ message: 'Email verified' });
   });
+
+  if (phone) {
+    // One shared hourly cap per address on everything that sends a text, so nobody can use the
+    // sign-up forms to send a flood of messages (each number is also capped in the database).
+    const sendsText = limiter('sms', 10, 60 * 60_000);
+    r.post('/register-phone', limiter('register-phone', 10), sendsText, async (req, res) => {
+      await auth.registerPhone(registerPhoneSchema.parse(req.body), meta(req));
+      res.status(202).json({ message: 'If the number can be registered, a code has been sent.' });
+    });
+    r.post('/verify-phone', limiter('verify-phone', 20), async (req, res) => {
+      const body = phoneCodeSchema.parse(req.body);
+      await auth.verifyPhone(body.phone, body.code, meta(req));
+      res.json({ message: 'Phone number verified' });
+    });
+    r.post('/resend-phone-code', limiter('resend-phone', 10), sendsText, async (req, res) => {
+      await auth.resendPhoneCode(phoneOnlySchema.parse(req.body).phone, meta(req));
+      res
+        .status(202)
+        .json({ message: 'If the number is waiting to be verified, a code has been sent.' });
+    });
+    r.post('/forgot-password-phone', limiter('forgot-phone', 5), sendsText, async (req, res) => {
+      await auth.forgotPasswordPhone(phoneOnlySchema.parse(req.body).phone, meta(req));
+      res.status(202).json({ message: 'If an account exists, a code has been sent.' });
+    });
+    r.post('/reset-password-phone', limiter('reset-phone', 10), async (req, res) => {
+      const body = resetPhoneSchema.parse(req.body);
+      await auth.resetPasswordPhone(body.phone, body.code, body.password, meta(req));
+      clearSessionCookies(res, env);
+      res.json({ message: 'Password updated. Please sign in.' });
+    });
+  }
 
   r.post('/login', limiter('login', 20), async (req, res) => {
     respondLogin(res, await auth.login(loginSchema.parse(req.body), meta(req)));
@@ -168,8 +206,10 @@ export function authRouter({
       select: {
         id: true,
         email: true,
+        phone: true,
         displayName: true,
         emailVerifiedAt: true,
+        phoneVerifiedAt: true,
         mfaEnabled: true,
         identities: { select: { provider: true } },
         platformRoles: { select: { role: true } },
@@ -225,6 +265,10 @@ export function authRouter({
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
+  registerPhoneSchema,
+  phoneOnlySchema,
+  phoneCodeSchema,
+  resetPhoneSchema,
   mfaVerifySchema,
   credentialSchema,
   googleLinkSchema,

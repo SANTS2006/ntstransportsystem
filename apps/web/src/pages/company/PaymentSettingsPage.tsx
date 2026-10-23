@@ -11,6 +11,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useCompany } from './company-context';
+import { QmoneyCard } from './QmoneyCard';
 
 interface Settings {
   configured: boolean;
@@ -134,6 +135,7 @@ export function PaymentSettingsPage() {
           </Card>
         </>
       )}
+      <QmoneyCard tenantId={tenantId} />
     </div>
   );
 }

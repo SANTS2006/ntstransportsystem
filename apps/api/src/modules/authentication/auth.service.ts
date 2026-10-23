@@ -5,6 +5,7 @@ import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { Mailer } from '../notifications/mailer.js';
 import type { MfaService } from './mfa.service.js';
+import type { OtpService } from './otp.service.js';
 
 const SESSION_TTL_MS = 30 * 24 * 3600_000;
 const ROTATE_AFTER_MS = 15 * 60_000;
@@ -44,6 +45,8 @@ export class AuthService {
     private readonly appUrl: string,
     private readonly mfa?: MfaService,
     private readonly now: () => Date = () => new Date(),
+    /** Present when sign-up and sign-in by phone number are available. */
+    private readonly otp?: OtpService,
   ) {}
 
   private async issueToken(
@@ -84,7 +87,7 @@ export class AuthService {
     });
     const token = await this.issueToken(user.id, 'EMAIL_VERIFY', VERIFY_TTL_MS);
     await this.mailer.send({
-      to: user.email,
+      to: input.email,
       template: 'verify-email',
       data: { link: `${this.appUrl}/verify-email?token=${token}` },
     });
@@ -137,9 +140,18 @@ export class AuthService {
     return { userId, sessionToken };
   }
 
-  async login(input: { email: string; password: string }, meta: ReqMeta): Promise<LoginResult> {
-    const genericFailure = () => AppError.unauthenticated('Invalid email or password');
-    const user = await this.db.user.findUnique({ where: { email: input.email } });
+  async login(
+    input: { email?: string | undefined; phone?: string | undefined; password: string },
+    meta: ReqMeta,
+  ): Promise<LoginResult> {
+    const byPhone = input.phone !== undefined;
+    const genericFailure = () =>
+      AppError.unauthenticated(
+        byPhone ? 'Invalid phone number or password' : 'Invalid email or password',
+      );
+    const user = byPhone
+      ? await this.db.user.findUnique({ where: { phone: input.phone as string } })
+      : await this.db.user.findUnique({ where: { email: input.email as string } });
     const now = this.now();
 
     if (!user?.passwordHash) {
@@ -181,7 +193,8 @@ export class AuthService {
       throw genericFailure();
     }
     // Only a caller who proved the password learns the account state.
-    if (user.status !== 'ACTIVE' || !user.emailVerifiedAt) {
+    const verified = byPhone ? user.phoneVerifiedAt : user.emailVerifiedAt;
+    if (user.status !== 'ACTIVE' || !verified) {
       const inactive = user.status !== 'ACTIVE';
       await writeAudit(this.db, {
         action: 'auth.login',
@@ -190,9 +203,10 @@ export class AuthService {
         requestId: meta.requestId,
         summary: { reason: inactive ? 'inactive' : 'unverified' },
       });
-      throw AppError.forbidden(
-        inactive ? 'This account is unavailable' : 'Please verify your email address first',
-      );
+      if (inactive) throw AppError.forbidden('This account is unavailable');
+      throw byPhone
+        ? new AppError(403, 'PHONE_NOT_VERIFIED', 'Please verify your phone number first')
+        : AppError.forbidden('Please verify your email address first');
     }
     await this.db.user.update({
       where: { id: user.id },
@@ -374,7 +388,7 @@ export class AuthService {
   /** Generic outcome regardless of whether the account exists. */
   async forgotPassword(email: string, meta: ReqMeta) {
     const user = await this.db.user.findUnique({ where: { email } });
-    if (user && user.status === 'ACTIVE') {
+    if (user?.email && user.status === 'ACTIVE') {
       const token = await this.issueToken(user.id, 'PASSWORD_RESET', RESET_TTL_MS);
       await this.mailer.send({
         to: user.email,
@@ -402,12 +416,154 @@ export class AuthService {
       },
     });
     await this.revokeAllSessions(userId);
-    await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+    if (user.email) {
+      await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+    }
     await writeAudit(this.db, {
       action: 'auth.password_reset',
       outcome: 'SUCCESS',
       actorUserId: userId,
       requestId: meta.requestId,
+    });
+  }
+
+  // ---- Phone number accounts -----------------------------------------------------------------------
+
+  private requireOtp(): OtpService {
+    if (!this.otp) throw AppError.notFound();
+    return this.otp;
+  }
+
+  /**
+   * Creates an account that is reached by phone number, and texts a code to prove the number is the
+   * person's own. Answers the same whether or not the number is already registered. A number whose
+   * account was never verified is taken over by the newest sign-up (and only whoever then receives
+   * the code can finish it), so nobody can lock a real owner out by registering their number first.
+   */
+  async registerPhone(
+    input: { phone: string; password: string; displayName: string },
+    meta: ReqMeta,
+  ) {
+    const otp = this.requireOtp();
+    const existing = await this.db.user.findUnique({ where: { phone: input.phone } });
+    if (existing?.phoneVerifiedAt || (existing && existing.status !== 'ACTIVE')) {
+      await writeAudit(this.db, {
+        action: 'auth.register_phone',
+        outcome: 'FAILURE',
+        requestId: meta.requestId,
+        summary: { reason: 'exists' },
+      });
+      return;
+    }
+    const passwordHash = await hashPassword(input.password);
+    let userId: string;
+    if (existing) {
+      await this.db.user.update({
+        where: { id: existing.id },
+        data: { passwordHash, displayName: input.displayName },
+      });
+      userId = existing.id;
+    } else {
+      try {
+        userId = (
+          await this.db.user.create({
+            data: { phone: input.phone, displayName: input.displayName, passwordHash },
+          })
+        ).id;
+      } catch {
+        return; // a simultaneous sign-up for the same number won; say nothing different
+      }
+    }
+    await otp.issue(input.phone, 'REGISTER', userId);
+    await writeAudit(this.db, {
+      action: 'auth.register_phone',
+      outcome: 'SUCCESS',
+      actorUserId: userId,
+      requestId: meta.requestId,
+    });
+  }
+
+  /** Checks the code from the text and marks the number as the account's own. */
+  async verifyPhone(phone: string, code: string, meta: ReqMeta) {
+    const otp = this.requireOtp();
+    const r = await otp.verify(phone, 'REGISTER', code);
+    if (!r.ok || !r.userId) {
+      await writeAudit(this.db, {
+        action: 'auth.phone_verify',
+        outcome: 'FAILURE',
+        requestId: meta.requestId,
+      });
+      throw AppError.validation('That code is not right, or it has expired');
+    }
+    await this.db.user.update({
+      where: { id: r.userId },
+      data: { phoneVerifiedAt: this.now() },
+    });
+    await writeAudit(this.db, {
+      action: 'auth.phone_verified',
+      outcome: 'SUCCESS',
+      actorUserId: r.userId,
+      requestId: meta.requestId,
+    });
+  }
+
+  /** Sends another code to a number that signed up and has not verified yet. Never says if it did. */
+  async resendPhoneCode(phone: string, meta: ReqMeta) {
+    const otp = this.requireOtp();
+    const user = await this.db.user.findUnique({ where: { phone } });
+    if (user && !user.phoneVerifiedAt && user.status === 'ACTIVE') {
+      await otp.issue(phone, 'REGISTER', user.id);
+    }
+    await writeAudit(this.db, {
+      action: 'auth.phone_code_resent',
+      outcome: 'SUCCESS',
+      requestId: meta.requestId,
+    });
+  }
+
+  /** Texts a password-reset code to a verified number. Same answer for every number. */
+  async forgotPasswordPhone(phone: string, meta: ReqMeta) {
+    const otp = this.requireOtp();
+    const user = await this.db.user.findUnique({ where: { phone } });
+    if (user?.phoneVerifiedAt && user.status === 'ACTIVE') {
+      await otp.issue(phone, 'PASSWORD_RESET', user.id);
+    }
+    await writeAudit(this.db, {
+      action: 'auth.password_reset_requested',
+      outcome: 'SUCCESS',
+      requestId: meta.requestId,
+      summary: { channel: 'phone' },
+    });
+  }
+
+  async resetPasswordPhone(phone: string, code: string, newPassword: string, meta: ReqMeta) {
+    const otp = this.requireOtp();
+    const r = await otp.verify(phone, 'PASSWORD_RESET', code);
+    if (!r.ok || !r.userId) {
+      await writeAudit(this.db, {
+        action: 'auth.password_reset',
+        outcome: 'FAILURE',
+        requestId: meta.requestId,
+        summary: { channel: 'phone' },
+      });
+      throw AppError.validation('That code is not right, or it has expired');
+    }
+    await this.db.user.update({
+      where: { id: r.userId },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        failedLoginCount: 0,
+        lockedUntil: null,
+        phoneVerifiedAt: this.now(), // receiving the code proves the number
+      },
+    });
+    await this.revokeAllSessions(r.userId);
+    await writeAudit(this.db, {
+      action: 'auth.password_reset',
+      outcome: 'SUCCESS',
+      actorUserId: r.userId,
+      requestId: meta.requestId,
+      summary: { channel: 'phone' },
     });
   }
 
@@ -441,7 +597,9 @@ export class AuthService {
       },
       data: { revokedAt: this.now() },
     });
-    await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+    if (user.email) {
+      await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+    }
     await writeAudit(this.db, {
       action: 'auth.password_change',
       outcome: 'SUCCESS',

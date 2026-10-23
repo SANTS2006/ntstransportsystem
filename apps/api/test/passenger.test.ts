@@ -1,10 +1,12 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  GatewayError,
   type CheckoutCreated,
   type CheckoutRequest,
   type CheckoutState,
   type GatewayConfig,
+  type MomoProvider,
   type PaymentGateway,
 } from '../src/modules/payment/gateway.js';
 import { withDb, type Db, type Tx } from '../src/platform/db.js';
@@ -26,6 +28,19 @@ class FakeGateway implements PaymentGateway {
     const sessionId = `ps-${++this.n}-${Math.random().toString(36).slice(2, 8)}`;
     this.sessions.set(sessionId, { req, status: 'pending' });
     return { sessionId, redirectUrl: `https://pay.monime.test/${sessionId}` };
+  }
+
+  /** What Monime lists for the company; tests change it. */
+  momos: MomoProvider[] = [
+    { providerId: 'm17', name: 'Orange Money', active: true, canPayFrom: true },
+    { providerId: 'm18', name: 'Africell Money', active: true, canPayFrom: true },
+  ];
+  failList = false;
+  listed = 0;
+  async listMomos(_cfg: GatewayConfig, _country: string): Promise<MomoProvider[]> {
+    this.listed++;
+    if (this.failList) throw new GatewayError('Could not reach Monime', true);
+    return this.momos;
   }
   async getCheckout(_cfg: GatewayConfig, sessionId: string): Promise<CheckoutState> {
     const s = this.sessions.get(sessionId)!;
@@ -282,5 +297,274 @@ describe.skipIf(!TEST_DB_URL)('passenger search and self-service booking (databa
       (await p.call('get', `/passenger/bookings/${made.body.id}`).expect(200)).body.status,
     ).toBe('CANCELLED');
     await bookAs(q, body(f, ['1'])).expect(201);
+  }, 400_000);
+
+  it('offers the wallets Monime lists, and sends the customer to just the one they chose', async () => {
+    const f = await seller('wallets');
+    const p = await newClient(ctx.app, db, 'wallet-payer');
+    const made = (await bookAs(p, body(f, ['1'])).expect(201)).body as { id: string };
+    const base = `/passenger/bookings/${made.id}`;
+
+    const opts = (await p.call('get', `${base}/payment-options`).expect(200)).body as {
+      booking: { totalMinor: number; reference: string };
+      options: { method: string; label: string; kind: string }[];
+    };
+    expect(opts.booking.totalMinor).toBe(40_000);
+    expect(opts.options).toEqual([
+      { method: 'ORANGE_MONEY', label: 'Orange Money', kind: 'ONLINE' },
+      { method: 'AFRIMONEY', label: 'AfriMoney', kind: 'ONLINE' },
+    ]); // QMoney is not offered: Monime does not list it
+
+    const providersOf = (url: string) => gw.sessions.get(url.split('/').pop()!)!.req.momoProviders;
+    const orange = await p.call('post', `${base}/pay`).send({ method: 'ORANGE_MONEY' }).expect(201);
+    expect(providersOf(orange.body.redirectUrl)).toEqual(['m17']); // Monime's own id for it
+    // Asking for the same wallet again returns the checkout that is already open.
+    const again = await p.call('post', `${base}/pay`).send({ method: 'ORANGE_MONEY' }).expect(201);
+    expect(again.body.redirectUrl).toBe(orange.body.redirectUrl);
+    // Changing their mind: a fresh checkout for AfriMoney, and the Orange one is closed on our side.
+    const afri = await p.call('post', `${base}/pay`).send({ method: 'AFRIMONEY' }).expect(201);
+    expect(afri.body.redirectUrl).not.toBe(orange.body.redirectUrl);
+    expect(providersOf(afri.body.redirectUrl)).toEqual(['m18']);
+    const rows = await plat((tx) =>
+      tx.payment.findMany({ where: { bookingId: made.id }, orderBy: { createdAt: 'asc' } }),
+    );
+    expect(rows.map((r) => [r.method, r.status])).toEqual([
+      ['ORANGE_MONEY', 'CANCELLED'],
+      ['AFRIMONEY', 'PENDING'],
+    ]);
+
+    await p.call('post', `${base}/pay`).send({ method: 'QMONEY' }).expect(409); // not listed
+    await p.call('post', `${base}/pay`).send({ method: 'BITCOIN' }).expect(400);
+    await p.call('post', `${base}/pay`).send({ method: 'ORANGE_MONEY', amount: 1 }).expect(400);
+    // No choice at all still works, with the hosted page's own list.
+    const plain = await p.call('post', `${base}/pay`).send({}).expect(201);
+    expect(providersOf(plain.body.redirectUrl)).toBeUndefined();
+
+    // Not your booking: it does not exist as far as you can tell.
+    const other = await newClient(ctx.app, db, 'wallet-other');
+    await other.call('get', `${base}/payment-options`).expect(404);
+    await other.call('post', `${base}/pay`).send({ method: 'ORANGE_MONEY' }).expect(404);
+  }, 400_000);
+
+  it('falls back to the hosted page when Monime cannot say which wallets it has, and offers QMoney there when Monime lists it', async () => {
+    gw.failList = true;
+    try {
+      const f = await seller('wallets-down');
+      const p = await newClient(ctx.app, db, 'wallet-down');
+      const made = (await bookAs(p, body(f, ['1'])).expect(201)).body as { id: string };
+      const base = `/passenger/bookings/${made.id}`;
+      const opts = (await p.call('get', `${base}/payment-options`).expect(200)).body.options;
+      expect(opts).toEqual([{ method: 'ONLINE', label: 'Pay online', kind: 'ONLINE' }]);
+      await p.call('post', `${base}/pay`).send({ method: 'ORANGE_MONEY' }).expect(409);
+      await p.call('post', `${base}/pay`).send({ method: 'ONLINE' }).expect(201);
+    } finally {
+      gw.failList = false;
+    }
+
+    const saved = gw.momos;
+    gw.momos = [...saved, { providerId: 'm77', name: 'QMoney', active: true, canPayFrom: true }];
+    try {
+      const f = await seller('wallets-q');
+      await f.owner
+        .call('put', `/tenants/${f.tenantId}/payment-settings/qmoney`)
+        .send({ number: '076 555 123' })
+        .expect(200);
+      const p = await newClient(ctx.app, db, 'wallet-q');
+      const made = (await bookAs(p, body(f, ['1'])).expect(201)).body as { id: string };
+      const opts = (
+        await p.call('get', `/passenger/bookings/${made.id}/payment-options`).expect(200)
+      ).body.options as { method: string; kind: string }[];
+      // Monime lists QMoney, so it goes through Monime and the manual route is not offered.
+      expect(opts.map((o) => `${o.method}:${o.kind}`)).toEqual([
+        'ORANGE_MONEY:ONLINE',
+        'AFRIMONEY:ONLINE',
+        'QMONEY:ONLINE',
+      ]);
+      const q = await p
+        .call('post', `/passenger/bookings/${made.id}/pay`)
+        .send({ method: 'QMONEY' })
+        .expect(201);
+      expect(gw.sessions.get(q.body.redirectUrl.split('/').pop())!.req.momoProviders).toEqual([
+        'm77',
+      ]);
+    } finally {
+      gw.momos = saved;
+    }
+  }, 400_000);
+
+  it('takes QMoney paid to the company: the passenger sends the transaction number and staff confirm it', async () => {
+    const f = await seller('qmoney', { payments: false });
+    const staff = async (roleKey: string) => {
+      const c = await newClient(ctx.app, db, roleKey);
+      await plat(async (tx) => {
+        const role = await tx.role.findFirstOrThrow({
+          where: { tenantId: f.tenantId, key: roleKey },
+        });
+        await tx.membership.create({
+          data: { tenantId: f.tenantId, userId: c.userId, roleId: role.id, status: 'ACTIVE' },
+        });
+      });
+      return c;
+    };
+    const url = `/tenants/${f.tenantId}/payment-settings/qmoney`;
+
+    // Without any way to pay, the company's trips are not sold online.
+    expect((await search(`date=${DAY}&from=${f.from}`).expect(200)).body.trips).toEqual([]);
+    // Only people who manage payments can set the number, and it must be a phone number.
+    await (await staff('driver')).call('put', url).send({ number: '076555123' }).expect(403);
+    await (await staff('sales_agent')).call('put', url).send({ number: '076555123' }).expect(403);
+    await f.owner.call('put', url).send({ number: 'not a number' }).expect(400);
+    await f.owner.call('put', url).send({ number: '076555123', extra: 1 }).expect(400);
+    const set = await f.owner
+      .call('put', url)
+      .send({ number: '076 555 123', accountName: 'Demo Coaches Ltd' })
+      .expect(200);
+    expect(set.body).toEqual({ number: '+23276555123', accountName: 'Demo Coaches Ltd' });
+    expect((await f.owner.call('get', url).expect(200)).body.number).toBe('+23276555123');
+    expect((await search(`date=${DAY}&from=${f.from}`).expect(200)).body.trips).toHaveLength(1);
+
+    const p = await newClient(ctx.app, db, 'qm-payer');
+    const made = (await bookAs(p, body(f, ['1'])).expect(201)).body as { id: string };
+    const base = `/passenger/bookings/${made.id}`;
+    const opts = (await p.call('get', `${base}/payment-options`).expect(200)).body.options;
+    expect(opts).toEqual([
+      {
+        method: 'QMONEY',
+        label: 'QMoney',
+        kind: 'MANUAL',
+        manual: { number: '+23276555123', accountName: 'Demo Coaches Ltd' },
+      },
+    ]);
+    await p.call('post', `${base}/pay`).send({ method: 'QMONEY' }).expect(409); // nothing online here
+
+    // The passenger says they paid. That confirms nothing, but it holds the seats for a while.
+    const reference = `QM-${Date.now().toString(36).toUpperCase()}`;
+    await p
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'QMONEY', reference: 'ab' })
+      .expect(400);
+    await p
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'ORANGE_MONEY', reference })
+      .expect(400);
+    const claim = await p
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'QMONEY', reference })
+      .expect(201);
+    expect(new Date(claim.body.holdExpiresAt).getTime()).toBeGreaterThan(Date.now() + 100 * 60_000);
+    const status = (await p.call('get', `${base}/status`).expect(200)).body;
+    expect(status.status).toBe('PENDING_PAYMENT'); // a notice is not a payment
+    expect(status.claim).toMatchObject({ method: 'QMONEY', reference });
+
+    // Staff see it next to the booking.
+    const listed = (await f.owner.call('get', `/tenants/${f.tenantId}/bookings`).expect(200)).body
+      .bookings as { id: string; claim: { reference: string } | null }[];
+    expect(listed.find((b) => b.id === made.id)?.claim).toMatchObject({ reference });
+
+    // One transaction number pays one booking; and only a few notices per booking.
+    const other = (await bookAs(p, body(f, ['2'])).expect(201)).body as { id: string };
+    await p
+      .call('post', `/passenger/bookings/${other.id}/manual-payment`)
+      .send({ method: 'QMONEY', reference: reference.toLowerCase() })
+      .expect(409);
+    for (const n of [1, 2]) {
+      await p
+        .call('post', `${base}/manual-payment`)
+        .send({ method: 'QMONEY', reference: `${reference}-${n}` })
+        .expect(201);
+    }
+    await p
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'QMONEY', reference: `${reference}-3` })
+      .expect(409);
+    // Someone else cannot send notices for your booking.
+    const stranger = await newClient(ctx.app, db, 'qm-stranger');
+    await stranger
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'QMONEY', reference: 'STRANGER-1' })
+      .expect(404);
+
+    // Staff check their QMoney statement, then take the payment: the booking is confirmed and the
+    // passenger's notice is closed.
+    await f.owner
+      .call('post', `/tenants/${f.tenantId}/bookings/${made.id}/desk-payment`)
+      .send({ method: 'QMONEY', reference })
+      .expect(201);
+    const after = (await p.call('get', `${base}/status`).expect(200)).body;
+    expect(after.status).toBe('CONFIRMED');
+    expect(after.claim).toBeNull();
+    const claims = await plat((tx) => tx.paymentClaim.findMany({ where: { bookingId: made.id } }));
+    expect(claims.map((c) => c.status)).toEqual(['CONFIRMED', 'CONFIRMED', 'CONFIRMED']);
+    const paid = await plat((tx) =>
+      tx.payment.findFirstOrThrow({ where: { bookingId: made.id, provider: 'DESK' } }),
+    );
+    expect(paid).toMatchObject({ method: 'QMONEY', reference, status: 'PAID' });
+    await p
+      .call('post', `${base}/manual-payment`)
+      .send({ method: 'QMONEY', reference: 'LATE-0001' })
+      .expect(409);
+
+    // Clearing the number stops QMoney being offered (and the company's trips are no longer sold).
+    await f.owner.call('put', url).send({ number: null }).expect(200);
+    expect((await f.owner.call('get', url).expect(200)).body).toEqual({
+      number: null,
+      accountName: null,
+    });
+    await p
+      .call('post', `/passenger/bookings/${other.id}/manual-payment`)
+      .send({ method: 'QMONEY', reference: 'AFTER-CLEAR' })
+      .expect(409);
+    expect((await search(`date=${DAY}&from=${f.from}`).expect(200)).body.trips).toEqual([]);
+
+    // The database refuses bad numbers, a claim for another method, and a reused transaction number.
+    await expect(
+      plat((tx) =>
+        tx.manualPaymentSettings.upsert({
+          where: { tenantId: f.tenantId },
+          create: { tenantId: f.tenantId, qmoneyNumber: '0761234567' },
+          update: { qmoneyNumber: '0761234567' },
+        }),
+      ),
+    ).rejects.toThrow();
+    const claimBase = { tenantId: f.tenantId, bookingId: other.id, createdBy: p.userId };
+    await expect(
+      plat((tx) =>
+        tx.paymentClaim.create({ data: { ...claimBase, method: 'CASH', reference: 'WHATEVER1' } }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      plat((tx) =>
+        tx.paymentClaim.create({ data: { ...claimBase, method: 'QMONEY', reference: reference } }),
+      ),
+    ).rejects.toThrow(); // already used
+    await expect(
+      plat((tx) => tx.paymentClaim.deleteMany({ where: { bookingId: made.id } })),
+    ).rejects.toThrow(); // notices are never deleted
+  }, 600_000);
+
+  it('lets staff and passengers see which wallet was used, and a company use both Monime and QMoney', async () => {
+    const f = await seller('both');
+    await f.owner
+      .call('put', `/tenants/${f.tenantId}/payment-settings/qmoney`)
+      .send({ number: '+232 76 555 999', accountName: 'Both Co' })
+      .expect(200);
+    const p = await newClient(ctx.app, db, 'both-payer');
+    const made = (await bookAs(p, body(f, ['1'])).expect(201)).body as { id: string };
+    const opts = (await p.call('get', `/passenger/bookings/${made.id}/payment-options`).expect(200))
+      .body.options as { method: string; kind: string }[];
+    // Orange Money and AfriMoney through Monime, QMoney paid to the company.
+    expect(opts.map((o) => `${o.method}:${o.kind}`)).toEqual([
+      'ORANGE_MONEY:ONLINE',
+      'AFRIMONEY:ONLINE',
+      'QMONEY:MANUAL',
+    ]);
+    await p
+      .call('post', `/passenger/bookings/${made.id}/pay`)
+      .send({ method: 'AFRIMONEY' })
+      .expect(201);
+    const pays = (
+      await f.owner.call('get', `/tenants/${f.tenantId}/bookings/${made.id}/payments`).expect(200)
+    ).body.payments as { method: string | null }[];
+    expect(pays.map((x) => x.method)).toEqual(['AFRIMONEY']);
   }, 400_000);
 });

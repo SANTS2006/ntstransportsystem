@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { normalizePhone } from '@nts/shared';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -9,12 +10,16 @@ import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
-import { api, safeNext } from '../../lib/api';
+import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
+import { ApiError, api, safeNext } from '../../lib/api';
+import { useFeatures } from '../../lib/features';
 import {
   loginSchema,
   mfaCodeSchema,
+  phoneLoginSchema,
   recoveryCodeSchema,
   type LoginValues,
+  type PhoneLoginValues,
 } from '../../lib/schemas';
 
 type LoginResponse = { userId: string } | { mfaRequired: true; challengeToken: string };
@@ -24,6 +29,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const [challenge, setChallenge] = useState<string | null>(null);
+  const { phoneSignup } = useFeatures();
+  const [chosen, setChosen] = useState<Method | null>(null);
+  // Coming back from verifying or resetting by phone: start on the phone tab with the number filled in.
+  const cameByPhone = params.get('phone') !== null;
+  const method: Method =
+    phoneSignup && (chosen ?? (cameByPhone ? 'phone' : 'email')) === 'phone' ? 'phone' : 'email';
   const next = safeNext(params.get('next'));
 
   const finish = async (res: LoginResponse) => {
@@ -38,6 +49,21 @@ export default function LoginPage() {
   const password = useMutation({
     mutationFn: (v: LoginValues) => api<LoginResponse>('/auth/login', { method: 'POST', body: v }),
     onSuccess: finish,
+  });
+  const byPhone = useMutation({
+    mutationFn: (v: PhoneLoginValues) =>
+      api<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: { phone: normalizePhone(v.phone) ?? v.phone, password: v.password },
+      }),
+    onSuccess: finish,
+    onError: (e, v) => {
+      // The number is right but was never confirmed: go and get a code.
+      if (e instanceof ApiError && e.code === 'PHONE_NOT_VERIFIED') {
+        const n = normalizePhone(v.phone);
+        if (n) void navigate(`/verify-phone?phone=${encodeURIComponent(n)}&resend=1`);
+      }
+    },
   });
   const google = useMutation({
     mutationFn: (credential: string) =>
@@ -57,9 +83,28 @@ export default function LoginPage() {
   return (
     <AuthCard title="Sign in" subtitle="Welcome back.">
       {params.get('reset') && <Alert tone="success">Password updated. Please sign in.</Alert>}
-      {(password.error ?? google.error) && <ErrorAlert error={password.error ?? google.error} />}
-      <PasswordForm onSubmit={(v) => password.mutate(v)} pending={password.isPending} />
-      {googleEnabled && (
+      {params.get('verified') && (
+        <Alert tone="success">Phone number confirmed. Please sign in.</Alert>
+      )}
+      {phoneSignup && <MethodTabs label="Sign in with" value={method} onChange={setChosen} />}
+      {method === 'phone' ? (
+        <>
+          {(byPhone.error ?? google.error) && <ErrorAlert error={byPhone.error ?? google.error} />}
+          <PhonePasswordForm
+            initialPhone={params.get('phone') ?? ''}
+            onSubmit={(v) => byPhone.mutate(v)}
+            pending={byPhone.isPending}
+          />
+        </>
+      ) : (
+        <>
+          {(password.error ?? google.error) && (
+            <ErrorAlert error={password.error ?? google.error} />
+          )}
+          <PasswordForm onSubmit={(v) => password.mutate(v)} pending={password.isPending} />
+        </>
+      )}
+      {googleEnabled && method === 'email' && (
         <>
           <p className="text-center text-xs text-slate-500">or</p>
           <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
@@ -74,6 +119,45 @@ export default function LoginPage() {
         </Link>
       </div>
     </AuthCard>
+  );
+}
+
+function PhonePasswordForm({
+  initialPhone,
+  onSubmit,
+  pending,
+}: {
+  initialPhone: string;
+  onSubmit: (v: PhoneLoginValues) => void;
+  pending: boolean;
+}) {
+  const form = useForm<PhoneLoginValues>({
+    resolver: zodResolver(phoneLoginSchema),
+    defaultValues: { phone: initialPhone, password: '' },
+  });
+  const { errors } = form.formState;
+  return (
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <Field
+        label="Phone number"
+        type="tel"
+        inputMode="tel"
+        autoComplete="username"
+        hint={PHONE_HINT}
+        error={errors.phone?.message}
+        {...form.register('phone')}
+      />
+      <Field
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        error={errors.password?.message}
+        {...form.register('password')}
+      />
+      <Button type="submit" className="w-full" loading={pending} loadingText="Signing in…">
+        Sign in
+      </Button>
+    </form>
   );
 }
 

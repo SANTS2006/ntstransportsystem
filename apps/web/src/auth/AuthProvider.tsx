@@ -4,7 +4,9 @@ import { api, ApiError } from '../lib/api';
 
 export interface Me {
   id: string;
-  email: string;
+  email: string | null;
+  phone?: string | null;
+  phoneVerifiedAt?: string | null;
   displayName: string;
   emailVerifiedAt: string | null;
   mfaEnabled: boolean;

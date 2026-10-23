@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { useFeatures } from '../../lib/features';
 import { Alert, ErrorAlert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -46,13 +47,7 @@ export const mediaOf = (type: string): Media =>
 
 /** Whether the server has file storage configured. Upload controls are hidden when it does not. */
 export function useFileUploadsEnabled(): boolean {
-  const q = useQuery({
-    queryKey: ['features'],
-    staleTime: 5 * 60_000,
-    retry: false,
-    queryFn: ({ signal }) => api<{ fileUploads: boolean }>('/features', { signal }),
-  });
-  return q.data?.fileUploads === true;
+  return useFeatures().fileUploads;
 }
 
 /**

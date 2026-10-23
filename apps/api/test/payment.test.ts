@@ -7,6 +7,7 @@ import {
   type CheckoutRequest,
   type CheckoutState,
   type GatewayConfig,
+  type MomoProvider,
   type PaymentGateway,
 } from '../src/modules/payment/gateway.js';
 import { withDb, type Db, type Tx } from '../src/platform/db.js';
@@ -37,6 +38,19 @@ class FakeGateway implements PaymentGateway {
     this.sessions.set(sessionId, { req, status: 'pending' });
     this.created.push({ cfg, req });
     return { sessionId, redirectUrl: `https://pay.monime.test/${sessionId}` };
+  }
+
+  /** What Monime lists for the company; tests change it. */
+  momos: MomoProvider[] = [
+    { providerId: 'm17', name: 'Orange Money', active: true, canPayFrom: true },
+    { providerId: 'm18', name: 'Africell Money', active: true, canPayFrom: true },
+  ];
+  failList = false;
+  listed = 0;
+  async listMomos(_cfg: GatewayConfig, _country: string): Promise<MomoProvider[]> {
+    this.listed++;
+    if (this.failList) throw new GatewayError('Could not reach Monime', true);
+    return this.momos;
   }
   async getCheckout(_cfg: GatewayConfig, sessionId: string): Promise<CheckoutState> {
     if (this.failGet) throw new GatewayError('Could not reach Monime', true);

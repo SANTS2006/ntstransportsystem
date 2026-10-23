@@ -379,6 +379,42 @@ describe.skipIf(!TEST_DB_URL)('notifications from the outbox (database)', () => 
     expect(other.mailer.sent).toHaveLength(0);
   }, 400_000);
 
+  it('reaches a passenger who signed up by phone number (no e-mail address) in the app', async () => {
+    const k = await kit('nt-phone');
+    // An account with a phone number and no e-mail address.
+    const phoneUser = await plat((tx) =>
+      tx.user.create({
+        data: {
+          phone: `+2327${String(Math.floor(1_000_000 + Math.random() * 8_000_000))}`,
+          phoneVerifiedAt: new Date(),
+          displayName: 'Phone Passenger',
+        },
+      }),
+    );
+    const b = await k.book(['4']); // booked at the counter...
+    await plat((tx) =>
+      tx.booking.update({ where: { id: b.id }, data: { createdByUserId: phoneUser.id } }),
+    ); // ...and now owned by the phone account
+    await bookings.markPaid(k.tenantId, b.id);
+    await k.drain();
+
+    const inbox = await plat((tx) =>
+      tx.inboxNotification.findMany({ where: { userId: phoneUser.id } }),
+    );
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({ title: 'Booking confirmed', template: 'booking-confirmed' });
+    expect(inbox[0]!.link).toBe(`/app/bookings/${b.id}`);
+    expect(k.mailer.sent).toHaveLength(0); // there is no address to write to
+    // Nothing is sent twice by another pass.
+    await k.drain();
+    expect(
+      await plat((tx) => tx.inboxNotification.count({ where: { userId: phoneUser.id } })),
+    ).toBe(1);
+    expect(
+      await withDb(db, { tenantId: k.tenantId }, (tx) => tx.notificationDelivery.count()),
+    ).toBe(1);
+  }, 400_000);
+
   it('puts the same notice in the passenger inbox, once, visible only to them', async () => {
     const k = await kit('nt-inbox');
     const pax = await newClient(ctx.app, db, 'ntinbox');

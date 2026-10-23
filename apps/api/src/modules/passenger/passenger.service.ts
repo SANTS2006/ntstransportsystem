@@ -2,6 +2,7 @@ import { withDb, type Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import type { BookingService } from '../booking/booking.service.js';
 import { type BookingInput } from '../booking/booking.service.js';
+import type { PayMethod } from '../payment/methods.js';
 import type { PaymentService } from '../payment/payment.service.js';
 import type { TicketService } from '../ticket/ticket.service.js';
 import { receiptPdfFor, ticketsPdfFor } from '../ticket/ticket.routes.js';
@@ -41,7 +42,14 @@ export class PassengerService {
       departureAt: { gt: now },
       vehicleId: { not: null },
       route: { status: 'PUBLISHED' as const, fares: { some: { active: true } } },
-      tenant: { status: 'ACTIVE' as const, paymentSettings: { is: { enabled: true } } },
+      tenant: {
+        status: 'ACTIVE' as const,
+        // Bookable online when the company takes Monime payments or publishes a QMoney number.
+        OR: [
+          { paymentSettings: { is: { enabled: true } } },
+          { manualPayment: { is: { qmoneyNumber: { not: null } } } },
+        ],
+      },
     };
   }
 
@@ -221,6 +229,12 @@ export class PassengerService {
       },
     },
     payments: { orderBy: { createdAt: 'desc' }, take: 1, select: { status: true } },
+    claims: {
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+      select: { method: true, reference: true, createdAt: true },
+    },
   } as const;
 
   private async ownBooking(userId: string, bookingId: string) {
@@ -254,6 +268,13 @@ export class PassengerService {
       holdExpiresAt:
         b.status === 'PENDING_PAYMENT' ? (b.holdExpiresAt?.toISOString() ?? null) : null,
       paymentStatus: b.payments[0]?.status ?? null,
+      claim: b.claims[0]
+        ? {
+            method: b.claims[0].method,
+            reference: b.claims[0].reference,
+            createdAt: b.claims[0].createdAt.toISOString(),
+          }
+        : null,
       passengers: b.passengers
         .filter((p) => p.releasedAt === null)
         .map((p) => ({ seatLabel: p.seatLabel, fullName: p.fullName })),
@@ -289,9 +310,35 @@ export class PassengerService {
     return receiptPdfFor(this.tickets, this.scopeFor(b.tenantId, userId), bookingId);
   }
 
-  async pay(userId: string, bookingId: string, requestId?: string) {
+  async pay(userId: string, bookingId: string, requestId?: string, method?: PayMethod | 'ONLINE') {
     const b = await this.ownBooking(userId, bookingId);
-    return this.payments.start(this.scopeFor(b.tenantId, userId), bookingId, requestId);
+    return this.payments.start(this.scopeFor(b.tenantId, userId), bookingId, requestId, method);
+  }
+
+  /** The booking and every way its owner can pay it. */
+  async paymentOptions(userId: string, bookingId: string) {
+    const b = await this.ownBooking(userId, bookingId);
+    const options =
+      b.status === 'PENDING_PAYMENT'
+        ? await this.payments.options(this.scopeFor(b.tenantId, userId))
+        : [];
+    return { booking: this.dto(b), options };
+  }
+
+  /** "I paid by QMoney, here is the transaction number": tells staff what to look for. */
+  async manualPayment(
+    userId: string,
+    bookingId: string,
+    input: { reference: string },
+    requestId?: string,
+  ) {
+    const b = await this.ownBooking(userId, bookingId);
+    return this.payments.submitClaim(
+      this.scopeFor(b.tenantId, userId),
+      bookingId,
+      input,
+      requestId,
+    );
   }
 
   async cancel(userId: string, bookingId: string, requestId?: string) {

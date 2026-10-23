@@ -45,6 +45,20 @@ const bookingCreate = z
   })
   .strict();
 
+const payBody = z
+  .object({ method: z.enum(['ORANGE_MONEY', 'AFRIMONEY', 'QMONEY', 'ONLINE']).optional() })
+  .strict();
+const manualPaymentBody = z
+  .object({
+    method: z.literal('QMONEY'),
+    // The transaction number QMoney shows after paying: letters, digits and a few separators.
+    reference: trim.regex(
+      /^[A-Za-z0-9][A-Za-z0-9 ._-]{3,39}$/,
+      'Enter the QMoney transaction number (4 to 40 characters)',
+    ),
+  })
+  .strict();
+
 export interface PassengerRouterDeps {
   passenger: PassengerService;
   env: Pick<Env, 'RATE_LIMIT_SCALE'>;
@@ -126,9 +140,39 @@ export function passengerRouter({
     const f = await passenger.receiptPdf(userId(req), z.uuid().parse(req.params.id));
     sendPdf(res, f.name, f.body);
   });
+  r.get(
+    '/passenger/bookings/:id/payment-options',
+    requireAuth,
+    limit('options', 30),
+    async (req, res) => {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.json(await passenger.paymentOptions(userId(req), z.uuid().parse(req.params.id)));
+    },
+  );
   r.post('/passenger/bookings/:id/pay', requireAuth, limit('pay', 10), async (req, res) => {
-    res.status(201).json(await passenger.pay(userId(req), z.uuid().parse(req.params.id), req.id));
+    const body = payBody.parse(req.body ?? {});
+    res
+      .status(201)
+      .json(await passenger.pay(userId(req), z.uuid().parse(req.params.id), req.id, body.method));
   });
+  r.post(
+    '/passenger/bookings/:id/manual-payment',
+    requireAuth,
+    limit('manual', 6),
+    async (req, res) => {
+      const body = manualPaymentBody.parse(req.body);
+      res
+        .status(201)
+        .json(
+          await passenger.manualPayment(
+            userId(req),
+            z.uuid().parse(req.params.id),
+            { reference: body.reference },
+            req.id,
+          ),
+        );
+    },
+  );
   r.post('/passenger/bookings/:id/cancel', requireAuth, limit('cancel', 10), async (req, res) => {
     await passenger.cancel(userId(req), z.uuid().parse(req.params.id), req.id);
     res.status(204).end();
@@ -136,4 +180,4 @@ export function passengerRouter({
   return r;
 }
 
-export const requestSchemas = { bookingCreate };
+export const requestSchemas = { bookingCreate, payBody, manualPaymentBody };

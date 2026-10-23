@@ -64,6 +64,7 @@ interface MyBooking {
   currency: string;
   holdExpiresAt: string | null;
   paymentStatus: string | null;
+  claim?: { method: string; reference: string; createdAt: string } | null;
   passengers: { seatLabel: string; fullName: string }[];
 }
 
@@ -73,12 +74,6 @@ const STATUS_LABEL: Record<MyBooking['status'], string> = {
   CANCELLED: 'Cancelled',
   EXPIRED: 'Expired',
 };
-
-/** Sends the browser to the provider's checkout. Only https destinations are ever followed. */
-function goToCheckout(url: string) {
-  if (!url.startsWith('https://')) throw new Error('The payment page address was not valid.');
-  window.location.assign(url);
-}
 
 // ---- Search ----------------------------------------------------------------------------------
 
@@ -167,6 +162,7 @@ export function TripSearchPage() {
 
 export function TripBookPage() {
   const { tenantId, tripId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [picked, setPicked] = useState<string[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -195,19 +191,10 @@ export function TripBookPage() {
           })),
         },
       });
-      const pay = await api<{ redirectUrl: string }>(`/passenger/bookings/${booking.id}/pay`, {
-        method: 'POST',
-        body: {},
-      });
-      return pay.redirectUrl;
+      return booking.id;
     },
-    onSuccess: (url) => {
-      try {
-        goToCheckout(url);
-      } catch (e) {
-        setError(errMsg(e));
-      }
-    },
+    // Seats are held; the next page is where they choose how to pay.
+    onSuccess: (bookingId) => void navigate(`/app/bookings/${bookingId}/pay`),
     onError: async (e) => {
       // After a timeout the booking may exist; the same key makes a retry return it, not a copy.
       setError(errMsg(e));
@@ -470,18 +457,6 @@ export function MyBookingsPage() {
     queryKey: ['passenger-bookings'],
     queryFn: ({ signal }) => api<{ bookings: MyBooking[] }>('/passenger/bookings', { signal }),
   });
-  const pay = useMutation({
-    mutationFn: (id: string) =>
-      api<{ redirectUrl: string }>(`/passenger/bookings/${id}/pay`, { method: 'POST', body: {} }),
-    onSuccess: (r) => {
-      try {
-        goToCheckout(r.redirectUrl);
-      } catch (e) {
-        toast(errMsg(e), 'error');
-      }
-    },
-    onError: (e) => toast(errMsg(e), 'error'),
-  });
   const cancel = useMutation({
     mutationFn: (id: string) =>
       api(`/passenger/bookings/${id}/cancel`, { method: 'POST', body: {} }),
@@ -531,13 +506,7 @@ export function MyBookingsPage() {
           )}
           {b.status === 'PENDING_PAYMENT' && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                loading={pay.isPending && pay.variables === b.id}
-                loadingText="Opening payment…"
-                onClick={() => pay.mutate(b.id)}
-              >
-                Pay now
-              </Button>
+              <Button onClick={() => void nav(`/app/bookings/${b.id}/pay`)}>Pay now</Button>
               <Button
                 variant="ghost"
                 loading={cancel.isPending && cancel.variables === b.id}

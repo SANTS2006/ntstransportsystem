@@ -111,6 +111,54 @@ export const operations: Record<string, Operation> = {
     body: registerSchema,
     ok: 202,
   },
+  'POST /api/v1/auth/register-phone': {
+    optional: true,
+    summary: 'Register with a phone number',
+    description:
+      'Available when text messages can be sent. Any usual way of writing the number is accepted and stored in international form. Always answers 202 with the same message whether or not the number is registered. Texts a 6-digit code that expires after 10 minutes; at most 5 texts per number per hour and 5 tries per code. A number that was never verified is taken over by the newest sign-up.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.registerPhoneSchema,
+    ok: 202,
+  },
+  'POST /api/v1/auth/verify-phone': {
+    optional: true,
+    summary: 'Confirm a phone number with the code from the text',
+    description:
+      'Single use, five tries. Afterwards the person signs in with the number and password.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.phoneCodeSchema,
+    ok: 200,
+  },
+  'POST /api/v1/auth/resend-phone-code': {
+    optional: true,
+    summary: 'Send another code to a number waiting to be verified',
+    description: 'Always answers 202 with the same message. Limited per number and per address.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.phoneOnlySchema,
+    ok: 202,
+  },
+  'POST /api/v1/auth/forgot-password-phone': {
+    optional: true,
+    summary: 'Text a password-reset code',
+    description:
+      'Always answers 202 with the same message, whether or not the number has an account.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.phoneOnlySchema,
+    ok: 202,
+  },
+  'POST /api/v1/auth/reset-password-phone': {
+    optional: true,
+    summary: 'Set a new password with the code from the text',
+    description: 'Revokes every session of the account.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.resetPhoneSchema,
+    ok: 200,
+  },
   'POST /api/v1/auth/verify-email': {
     summary: 'Confirm an email address',
     description: 'Consumes a single-use, expiring token from the verification email.',
@@ -120,9 +168,9 @@ export const operations: Record<string, Operation> = {
     ok: 200,
   },
   'POST /api/v1/auth/login': {
-    summary: 'Sign in with email and password',
+    summary: 'Sign in with email or phone number and password',
     description:
-      'On success sets the HttpOnly `sid` session cookie and a readable `csrf` cookie. If the account has two-step verification the response is `{ mfaRequired: true, challengeToken }` and no session is created yet. Failures never reveal whether the account exists; repeated failures lock the account progressively.',
+      'On success sets the HttpOnly `sid` session cookie and a readable `csrf` cookie. If the account has two-step verification the response is `{ mfaRequired: true, challengeToken }` and no session is created yet. Send either `email` or `phone`. A phone account that is not verified yet gets 403 `PHONE_NOT_VERIFIED`. Failures never reveal whether the account exists; repeated failures lock the account progressively.',
     tag: 'Auth',
     access: 'public',
     body: loginSchema,
@@ -958,6 +1006,25 @@ export const operations: Record<string, Operation> = {
     permission: 'payment.manage',
     ok: 200,
   },
+  'GET /api/v1/tenants/{tenantId}/payment-settings/qmoney': {
+    optional: true,
+    summary: "The company's own QMoney number",
+    tag: 'Payments',
+    access: T,
+    permission: 'payment.read',
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/payment-settings/qmoney': {
+    optional: true,
+    summary: "Set or clear the company's QMoney number",
+    description:
+      'Passengers are shown this number to pay and then send the transaction number. Send number: null to stop offering QMoney.',
+    tag: 'Payments',
+    access: T,
+    permission: 'payment.manage',
+    body: payment.qmoneyBody,
+    ok: 200,
+  },
   'PUT /api/v1/tenants/{tenantId}/payment-settings': {
     optional: true,
     summary: 'Save Monime credentials for the company',
@@ -1085,11 +1152,33 @@ export const operations: Record<string, Operation> = {
     access: 'session',
     ok: 200,
   },
+  'GET /api/v1/passenger/bookings/{id}/payment-options': {
+    optional: true,
+    summary: 'The ways this booking can be paid',
+    description:
+      "Orange Money, AfriMoney and QMoney through Monime when Monime lists them for the company; one generic online choice otherwise; and QMoney paid to the company's own number (kind MANUAL) when the company has set one and Monime does not offer QMoney. Empty once the booking is no longer waiting for payment.",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
   'POST /api/v1/passenger/bookings/{id}/pay': {
     optional: true,
     summary: 'Start online payment for an unpaid booking',
+    description:
+      'Optionally name the wallet (ORANGE_MONEY, AFRIMONEY, QMONEY, or ONLINE for whatever the hosted page offers). A wallet is only accepted if Monime lists it for the company; the hosted page then offers just that wallet.',
     tag: 'Passengers',
     access: 'session',
+    body: passenger.payBody,
+    ok: 201,
+  },
+  'POST /api/v1/passenger/bookings/{id}/manual-payment': {
+    optional: true,
+    summary: 'Say a booking was paid by QMoney, with the transaction number',
+    description:
+      'Confirms nothing. Staff see the number, check their QMoney statement and confirm with "take payment". Holds the seats for two hours, at most three notices per booking, and a transaction number can be used once.',
+    tag: 'Passengers',
+    access: 'session',
+    body: passenger.manualPaymentBody,
     ok: 201,
   },
   'POST /api/v1/passenger/bookings/{id}/cancel': {

@@ -15,6 +15,20 @@ export interface CheckoutRequest {
   successUrl: string;
   cancelUrl: string;
   metadata: Record<string, string>;
+  /**
+   * Offer only these mobile-money providers (Monime provider ids) and nothing else. Without it the
+   * hosted page offers everything the company's Monime space has enabled.
+   */
+  momoProviders?: string[] | undefined;
+}
+
+/** A mobile-money provider as Monime lists it. */
+export interface MomoProvider {
+  providerId: string;
+  name: string;
+  active: boolean;
+  /** Whether Monime can take payments from accounts with this provider. */
+  canPayFrom: boolean;
 }
 export interface CheckoutCreated {
   sessionId: string;
@@ -42,6 +56,8 @@ export class GatewayError extends Error {
 export interface PaymentGateway {
   createCheckout(cfg: GatewayConfig, req: CheckoutRequest): Promise<CheckoutCreated>;
   getCheckout(cfg: GatewayConfig, sessionId: string): Promise<CheckoutState>;
+  /** The mobile-money providers Monime supports in a country (ISO code). */
+  listMomos(cfg: GatewayConfig, country: string): Promise<MomoProvider[]>;
 }
 
 // ---- Webhook signature -----------------------------------------------------------------------
@@ -169,6 +185,17 @@ export class MonimeGateway implements PaymentGateway {
             price: { currency: req.currency, value: l.amountMinor },
           })),
           metadata: req.metadata,
+          ...(req.momoProviders && req.momoProviders.length > 0
+            ? {
+                // Only the chosen wallet: no cards, banks or other wallets on the hosted page.
+                paymentOptions: {
+                  card: { disable: true },
+                  bank: { disable: true },
+                  wallet: { disable: true },
+                  momo: { enabledProviders: req.momoProviders },
+                },
+              }
+            : {}),
         }),
       },
       3,
@@ -180,6 +207,35 @@ export class MonimeGateway implements PaymentGateway {
       throw new GatewayError('Monime returned an unexpected response', false);
     }
     return { sessionId, redirectUrl };
+  }
+
+  async listMomos(cfg: GatewayConfig, country: string): Promise<MomoProvider[]> {
+    const out: MomoProvider[] = [];
+    let after: string | null = null;
+    for (let page = 0; page < 5; page++) {
+      const q: URLSearchParams = new URLSearchParams({ country, limit: '50' });
+      if (after) q.set('after', after);
+      const res: MonimeEnvelope & { pagination?: { next?: string | null } } = await this.call(
+        `${this.baseUrl}/momos?${q.toString()}`,
+        { method: 'GET', headers: this.headers(cfg) },
+        2,
+      );
+      const rows = (res as unknown as { result?: unknown }).result;
+      for (const m of Array.isArray(rows) ? (rows as Record<string, unknown>[]) : []) {
+        const feature = (m.featureSet as { payment?: { canPayFrom?: unknown } } | undefined)
+          ?.payment;
+        if (typeof m.providerId !== 'string' || typeof m.name !== 'string') continue;
+        out.push({
+          providerId: m.providerId,
+          name: m.name.slice(0, 80),
+          active: (m.status as { active?: unknown } | undefined)?.active === true,
+          canPayFrom: feature?.canPayFrom === true,
+        });
+      }
+      after = res.pagination?.next ?? null;
+      if (!after) break;
+    }
+    return out;
   }
 
   async getCheckout(cfg: GatewayConfig, sessionId: string): Promise<CheckoutState> {

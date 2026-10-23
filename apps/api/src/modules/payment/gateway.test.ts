@@ -131,3 +131,76 @@ describe('MonimeGateway', () => {
     });
   });
 });
+
+describe('MonimeGateway: choosing a wallet', () => {
+  it('offers only the chosen mobile-money provider on the hosted page, nothing else', async () => {
+    const fetchFn = vi.fn(async () =>
+      json(200, { success: true, result: { id: 'cs-9', redirectUrl: 'https://pay.monime.io/z' } }),
+    );
+    const g = new MonimeGateway('https://api.monime.io/v1', fetchFn as unknown as typeof fetch);
+    await g.createCheckout(cfg, { ...req, momoProviders: ['m17'] });
+    const sent = JSON.parse(
+      (fetchFn.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(sent.paymentOptions).toEqual({
+      card: { disable: true },
+      bank: { disable: true },
+      wallet: { disable: true },
+      momo: { enabledProviders: ['m17'] },
+    });
+  });
+
+  it('sends no restriction when no wallet was chosen', async () => {
+    const fetchFn = vi.fn(async () =>
+      json(200, { success: true, result: { id: 'cs-9', redirectUrl: 'https://pay.monime.io/z' } }),
+    );
+    const g = new MonimeGateway('https://api.monime.io/v1', fetchFn as unknown as typeof fetch);
+    await g.createCheckout(cfg, req);
+    await g.createCheckout(cfg, { ...req, momoProviders: [] });
+    for (const c of fetchFn.mock.calls) {
+      const sent = JSON.parse((c as unknown as [string, RequestInit])[1].body as string);
+      expect(sent.paymentOptions).toBeUndefined();
+    }
+  });
+
+  it('lists the mobile-money providers for a country, following the pages', async () => {
+    const urls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      urls.push(url);
+      return urls.length === 1
+        ? json(200, {
+            success: true,
+            result: [
+              {
+                providerId: 'm17',
+                name: 'Orange Money',
+                status: { active: true },
+                featureSet: { payment: { canPayFrom: true } },
+              },
+            ],
+            pagination: { count: 1, next: 'cursor-2' },
+          })
+        : json(200, {
+            success: true,
+            result: [
+              {
+                providerId: 'm18',
+                name: 'Africell Money',
+                status: { active: false },
+                featureSet: { payment: { canPayFrom: true } },
+              },
+              { providerId: 'm99' }, // incomplete rows are skipped
+            ],
+            pagination: { count: 1, next: null },
+          });
+    });
+    const g = new MonimeGateway('https://api.monime.io/v1', fetchFn as unknown as typeof fetch);
+    const momos = await g.listMomos(cfg, 'SL');
+    expect(momos).toEqual([
+      { providerId: 'm17', name: 'Orange Money', active: true, canPayFrom: true },
+      { providerId: 'm18', name: 'Africell Money', active: false, canPayFrom: true },
+    ]);
+    expect(urls[0]).toBe('https://api.monime.io/v1/momos?country=SL&limit=50');
+    expect(urls[1]).toBe('https://api.monime.io/v1/momos?country=SL&limit=50&after=cursor-2');
+  });
+});

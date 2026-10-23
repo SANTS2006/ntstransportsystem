@@ -14,6 +14,15 @@ const VerifyEmailPage = lazy(() =>
 const ForgotPasswordPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.ForgotPasswordPage })),
 );
+const VerifyPhonePage = lazy(() =>
+  import('./pages/auth/PhonePages').then((m) => ({ default: m.VerifyPhonePage })),
+);
+const ResetPhonePasswordPage = lazy(() =>
+  import('./pages/auth/PhonePages').then((m) => ({ default: m.ResetPhonePasswordPage })),
+);
+const PayMethodPage = lazy(() =>
+  import('./pages/passenger/PayMethodPage').then((m) => ({ default: m.PayMethodPage })),
+);
 const ResetPasswordPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.ResetPasswordPage })),
 );
@@ -159,6 +168,8 @@ export const router = createBrowserRouter([
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
       { path: '/forgot-password', element: s(<ForgotPasswordPage />) },
       { path: '/reset-password', element: s(<ResetPasswordPage />) },
+      { path: '/verify-phone', element: s(<VerifyPhonePage />) },
+      { path: '/reset-password-phone', element: s(<ResetPhonePasswordPage />) },
       {
         path: '/accept-invitation',
         element: <RequireAuth>{s(<AcceptInvitationPage />)}</RequireAuth>,
@@ -176,6 +187,7 @@ export const router = createBrowserRouter([
       { index: true, element: s(<MyCompaniesPage />) },
       { path: 'bookings', element: s(<MyBookingsPage />) },
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
+      { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
       { path: 'applications', element: s(<MyApplicationsPage />) },
       { path: 'complaints', element: s(<MyComplaintsPage />) },
       { path: 'complaints/new', element: s(<NewComplaintPage />) },

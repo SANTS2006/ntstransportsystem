@@ -26,6 +26,10 @@ services:
       # logs). Remove this and set BREVO_API_KEY + MAIL_FROM_EMAIL to send real e-mail.
       - key: ALLOW_DEV_MAILER
         value: 'true'
+      # Same idea for sign-up by phone number: the 6-digit codes appear in the Render logs. Remove this
+      # and set the TWILIO_* variables to send real text messages.
+      - key: ALLOW_DEV_SMS
+        value: 'true'
       - key: SESSION_SECRET
         generateValue: true
       - key: MFA_ENCRYPTION_KEY

@@ -1,13 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
+import { normalizePhone } from '@nts/shared';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
+import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
 import { api } from '../../lib/api';
-import { forgotSchema, resetSchema, type ResetValues } from '../../lib/schemas';
+import { useFeatures } from '../../lib/features';
+import { forgotPhoneSchema, forgotSchema, resetSchema, type ResetValues } from '../../lib/schemas';
 
 const linkClass = 'text-sm text-brand-700 underline dark:text-brand-500';
 
@@ -55,7 +59,55 @@ export function VerifyEmailPage() {
   );
 }
 
+/** Ask for a password-reset code by text message. */
+function PhoneForgotForm({ tabs }: { tabs: React.ReactNode }) {
+  const navigate = useNavigate();
+  const form = useForm<{ phone: string }>({
+    resolver: zodResolver(forgotPhoneSchema),
+    defaultValues: { phone: '' },
+  });
+  const send = useMutation({
+    mutationFn: (v: { phone: string }) =>
+      api('/auth/forgot-password-phone', { method: 'POST', body: v }),
+    onSuccess: (_r, v) =>
+      void navigate(
+        `/reset-password-phone?phone=${encodeURIComponent(normalizePhone(v.phone) ?? v.phone)}`,
+      ),
+  });
+  return (
+    <AuthCard
+      title="Reset your password"
+      subtitle="Enter your phone number and we will text you a code."
+    >
+      {tabs}
+      {send.error && <ErrorAlert error={send.error} />}
+      <form noValidate onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-4">
+        <Field
+          label="Phone number"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          hint={PHONE_HINT}
+          error={form.formState.errors.phone?.message}
+          {...form.register('phone')}
+        />
+        <Button type="submit" className="w-full" loading={send.isPending} loadingText="Sending…">
+          Text me a code
+        </Button>
+      </form>
+      <Link className={linkClass} to="/login">
+        Back to sign in
+      </Link>
+    </AuthCard>
+  );
+}
+
 export function ForgotPasswordPage() {
+  const { phoneSignup } = useFeatures();
+  const [method, setMethod] = useState<Method>('email');
+  const tabs = phoneSignup ? (
+    <MethodTabs label="Reset with" value={method} onChange={setMethod} />
+  ) : null;
   const form = useForm<{ email: string }>({
     resolver: zodResolver(forgotSchema),
     defaultValues: { email: '' },
@@ -63,6 +115,7 @@ export function ForgotPasswordPage() {
   const send = useMutation({
     mutationFn: (v: { email: string }) => api('/auth/forgot-password', { method: 'POST', body: v }),
   });
+  if (phoneSignup && method === 'phone') return <PhoneForgotForm tabs={tabs} />;
   if (send.isSuccess) {
     return (
       <AuthCard title="Check your email">
@@ -78,6 +131,7 @@ export function ForgotPasswordPage() {
   }
   return (
     <AuthCard title="Reset your password" subtitle="Enter your email and we will send a link.">
+      {tabs}
       {send.error && <ErrorAlert error={send.error} />}
       <form noValidate onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-4">
         <Field

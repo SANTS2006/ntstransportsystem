@@ -238,6 +238,7 @@ export function buildOpenApi(
                     'SERVICE_UNAVAILABLE',
                     'PAYMENT_PROVIDER_ERROR',
                     'MAINTENANCE',
+                    'PHONE_NOT_VERIFIED',
                     'INTERNAL_ERROR',
                   ],
                 },

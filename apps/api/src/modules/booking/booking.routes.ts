@@ -51,7 +51,14 @@ const cancelBody = z.object({ reason: trim.min(2).max(300) }).strict();
 const deskRefundBody = z.object({ reference: trim.min(1).max(80).optional() }).strict();
 const deskPaymentBody = z
   .object({
-    method: z.enum(['CASH', 'MOBILE_MONEY', 'BANK_TRANSFER']),
+    method: z.enum([
+      'CASH',
+      'MOBILE_MONEY',
+      'BANK_TRANSFER',
+      'ORANGE_MONEY',
+      'AFRIMONEY',
+      'QMONEY',
+    ]),
     reference: trim.min(1).max(80).optional(),
   })
   .strict();

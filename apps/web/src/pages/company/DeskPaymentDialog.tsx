@@ -8,7 +8,10 @@ import { api } from '../../lib/api';
 
 export const DESK_METHODS = [
   { value: 'CASH', label: 'Cash' },
-  { value: 'MOBILE_MONEY', label: 'Mobile money (shown at the counter)' },
+  { value: 'ORANGE_MONEY', label: 'Orange Money' },
+  { value: 'AFRIMONEY', label: 'AfriMoney' },
+  { value: 'QMONEY', label: 'QMoney' },
+  { value: 'MOBILE_MONEY', label: 'Other mobile money' },
   { value: 'BANK_TRANSFER', label: 'Bank transfer' },
 ] as const;
 type Method = (typeof DESK_METHODS)[number]['value'];
@@ -18,6 +21,8 @@ export interface DeskPaymentBooking {
   reference: string;
   totalMinor: number;
   currency: string;
+  /** The passenger's "I paid by QMoney" notice, if there is one. */
+  claim?: { reference: string } | null;
 }
 
 const money = (minor: number, currency: string) =>
@@ -38,8 +43,9 @@ export function DeskPaymentDialog({
   onClose: () => void;
   onPaid: () => void;
 }) {
-  const [method, setMethod] = useState<Method>('CASH');
-  const [reference, setReference] = useState('');
+  // A passenger's QMoney notice pre-fills the form; the page remounts this per booking.
+  const [method, setMethod] = useState<Method>(booking?.claim ? 'QMONEY' : 'CASH');
+  const [reference, setReference] = useState(booking?.claim?.reference ?? '');
   const pay = useMutation({
     mutationFn: (b: DeskPaymentBooking) =>
       api(`/tenants/${tenantId}/bookings/${b.id}/desk-payment`, {
@@ -93,6 +99,13 @@ export function DeskPaymentDialog({
               ))}
             </select>
           </div>
+          {booking.claim && (
+            <p className="rounded-lg bg-amber-100 p-3 text-sm text-amber-950 dark:bg-amber-900/40 dark:text-amber-100">
+              The passenger says they paid by QMoney, transaction{' '}
+              <strong>{booking.claim.reference}</strong>. Look for it on your QMoney statement
+              before you confirm.
+            </p>
+          )}
           <Field
             label="Receipt or transaction number (optional)"
             value={reference}

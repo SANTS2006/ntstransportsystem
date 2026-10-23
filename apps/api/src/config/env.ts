@@ -42,6 +42,15 @@ const baseSchema = z.object({
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   // Google Identity Services web client ID. Google sign-in is disabled when unset.
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  // Text messages for sign-up codes. Twilio: account SID and auth token plus either a sender
+  // (TWILIO_FROM) or a messaging service (TWILIO_MESSAGING_SERVICE_SID). Without them phone
+  // sign-up is off in production, and codes are logged in development.
+  TWILIO_ACCOUNT_SID: z.string().min(10).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(10).optional(),
+  TWILIO_FROM: z.string().min(1).max(20).optional(),
+  TWILIO_MESSAGING_SERVICE_SID: z.string().min(10).optional(),
+  // TEST DEPLOYMENTS ONLY: in production mode, log each text (with its code) instead of sending it.
+  ALLOW_DEV_SMS: bool,
   // Cloudinary for uploaded files: cloudinary://<api_key>:<api_secret>@<cloud_name> (from the
   // Cloudinary dashboard, "API Keys"). When set it is used before R2.
   CLOUDINARY_URL: z
@@ -79,6 +88,21 @@ export const envSchema = baseSchema.superRefine((env, ctx) => {
       path: ['R2_BUCKET'],
       message:
         'R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET must all be set together',
+    });
+  }
+  const twilio = [env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN];
+  if (twilio.some(Boolean) && !twilio.every(Boolean)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['TWILIO_AUTH_TOKEN'],
+      message: 'TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set together',
+    });
+  }
+  if (twilio.every(Boolean) && !env.TWILIO_FROM && !env.TWILIO_MESSAGING_SERVICE_SID) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['TWILIO_FROM'],
+      message: 'Set TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID so texts have a sender',
     });
   }
   if (env.NODE_ENV === 'production' && env.STORAGE_DEV_DIR) {

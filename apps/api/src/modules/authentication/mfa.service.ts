@@ -48,7 +48,10 @@ export class MfaService {
       create: { userId, secretEnc },
       update: { secretEnc, confirmedAt: null, lastUsedStep: null },
     });
-    return { secret, otpauthUri: this.totp(secret, user.email).toString() };
+    return {
+      secret,
+      otpauthUri: this.totp(secret, user.email ?? user.phone ?? user.displayName).toString(),
+    };
   }
 
   /**
@@ -64,7 +67,10 @@ export class MfaService {
     const cred = await this.db.mfaCredential.findUnique({ where: { userId } });
     if (!cred || (requireConfirmed && !cred.confirmedAt)) return false;
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
-    const delta = this.totp(this.box.decrypt(cred.secretEnc), user.email).validate({
+    const delta = this.totp(
+      this.box.decrypt(cred.secretEnc),
+      user.email ?? user.phone ?? user.displayName,
+    ).validate({
       token: code,
       window: 1,
       timestamp: this.now().getTime(),

@@ -58,7 +58,9 @@ enum AuditOutcome {
 
 model User {
   id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email            String     @unique // stored lower-cased and trimmed by the application
+  email            String?    @unique // stored lower-cased and trimmed; absent for phone-only accounts
+  phone            String?    @unique // E.164, e.g. +23276123456
+  phoneVerifiedAt  DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
   emailVerifiedAt  DateTime?  @map("email_verified_at") @db.Timestamptz(6)
   passwordHash     String?    @map("password_hash")
   displayName      String     @map("display_name")
@@ -77,6 +79,7 @@ model User {
   mfa           MfaCredential?
   recoveryCodes RecoveryCode[]
   inbox         InboxNotification[]
+  phoneOtps     PhoneOtp[]
 
   @@map("users")
 }
@@ -191,6 +194,8 @@ model Tenant {
   applicationEvents      ApplicationEvent[]
   storedFiles            StoredFile[]
   inbox                  InboxNotification[]
+  manualPayment          ManualPaymentSettings?
+  paymentClaims          PaymentClaim[]
   paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
@@ -827,6 +832,7 @@ model Booking {
   passengers BookingPassenger[]
   history    BookingStatusHistory[]
   payments   Payment[]
+  claims     PaymentClaim[]
   tickets    Ticket[]
   complaints Complaint[]
   ratings    TripRating[]
@@ -1241,4 +1247,68 @@ model InboxNotification {
   @@unique([outboxEventId, userId, dedupeKey])
   @@index([userId, createdAt(sort: Desc)])
   @@map("inbox_notifications")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 18: sign-up and sign-in by phone number. A one-time code is sent by SMS; only a keyed hash
+// of it is stored, it expires, and it can be tried a few times.
+
+enum OtpPurpose {
+  REGISTER
+  PASSWORD_RESET
+}
+
+model PhoneOtp {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String
+  purpose    OtpPurpose
+  userId     String?    @map("user_id") @db.Uuid
+  codeHash   String     @map("code_hash")
+  attempts   Int        @default(0)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phone, purpose, createdAt(sort: Desc)])
+  @@map("phone_otps")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 19: paying with QMoney. Monime's checkout does not offer QMoney, so a company can publish
+// its own QMoney number; the passenger pays it and sends the transaction id, and staff confirm it
+// after checking their QMoney statement.
+
+model ManualPaymentSettings {
+  tenantId          String   @id @map("tenant_id") @db.Uuid
+  qmoneyNumber      String?  @map("qmoney_number") // E.164
+  qmoneyAccountName String?  @map("qmoney_account_name")
+  updatedBy         String?  @map("updated_by") @db.Uuid
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("manual_payment_settings")
+}
+
+/// A passenger saying "I paid this booking by QMoney, transaction id X". Not proof of anything:
+/// it only tells staff what to look for. A booking is confirmed by staff, never by a claim.
+model PaymentClaim {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  bookingId  String    @map("booking_id") @db.Uuid
+  method     String
+  reference  String
+  status     String    @default("PENDING") // PENDING | CONFIRMED
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy String?   @map("resolved_by") @db.Uuid
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id])
+
+  @@index([tenantId, bookingId, status])
+  @@map("payment_claims")
 }

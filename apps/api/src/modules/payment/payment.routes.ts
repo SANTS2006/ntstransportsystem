@@ -12,6 +12,7 @@ import {
   uuidParam,
   type TenantScope,
 } from '../tenants/tenant.guards.js';
+import { normalizePhone } from '@nts/shared';
 import type { PaymentService } from './payment.service.js';
 
 const settingsBody = z
@@ -30,6 +31,20 @@ const settingsBody = z
       .optional(),
     webhookSecret: z.string().min(32).max(256).optional(),
     enabled: z.boolean().default(true),
+  })
+  .strict();
+
+const qmoneyBody = z
+  .object({
+    /** The QMoney number customers pay, or null to stop offering QMoney. */
+    number: z
+      .string()
+      .trim()
+      .max(40)
+      .refine((v) => normalizePhone(v) !== null, 'Enter a valid phone number')
+      .transform((v) => normalizePhone(v) as string)
+      .nullable(),
+    accountName: z.string().trim().min(1).max(80).nullable().optional(),
   })
   .strict();
 
@@ -58,6 +73,14 @@ export function paymentRouter({ db, payments }: PaymentRouterDeps): ExpressRoute
     res.json(await payments.putSettings(scope(req), settingsBody.parse(req.body), req.id));
   });
 
+  t.get('/payment-settings/qmoney', perm('payment.read'), async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await payments.getQmoney(scope(req)));
+  });
+  t.put('/payment-settings/qmoney', perm('payment.manage'), async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await payments.putQmoney(scope(req), qmoneyBody.parse(req.body), req.id));
+  });
   t.post('/bookings/:id/payments', perm('booking.manage'), async (req, res) => {
     res.status(201).json(await payments.start(scope(req), uuidParam(req, 'id'), req.id));
   });
@@ -92,4 +115,4 @@ export function webhookRouter({ payments }: Pick<PaymentRouterDeps, 'payments'>)
   return r;
 }
 
-export const requestSchemas = { settingsBody };
+export const requestSchemas = { settingsBody, qmoneyBody };

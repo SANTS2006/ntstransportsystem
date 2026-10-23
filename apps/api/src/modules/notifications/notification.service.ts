@@ -61,13 +61,15 @@ export class NotificationService {
     sent: Set<string>,
     recipientKey: string,
     template: Parameters<Mailer['send']>[0]['template'],
-    to: string,
+    to: string | null,
     data: Record<string, string>,
+    userId: string | null = null,
   ): Promise<void> {
     if (sent.has(recipientKey)) return;
     // The in-app copy goes first: it is idempotent, so a retry after a failed send adds nothing.
-    await this.inbox(e, recipientKey, template, to, data);
-    await this.mailer.send({ to, template, data });
+    await this.inbox(e, recipientKey, template, to, data, userId);
+    // Accounts reached only by phone number have no address: the in-app notice is theirs.
+    if (to) await this.mailer.send({ to, template, data });
     sent.add(recipientKey);
     await withDb(this.db, { tenantId: e.tenantId }, (tx) =>
       tx.notificationDelivery.createMany({
@@ -82,16 +84,21 @@ export class NotificationService {
     e: ClaimedEvent,
     recipientKey: string,
     template: Parameters<Mailer['send']>[0]['template'],
-    to: string,
+    to: string | null,
     data: Record<string, string>,
+    userId: string | null,
   ): Promise<void> {
     const text = inboxText(template, data);
     if (!text) return;
     await withDb(this.db, { platform: true }, async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { email: to.toLowerCase() },
-        select: { id: true },
-      });
+      const user = userId
+        ? { id: userId }
+        : to
+          ? await tx.user.findUnique({
+              where: { email: to.toLowerCase() },
+              select: { id: true },
+            })
+          : null;
       if (!user) return;
       await tx.inboxNotification.createMany({
         data: [
@@ -111,13 +118,19 @@ export class NotificationService {
     });
   }
 
-  /** Booking contact plus the passenger account that made it (never a staff member who booked for them). */
-  private async passengerEmails(
+  /**
+   * Booking contact plus the passenger account that made it (never a staff member who booked for
+   * them). An account with no email address (signed up by phone number) is reached in the app.
+   */
+  private async passengerRecipients(
     tenantId: string,
     b: { contactEmail: string | null; createdByUserId: string | null },
-  ): Promise<string[]> {
-    const out = new Set<string>();
-    if (b.contactEmail) out.add(b.contactEmail.toLowerCase());
+  ): Promise<{ key: string; email: string | null; userId: string | null }[]> {
+    const out = new Map<string, { key: string; email: string | null; userId: string | null }>();
+    if (b.contactEmail) {
+      const email = b.contactEmail.toLowerCase();
+      out.set(email, { key: email, email, userId: null });
+    }
     if (b.createdByUserId) {
       const row = await withDb(this.db, { platform: true }, async (tx) => {
         const staff = await tx.membership.findFirst({
@@ -130,9 +143,15 @@ export class NotificationService {
           select: { email: true },
         });
       });
-      if (row?.email) out.add(row.email.toLowerCase());
+      const uid = b.createdByUserId;
+      if (row?.email) {
+        const email = row.email.toLowerCase();
+        out.set(email, { key: email, email, userId: uid });
+      } else if (row) {
+        out.set(`user:${uid}`, { key: `user:${uid}`, email: null, userId: uid });
+      }
     }
-    return [...out];
+    return [...out.values()];
   }
 
   private static readonly bookingInclude = {
@@ -178,8 +197,8 @@ export class NotificationService {
     if (!b) return;
     const sent = await this.sentKeys(e);
     const data = this.tripData(b);
-    for (const to of await this.passengerEmails(e.tenantId, b)) {
-      await this.deliver(e, sent, `${b.id}:${to}`, 'booking-confirmed', to, data);
+    for (const r of await this.passengerRecipients(e.tenantId, b)) {
+      await this.deliver(e, sent, `${b.id}:${r.key}`, 'booking-confirmed', r.email, data, r.userId);
     }
   }
 
@@ -193,8 +212,8 @@ export class NotificationService {
       reason: str(p.reason),
       refund: p.refundRequired === true ? 'yes' : 'no',
     };
-    for (const to of await this.passengerEmails(e.tenantId, b)) {
-      await this.deliver(e, sent, `${b.id}:${to}`, 'booking-cancelled', to, data);
+    for (const r of await this.passengerRecipients(e.tenantId, b)) {
+      await this.deliver(e, sent, `${b.id}:${r.key}`, 'booking-cancelled', r.email, data, r.userId);
     }
   }
 
@@ -228,8 +247,8 @@ export class NotificationService {
     const sent = await this.sentKeys(e);
     for (const b of await this.confirmedOnTrip(e.tenantId, tripId)) {
       const data = { ...this.tripData(b), delayMinutes: String(minutes) };
-      for (const to of await this.passengerEmails(e.tenantId, b)) {
-        await this.deliver(e, sent, `${b.id}:${to}`, 'trip-delayed', to, data);
+      for (const r of await this.passengerRecipients(e.tenantId, b)) {
+        await this.deliver(e, sent, `${b.id}:${r.key}`, 'trip-delayed', r.email, data, r.userId);
       }
     }
   }
@@ -240,8 +259,16 @@ export class NotificationService {
     const sent = await this.sentKeys(e);
     for (const b of await this.confirmedOnTrip(e.tenantId, str(p.tripId))) {
       const data = { ...this.tripData(b), vehicle };
-      for (const to of await this.passengerEmails(e.tenantId, b)) {
-        await this.deliver(e, sent, `${b.id}:${to}`, 'trip-vehicle-changed', to, data);
+      for (const r of await this.passengerRecipients(e.tenantId, b)) {
+        await this.deliver(
+          e,
+          sent,
+          `${b.id}:${r.key}`,
+          'trip-vehicle-changed',
+          r.email,
+          data,
+          r.userId,
+        );
       }
     }
   }
@@ -283,6 +310,7 @@ export class NotificationService {
     };
     const sent = await this.sentKeys(e);
     for (const m of staff) {
+      if (!m.user.email) continue;
       await this.deliver(
         e,
         sent,
@@ -346,6 +374,7 @@ export class NotificationService {
     };
     const sent = await this.sentKeys(e);
     for (const m of hr) {
+      if (!m.user.email) continue;
       await this.deliver(
         e,
         sent,
@@ -397,6 +426,7 @@ export class NotificationService {
     };
     const sent = await this.sentKeys(e);
     for (const m of staff) {
+      if (!m.user.email) continue;
       await this.deliver(
         e,
         sent,

@@ -95,6 +95,10 @@ driver at the front) with legend: available, selected, taken. Selecting seats ad
 the bottom on mobile: "2 seats, SLE 300.00" and a "Continue" button. Show a note: "Seats are held
 for 15 minutes while you pay". Sign-in required step handled gracefully.
 
+### D0. Choose how to pay
+
+After the seats are held: "How would you like to pay?" with the booking summary, the total in large type, and a countdown of how long the seats are held. A vertical list of large selectable cards with the wallet name and one line of help: **Orange Money**, **AfriMoney**, **QMoney** (each with its logo placeholder). Choosing Orange Money or AfriMoney shows a primary button "Pay with Orange Money". Choosing **QMoney** shows a "Pay with QMoney" card with three numbered steps (send the amount to the company's QMoney number and account name, use the booking reference as the note, then type the transaction number), a transaction number field, and an "I have paid" button; afterwards a calm notice "The company will confirm once they see the payment. Your seats are held until 14:20."
+
 ### D. Payment and confirmation
 
 After booking: a **countdown card** ("Held for 14:32") with the booking summary and a prominent
@@ -124,6 +128,10 @@ Centered auth cards: Sign in (email, password, "Forgot password?", **Continue wi
 two-step **MFA code** screen (6 digit input), Create account, Verify email, Reset password. A
 Security page: change password, set up two-factor (QR code to scan, manual key, recovery codes shown
 once with a "copy" button), list of active sessions with "Sign out" per device.
+
+### G2. Sign up with a phone number
+
+On Create account and Sign in, a two-option switch at the top: **Email | Phone number**. Phone mode asks for full name, phone number (hint: "Orange, Africell and Qcell numbers all work. Example: 076 123 456") and password, with a "Send me a code" button. The next screen, **Enter your code**, says "We texted a 6-digit code to +232 76 123 456. It expires in 10 minutes", has one large 6-digit input that suggests the code from the text message, a "Confirm number" button, a "Send a new code in 42s" link that counts down, and "Use a different number". The same switch and code screen are used for forgotten passwords ("Text me a code", then code + new password).
 
 ### H. Jobs (public) and applications
 

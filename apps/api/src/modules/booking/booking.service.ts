@@ -30,10 +30,17 @@ type BookingRow = Awaited<ReturnType<Tx['booking']['findFirstOrThrow']>> & {
   passengers: { seatLabel: string; fullName: string; fareMinor: number; releasedAt: Date | null }[];
   /** The desk payment, when the booking was paid at the counter. */
   payments?: { method: string | null; amountMinor: number; refundedAt: Date | null }[];
+  /** A passenger's "I paid by QMoney" notice that staff have not looked at yet. */
+  claims?: { method: string; reference: string; createdAt: Date }[];
 };
 
 /** Loads only the desk payment (at most one per booking) next to a booking. */
 const DESK_PAYMENT = { where: { provider: 'DESK' }, take: 1 } as const;
+const OPEN_CLAIM = {
+  where: { status: 'PENDING' },
+  orderBy: { createdAt: 'desc' },
+  take: 1,
+} as const;
 
 const toDto = (b: BookingRow) => ({
   id: b.id,
@@ -52,6 +59,13 @@ const toDto = (b: BookingRow) => ({
     fullName: p.fullName,
     fareMinor: p.fareMinor,
   })),
+  claim: b.claims?.[0]
+    ? {
+        method: b.claims[0].method,
+        reference: b.claims[0].reference,
+        createdAt: b.claims[0].createdAt.toISOString(),
+      }
+    : null,
   desk: b.payments?.[0]
     ? {
         method: b.payments[0].method,
@@ -484,7 +498,7 @@ export class BookingService {
             ? { OR: [{ reference: f.q.toUpperCase() }, { contactPhone: { contains: f.q } }] }
             : {}),
         },
-        include: { passengers: true, payments: DESK_PAYMENT },
+        include: { passengers: true, payments: DESK_PAYMENT, claims: OPEN_CLAIM },
         orderBy: { createdAt: 'desc' },
         take: page.limit,
         skip: page.offset,
@@ -500,6 +514,7 @@ export class BookingService {
         include: {
           passengers: true,
           payments: DESK_PAYMENT,
+          claims: OPEN_CLAIM,
           history: { orderBy: { createdAt: 'asc' } },
         },
       }),
@@ -583,7 +598,10 @@ export class BookingService {
   async collectAtDesk(
     s: TenantScope,
     bookingId: string,
-    input: { method: 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER'; reference?: string | undefined },
+    input: {
+      method: 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'ORANGE_MONEY' | 'AFRIMONEY' | 'QMONEY';
+      reference?: string | undefined;
+    },
     requestId?: string,
   ) {
     return mapDbErrors(
@@ -622,6 +640,11 @@ export class BookingService {
           if (outcome !== 'confirmed') {
             throw AppError.conflict('This booking can no longer be confirmed');
           }
+          // A passenger's QMoney notice for this booking is now dealt with.
+          await tx.paymentClaim.updateMany({
+            where: { tenantId: s.tenantId, bookingId, status: 'PENDING' },
+            data: { status: 'CONFIRMED', resolvedAt: now, resolvedBy: s.userId },
+          });
           await writeAudit(tx, {
             action: 'payment.collected_at_desk',
             outcome: 'SUCCESS',

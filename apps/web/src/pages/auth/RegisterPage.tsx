@@ -1,5 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
+import { normalizePhone } from '@nts/shared';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -8,12 +10,82 @@ import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
+import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
 import { api } from '../../lib/api';
-import { registerSchema, type RegisterValues } from '../../lib/schemas';
+import { useFeatures } from '../../lib/features';
+import {
+  registerPhoneSchema,
+  registerSchema,
+  type RegisterPhoneValues,
+  type RegisterValues,
+} from '../../lib/schemas';
+
+/** Sign up with a phone number: the next step is typing the code that is texted to it. */
+function PhoneRegisterForm() {
+  const navigate = useNavigate();
+  const form = useForm<RegisterPhoneValues>({
+    resolver: zodResolver(registerPhoneSchema),
+    defaultValues: { displayName: '', phone: '', password: '' },
+  });
+  const register = useMutation({
+    mutationFn: (v: RegisterPhoneValues) =>
+      api('/auth/register-phone', { method: 'POST', body: v }),
+    onSuccess: (_r, v) =>
+      void navigate(
+        `/verify-phone?phone=${encodeURIComponent(normalizePhone(v.phone) ?? v.phone)}`,
+      ),
+  });
+  const { errors } = form.formState;
+  return (
+    <>
+      {register.error && <ErrorAlert error={register.error} />}
+      <form
+        noValidate
+        onSubmit={form.handleSubmit((v) => register.mutate(v))}
+        className="space-y-4"
+      >
+        <Field
+          label="Full name"
+          autoComplete="name"
+          error={errors.displayName?.message}
+          {...form.register('displayName')}
+        />
+        <Field
+          label="Phone number"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          hint={PHONE_HINT}
+          error={errors.phone?.message}
+          {...form.register('phone')}
+        />
+        <Field
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          hint="At least 12 characters. A passphrase works well."
+          error={errors.password?.message}
+          {...form.register('password')}
+        />
+        <Button
+          type="submit"
+          className="w-full"
+          loading={register.isPending}
+          loadingText="Sending code…"
+        >
+          Send me a code
+        </Button>
+      </form>
+    </>
+  );
+}
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
+  const { phoneSignup } = useFeatures();
+  const [method, setMethod] = useState<Method>('email');
+  const byPhone = phoneSignup && method === 'phone';
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { displayName: '', email: '', password: '' },
@@ -54,43 +126,52 @@ export default function RegisterPage() {
       title="Create your account"
       subtitle="Book trips, or register your transport company."
     >
-      {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
-      <form
-        noValidate
-        onSubmit={form.handleSubmit((v) => register.mutate(v))}
-        className="space-y-4"
-      >
-        <Field
-          label="Full name"
-          autoComplete="name"
-          error={errors.displayName?.message}
-          {...form.register('displayName')}
-        />
-        <Field
-          label="Email"
-          type="email"
-          autoComplete="email"
-          error={errors.email?.message}
-          {...form.register('email')}
-        />
-        <Field
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          hint="At least 12 characters. A passphrase works well."
-          error={errors.password?.message}
-          {...form.register('password')}
-        />
-        <Button
-          type="submit"
-          className="w-full"
-          loading={register.isPending}
-          loadingText="Creating account…"
-        >
-          Create account
-        </Button>
-      </form>
-      {googleEnabled && (
+      {phoneSignup && <MethodTabs label="Sign up with" value={method} onChange={setMethod} />}
+      {byPhone ? (
+        <PhoneRegisterForm />
+      ) : (
+        <>
+          {(register.error ?? google.error) && (
+            <ErrorAlert error={register.error ?? google.error} />
+          )}
+          <form
+            noValidate
+            onSubmit={form.handleSubmit((v) => register.mutate(v))}
+            className="space-y-4"
+          >
+            <Field
+              label="Full name"
+              autoComplete="name"
+              error={errors.displayName?.message}
+              {...form.register('displayName')}
+            />
+            <Field
+              label="Email"
+              type="email"
+              autoComplete="email"
+              error={errors.email?.message}
+              {...form.register('email')}
+            />
+            <Field
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              hint="At least 12 characters. A passphrase works well."
+              error={errors.password?.message}
+              {...form.register('password')}
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              loading={register.isPending}
+              loadingText="Creating account…"
+            >
+              Create account
+            </Button>
+          </form>
+        </>
+      )}
+      {googleEnabled && !byPhone && (
         <>
           <p className="text-center text-xs text-slate-500">or</p>
           <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />

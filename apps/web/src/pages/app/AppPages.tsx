@@ -41,8 +41,8 @@ export function MyCompaniesPage() {
       {q.data && q.data.tenants.length === 0 && (
         <Card>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            You do not belong to a transport company yet. Register yours, or ask a company owner to
-            invite {user?.email}.
+            You do not belong to a transport company yet. Register yours
+            {user?.email ? `, or ask a company owner to invite ${user.email}` : ''}.
           </p>
           <Link
             className="mt-4 inline-block rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, Star, Users, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
-import { Card } from '../../components/ui/Card';
+import { Card, StatTile } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
@@ -43,16 +44,6 @@ interface Occupancy {
     revenueMinor: number;
   }[];
   truncated: boolean;
-}
-
-function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-      {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
-    </div>
-  );
 }
 
 export function ReportsPage() {
@@ -105,22 +96,27 @@ export function ReportsPage() {
       {summary.error && <ErrorAlert error={summary.error} onRetry={() => void summary.refetch()} />}
       {s && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Tile
+          <StatTile
+            icon={Wallet}
             label="Revenue"
             value={money(s.revenueMinor)}
             note={`${s.bookings} bookings, ${s.seatsSold} seats`}
           />
-          <Tile
+          <StatTile
+            icon={Users}
             label="Occupancy"
             value={s.occupancyPct === null ? '—' : `${s.occupancyPct}%`}
             note={`${s.trips} trips, ${s.boarded} boarded`}
           />
-          <Tile
+          <StatTile
+            icon={Star}
             label="Rating"
             value={s.averageRating === null ? '—' : `${s.averageRating} / 5`}
             note={`${s.ratings} rating${s.ratings === 1 ? '' : 's'}, ${s.complaints} complaint${s.complaints === 1 ? '' : 's'}`}
           />
-          <Tile
+          <StatTile
+            icon={AlertTriangle}
+            tone="amber"
             label="Needs attention"
             value={money(s.refundsOwed.amountMinor + s.cancelledAfterPayment.amountMinor)}
             note={`${s.refundsOwed.count} payments for released seats, ${s.cancelledAfterPayment.count} cancelled after payment`}
@@ -140,7 +136,7 @@ export function ReportsPage() {
                 onClick={() => setTab(t)}
                 className={`min-h-11 rounded-lg px-4 text-sm font-medium ${
                   tab === t
-                    ? 'bg-brand-700 text-white'
+                    ? 'bg-brand-600 text-white'
                     : 'border border-slate-300 dark:border-slate-600'
                 }`}
               >

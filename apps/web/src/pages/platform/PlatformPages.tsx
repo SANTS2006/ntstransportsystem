@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Building2, LayoutDashboard, Power } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card, StatusBadge } from '../../components/ui/Card';
+import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
@@ -45,11 +46,12 @@ export function PlatformLayout() {
   return (
     <DashboardShell
       heading="Platform administration"
+      theme="platform"
       nav={[
-        { to: '/platform', label: 'Companies', end: true },
-        { to: '/platform/overview', label: 'Overview' },
-        { to: '/platform/maintenance', label: 'Maintenance' },
-        { to: '/app', label: '← Exit admin' },
+        { to: '/platform/overview', label: 'Overview', icon: LayoutDashboard, group: 'Platform' },
+        { to: '/platform', label: 'Companies', end: true, icon: Building2, group: 'Platform' },
+        { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
+        { to: '/app', label: 'Exit admin', icon: ArrowLeft, group: 'Account' },
       ]}
     >
       <Outlet />
@@ -102,7 +104,7 @@ export function PlatformTenantsPage() {
             role="tab"
             aria-selected={status === s}
             onClick={() => setStatus(s)}
-            className={`min-h-11 rounded-lg px-3 text-sm font-medium ${status === s ? 'bg-brand-700 text-white' : 'bg-white ring-1 ring-slate-300 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-600'}`}
+            className={`min-h-11 rounded-lg px-3 text-sm font-medium ${status === s ? 'bg-brand-600 text-white' : 'bg-white ring-1 ring-slate-300 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-600'}`}
           >
             {s.charAt(0) + s.slice(1).toLowerCase()}
           </button>
@@ -261,7 +263,15 @@ export function PlatformMaintenancePage() {
       {status.isPending && <Spinner label="Loading" />}
       {status.error && <ErrorAlert error={status.error} onRetry={() => void status.refetch()} />}
       {status.data && (
-        <Card title={on ? 'Maintenance is ON' : 'Maintenance is off'}>
+        <Card
+          title={on ? 'Maintenance is ON' : 'Maintenance is off'}
+          className={on ? 'border-accent-500 bg-accent-50 dark:bg-slate-900' : ''}
+          action={
+            <Badge tone={on ? 'amber' : 'green'} icon={Power}>
+              {on ? 'Service paused' : 'Service live'}
+            </Badge>
+          }
+        >
           {on && (
             <Alert tone="info">
               Since {status.data.since ? new Date(status.data.since).toLocaleString() : 'unknown'}:{' '}
@@ -287,7 +297,7 @@ export function PlatformMaintenancePage() {
             />
             <div className="flex flex-wrap gap-2">
               <Button
-                variant="danger"
+                variant="accent"
                 disabled={message.trim().length < 3}
                 loading={save.isPending}
                 onClick={() => setConfirmOn(true)}
@@ -316,7 +326,7 @@ export function PlatformMaintenancePage() {
             Cancel
           </Button>
           <Button
-            variant="danger"
+            variant="accent"
             onClick={() => {
               setConfirmOn(false);
               save.mutate({ enabled: true, message: message.trim() });

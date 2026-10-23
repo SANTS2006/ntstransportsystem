@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { Building2, Mail, MessageSquareWarning, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
-import { Card } from '../../components/ui/Card';
+import { Card, StatTile } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
@@ -29,16 +30,6 @@ interface Overview {
   outbox: { pending: number; deadLettered: number };
 }
 
-function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-      {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
-    </div>
-  );
-}
-
 /** Platform-wide figures for platform staff. */
 export function PlatformOverviewPage() {
   const [from, setFrom] = useState(daysAgo(29));
@@ -52,7 +43,12 @@ export function PlatformOverviewPage() {
   const o = q.data;
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <h1 className="text-2xl font-semibold">Overview</h1>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+          Platform administration
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Platform overview</h1>
+      </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-44">
           <Field label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -68,22 +64,28 @@ export function PlatformOverviewPage() {
       {o && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tile
+            <StatTile
+              icon={Building2}
               label="Companies"
               value={String(o.tenants.ACTIVE ?? 0)}
               note={`active, ${o.tenants.PENDING ?? 0} awaiting approval, ${o.tenants.SUSPENDED ?? 0} suspended`}
             />
-            <Tile
+            <StatTile
+              icon={Users}
               label="Users"
               value={String(o.users.total)}
               note={`${o.users.createdInRange} new in this range`}
             />
-            <Tile
+            <StatTile
+              icon={MessageSquareWarning}
+              tone={o.openComplaints > 0 ? 'amber' : 'slate'}
               label="Open complaints"
               value={String(o.openComplaints)}
               note="across all companies"
             />
-            <Tile
+            <StatTile
+              icon={Mail}
+              tone={o.outbox.deadLettered > 0 ? 'red' : 'slate'}
               label="Notification backlog"
               value={String(o.outbox.pending)}
               note={

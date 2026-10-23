@@ -182,7 +182,7 @@ export function ComplaintsPage() {
                     key={m.id}
                     className={`max-w-[90%] rounded-xl p-3 text-sm ${
                       m.from === 'STAFF'
-                        ? 'ml-auto bg-brand-700 text-white'
+                        ? 'ml-auto bg-brand-600 text-white'
                         : 'bg-slate-100 dark:bg-slate-800'
                     }`}
                   >

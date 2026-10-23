@@ -30,7 +30,7 @@ export function Dialog({
       onClick={(e) => {
         if (e.target === ref.current) onClose(); // click on the backdrop
       }}
-      className="m-auto w-full max-w-md rounded-xl bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/50 dark:bg-slate-900 dark:text-slate-100"
+      className="m-auto w-full max-w-md rounded-xl border border-slate-300 bg-white p-0 text-slate-900 shadow-level3 backdrop:bg-slate-900/45 dark:bg-slate-900 dark:text-slate-100"
     >
       {open && (
         <div className="space-y-4 p-6">

@@ -4,13 +4,78 @@
 @import '@fontsource/poppins/latin-600.css';
 @import '@fontsource/poppins/latin-700.css';
 
-@theme {
+/*
+ * Design tokens (from the NTS Transport design system).
+ * The app uses a teal brand. The platform admin area wears the logo's colours instead (navy, blue
+ * and orange): the same classes (bg-brand-600, text-accent-500 ...) resolve to different values
+ * inside `.theme-platform`, so no component needs to know which area it is in.
+ */
+:root {
+  --brand-50: #f0fdfa;
+  --brand-100: #ccfbf1;
+  --brand-200: #99f6e4;
+  --brand-500: #14b8a6;
+  --brand-600: #0d9488;
+  --brand-700: #0f766e;
+  --brand-800: #115e59;
+  /* Secondary accent: used sparingly (alerts that need attention, the platform theme). */
+  --accent-50: #fff7ed;
+  --accent-100: #ffedd5;
+  --accent-500: #f97316;
+  --accent-600: #ea580c;
+  --accent-700: #c2410c;
+  --canvas: #f8fafc;
+  --ink: #0f172a;
+}
+.theme-platform {
+  /* Logo colours: deep navy, bright blue, orange, amber. */
+  --brand-50: #eef5ff;
+  --brand-100: #d9e8fb;
+  --brand-200: #b3d1f5;
+  --brand-500: #0075df;
+  --brand-600: #01356f;
+  --brand-700: #01183a;
+  --brand-800: #01122b;
+  --accent-50: #fff4e5;
+  --accent-100: #ffe3bd;
+  --accent-500: #fc8b01;
+  --accent-600: #e87a00;
+  --accent-700: #b85f00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0b1220;
+    --ink: #e2e8f0;
+  }
+  .theme-platform {
+    /* On a dark canvas the navy needs lifting to stay visible. */
+    --brand-50: #0b1a33;
+    --brand-100: #102a52;
+    --brand-500: #3b9bff;
+    --brand-600: #1f6fd1;
+    --brand-700: #0f56ac;
+  }
+}
+
+@theme inline {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #f0fdfa;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-ink: #0f172a;
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-ink: var(--ink);
+  --color-canvas: var(--canvas);
+  --shadow-level1: 0 1px 3px 0 rgb(15 23 42 / 0.05), 0 1px 2px -1px rgb(15 23 42 / 0.05);
+  --shadow-level2: 0 4px 6px -1px rgb(15 23 42 / 0.07), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --shadow-level3: 0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.08);
 }
 
 :root {
@@ -19,19 +84,13 @@
 
 body {
   font-family: var(--font-sans);
-  background: #f8fafc;
-  color: var(--color-ink);
-}
-
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #0b1220;
-    color: #e2e8f0;
-  }
+  background: var(--canvas);
+  color: var(--ink);
+  line-height: 1.6;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brand-600);
+  outline: 2px solid var(--brand-600);
   outline-offset: 2px;
 }
 
@@ -53,6 +112,11 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
   background-clip: content-box;
+}
+
+/* Money and counts line up in columns. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes nts-bar {

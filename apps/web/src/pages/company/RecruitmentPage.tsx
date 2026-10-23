@@ -164,7 +164,7 @@ export function RecruitmentPage() {
             type="button"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`min-h-11 rounded-lg px-4 text-sm font-medium ${tab === t ? 'bg-brand-700 text-white' : 'border border-slate-300 dark:border-slate-600'}`}
+            className={`min-h-11 rounded-lg px-4 text-sm font-medium ${tab === t ? 'bg-brand-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`}
           >
             {t === 'jobs' ? 'Job postings' : 'Applications'}
           </button>

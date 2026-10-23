@@ -1,3 +1,4 @@
+import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ApiError } from '../../lib/api';
 
@@ -5,21 +6,34 @@ type Tone = 'error' | 'success' | 'info' | 'warning';
 
 const tones: Record<Tone, string> = {
   error:
-    'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100',
+    'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100',
   success:
-    'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100',
-  info: 'border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100',
+    'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100',
+  info: 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
   warning:
-    'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100',
+    'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
+};
+const icons = { error: XCircle, success: CheckCircle2, info: Info, warning: AlertTriangle };
+const iconTones: Record<Tone, string> = {
+  error: 'text-red-600',
+  success: 'text-green-600',
+  info: 'text-brand-600',
+  warning: 'text-amber-600',
 };
 
 export function Alert({ tone = 'info', children }: { tone?: Tone; children: ReactNode }) {
+  const Icon = icons[tone];
   return (
     <div
       role={tone === 'error' ? 'alert' : 'status'}
-      className={`rounded-lg border px-4 py-3 text-sm ${tones[tone]}`}
+      className={`flex gap-3 rounded-lg border px-4 py-3 text-sm ${tones[tone]}`}
     >
-      {children}
+      <Icon
+        aria-hidden="true"
+        className={`mt-0.5 size-5 shrink-0 ${iconTones[tone]}`}
+        strokeWidth={1.8}
+      />
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

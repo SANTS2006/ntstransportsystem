@@ -413,7 +413,7 @@ export function BookingsPage() {
                 )}
                 {manage && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED') && (
                   <Button
-                    variant="danger"
+                    variant="dangerQuiet"
                     loading={cancel.isPending && cancel.variables === b.id}
                     onClick={() => {
                       if (window.confirm(`Cancel booking ${b.reference}?`)) cancel.mutate(b.id);

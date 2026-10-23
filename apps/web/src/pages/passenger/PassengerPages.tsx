@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Accessibility, Bus, Clock, Lock } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card, StatusBadge } from '../../components/ui/Card';
+import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { clockTime, duration, initials, shortDate } from '../../lib/format';
 import { RateTrip } from './ComplaintPages';
 
 const MAX_SEATS = 8;
-const tomorrow = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 const money = (minor: number, currency: string) =>
   `${currency} ${(minor / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 const when = (iso: string, tz: string) =>
@@ -40,9 +41,6 @@ interface TripSummary {
   delayMinutes: number;
   fareMinor: number;
   currency: string;
-}
-interface TripCard extends TripSummary {
-  seatsLeft: number;
 }
 interface TripDetail extends TripSummary {
   sellable: boolean;
@@ -75,88 +73,7 @@ const STATUS_LABEL: Record<MyBooking['status'], string> = {
   EXPIRED: 'Expired',
 };
 
-// ---- Search ----------------------------------------------------------------------------------
-
-export function TripSearchPage() {
-  const [params, setParams] = useSearchParams();
-  const [from, setFrom] = useState(params.get('from') ?? '');
-  const [to, setTo] = useState(params.get('to') ?? '');
-  const [date, setDate] = useState(params.get('date') ?? tomorrow());
-  const active = params.get('date');
-  const results = useQuery({
-    queryKey: ['public-trips', params.get('from'), params.get('to'), active],
-    enabled: active !== null,
-    queryFn: ({ signal }) =>
-      api<{ trips: TripCard[] }>(
-        `/public/trips?date=${active}${params.get('from') ? `&from=${encodeURIComponent(params.get('from') as string)}` : ''}${params.get('to') ? `&to=${encodeURIComponent(params.get('to') as string)}` : ''}`,
-        { signal },
-      ),
-  });
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-3xl font-semibold text-brand-700 dark:text-brand-500">Find a trip</h1>
-      <form
-        className="grid gap-3 sm:grid-cols-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setParams({
-            ...(from.trim() ? { from: from.trim() } : {}),
-            ...(to.trim() ? { to: to.trim() } : {}),
-            date,
-          });
-        }}
-      >
-        <Field label="From (city)" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <Field label="To (city)" value={to} onChange={(e) => setTo(e.target.value)} />
-        <Field label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <Button type="submit" className="sm:mt-6" disabled={!date}>
-          Search
-        </Button>
-      </form>
-
-      {results.isFetching && <Spinner label="Searching" />}
-      {results.error && <ErrorAlert error={results.error} onRetry={() => void results.refetch()} />}
-      {results.data && results.data.trips.length === 0 && (
-        <Alert tone="info">No trips found for that day. Try another date or a nearby city.</Alert>
-      )}
-      <ul className="space-y-3">
-        {results.data?.trips.map((t) => (
-          <li
-            key={t.tripId}
-            className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">
-                  {t.origin.city} → {t.destination.city}
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {t.company} · departs {when(t.departureAt, t.timezone)}
-                  {t.delayMinutes ? ` (delayed ${t.delayMinutes} min)` : ''}
-                </p>
-                <p className="text-sm">
-                  {money(t.fareMinor, t.currency)} per seat ·{' '}
-                  {t.seatsLeft > 0 ? `${t.seatsLeft} seat(s) left` : 'Sold out'}
-                </p>
-              </div>
-              {t.seatsLeft > 0 ? (
-                <Link
-                  to={`/trips/${t.tenantId}/${t.tripId}`}
-                  className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 font-medium text-white hover:bg-brand-600"
-                >
-                  Choose seats
-                </Link>
-              ) : (
-                <span className="text-sm text-slate-500">Unavailable</span>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+export { TripSearchPage } from './TripSearchPage';
 
 // ---- Choose seats and book -------------------------------------------------------------------
 
@@ -232,108 +149,213 @@ export function TripBookPage() {
     picked.length > 0 && contact.name.trim().length >= 2 && contact.phone.trim().length >= 6;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">
-          {t.origin.city} → {t.destination.city}
-        </h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          {t.company} · departs {when(t.departureAt, t.timezone)} · {money(t.fareMinor, t.currency)}{' '}
-          per seat
-        </p>
-      </div>
-
-      <Card title="Choose your seats">
-        <fieldset className="mt-3">
-          <legend className="sr-only">Seats</legend>
-          <div className="flex flex-wrap gap-2">
-            {t.seats.map((s) => {
-              const on = picked.includes(s.label);
-              return (
-                <button
-                  key={s.label}
-                  type="button"
-                  disabled={s.status === 'TAKEN'}
-                  aria-pressed={on}
-                  aria-label={`Seat ${s.label}${s.accessible ? ' (accessible)' : ''}${s.status === 'TAKEN' ? ', taken' : ''}`}
-                  onClick={() => toggle(s.label)}
-                  className={`min-h-11 min-w-11 rounded-lg border px-2 text-sm font-medium disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:line-through dark:disabled:bg-slate-800 ${
-                    on
-                      ? 'border-brand-700 bg-brand-700 text-white'
-                      : 'border-slate-300 dark:border-slate-600'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
+    <div className="mx-auto max-w-5xl space-y-5">
+      {/* The trip */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 sm:p-6 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-slate-500">{t.company}</p>
+            <h1 className="text-2xl font-semibold tracking-tight">{t.route}</h1>
           </div>
-        </fieldset>
-        <p className="mt-3 text-sm" aria-live="polite">
-          {picked.length === 0
-            ? `Choose up to ${MAX_SEATS} seats.`
-            : `${picked.length} seat(s): ${picked.join(', ')} · ${money(total, t.currency)}`}
-        </p>
-      </Card>
-
-      {picked.length > 0 &&
-        (user ? (
-          <Card title="Who is travelling?">
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Contact name"
-                value={contact.name}
-                onChange={(e) => setContact((c) => ({ ...c, name: e.target.value }))}
-              />
-              <Field
-                label="Contact phone"
-                type="tel"
-                value={contact.phone}
-                onChange={(e) => setContact((c) => ({ ...c, phone: e.target.value }))}
-              />
-              {picked.map((s) => (
-                <Field
-                  key={s}
-                  label={`Passenger name, seat ${s}`}
-                  value={names[s] ?? ''}
-                  placeholder={contact.name || 'Same as contact'}
-                  onChange={(e) => setNames((n) => ({ ...n, [s]: e.target.value }))}
-                />
-              ))}
-            </div>
-            {error && <Alert tone="error">{error}</Alert>}
-            <p className="mt-3 text-xs text-slate-500">
-              Seats are held for a short time while you pay. You will be taken to the secure payment
-              page.
+          <div className="text-right">
+            <p className="text-xs text-slate-500">Fare per seat</p>
+            <p className="tabular text-xl font-bold text-brand-700 dark:text-brand-500">
+              {money(t.fareMinor, t.currency)}
             </p>
-            <Button
-              className="mt-3"
-              disabled={!valid}
-              loading={book.isPending}
-              loadingText="Holding your seats…"
-              onClick={() => {
-                setError(null);
-                book.mutate();
-              }}
-            >
-              Pay {money(total, t.currency)}
-            </Button>
-          </Card>
-        ) : (
-          <Alert tone="info">
-            <Link
-              className="font-medium underline"
-              to={`/login?next=${encodeURIComponent(`/trips/${tenantId}/${tripId}`)}`}
-            >
-              Sign in
-            </Link>{' '}
-            or{' '}
-            <Link className="font-medium underline" to="/register">
-              create an account
-            </Link>{' '}
-            to book these seats.
-          </Alert>
-        ))}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div>
+            <p className="tabular text-2xl font-bold leading-none">
+              {clockTime(t.departureAt, t.timezone)}
+            </p>
+            <p className="mt-1 text-sm font-medium">{t.origin.city}</p>
+            <p className="text-xs text-slate-500">
+              {t.origin.name} · {shortDate(t.departureAt, t.timezone)}
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-xs text-slate-500">
+            <span>{duration(t.departureAt, t.arrivalAt)}</span>
+            <span className="flex items-center gap-1" aria-hidden="true">
+              <span className="size-2 rounded-full bg-brand-600" />
+              <span className="h-px w-10 bg-slate-300 sm:w-24 dark:bg-slate-600" />
+              <Bus className="size-4" strokeWidth={1.8} />
+              <span className="h-px w-10 bg-slate-300 sm:w-24 dark:bg-slate-600" />
+              <span className="size-2 rounded-full bg-slate-400" />
+            </span>
+          </div>
+          <div className="text-right">
+            <p className="tabular text-2xl font-bold leading-none">
+              {clockTime(t.arrivalAt, t.timezone)}
+            </p>
+            <p className="mt-1 text-sm font-medium">{t.destination.city}</p>
+            <p className="text-xs text-slate-500">{t.destination.name}</p>
+          </div>
+        </div>
+        {t.delayMinutes > 0 && (
+          <p className="mt-3">
+            <Badge tone="amber" icon={Clock}>
+              Delayed about {t.delayMinutes} min
+            </Badge>
+          </p>
+        )}
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+        {/* Seats */}
+        <Card title="Choose your seats" className="self-start">
+          <ul className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+            <li className="flex items-center gap-1.5">
+              <span className="size-4 rounded border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900" />
+              Available
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="size-4 rounded border border-brand-600 bg-brand-600" />
+              Selected
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="grid size-4 place-items-center rounded bg-slate-200 dark:bg-slate-700">
+                <Lock className="size-2.5 text-slate-500" strokeWidth={2} />
+              </span>
+              Taken
+            </li>
+            <li className="flex items-center gap-1.5">
+              <Accessibility className="size-4" strokeWidth={1.8} />
+              Accessible
+            </li>
+          </ul>
+          <fieldset>
+            <legend className="sr-only">Seats</legend>
+            <div className="grid grid-cols-4 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-5 dark:bg-slate-800/50">
+              {t.seats.map((s) => {
+                const on = picked.includes(s.label);
+                const taken = s.status === 'TAKEN';
+                return (
+                  <button
+                    key={s.label}
+                    type="button"
+                    disabled={taken}
+                    aria-pressed={on}
+                    aria-label={`Seat ${s.label}${s.accessible ? ' (accessible)' : ''}${taken ? ', taken' : ''}`}
+                    onClick={() => toggle(s.label)}
+                    className={`tabular relative grid min-h-12 place-items-center rounded-lg border text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
+                      on
+                        ? 'border-brand-600 bg-brand-600 text-white'
+                        : taken
+                          ? 'border-transparent bg-slate-200 text-slate-400 dark:bg-slate-700'
+                          : 'border-slate-300 bg-white hover:border-brand-600 dark:border-slate-600 dark:bg-slate-900'
+                    }`}
+                  >
+                    {taken ? <Lock className="size-4" strokeWidth={1.8} /> : s.label}
+                    {s.accessible && !taken && (
+                      <Accessibility
+                        aria-hidden="true"
+                        className="absolute right-1 top-1 size-3"
+                        strokeWidth={1.8}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400" aria-live="polite">
+            {picked.length === 0
+              ? `Choose up to ${MAX_SEATS} seats.`
+              : `${picked.length} seat(s) chosen: ${picked.join(', ')}`}
+          </p>
+        </Card>
+
+        {/* Who is travelling, and the total */}
+        <div className="space-y-5">
+          {picked.length === 0 ? (
+            <Card>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Pick a seat to see the price and add the passengers.
+              </p>
+            </Card>
+          ) : user ? (
+            <>
+              <Card title="Passengers">
+                <div className="space-y-3">
+                  <Field
+                    label="Contact name"
+                    value={contact.name}
+                    onChange={(e) => setContact((c) => ({ ...c, name: e.target.value }))}
+                  />
+                  <Field
+                    label="Contact phone"
+                    type="tel"
+                    value={contact.phone}
+                    hint="We use it for notices about this trip."
+                    onChange={(e) => setContact((c) => ({ ...c, phone: e.target.value }))}
+                  />
+                  {picked.map((s) => (
+                    <Field
+                      key={s}
+                      label={`Passenger name, seat ${s}`}
+                      value={names[s] ?? ''}
+                      placeholder={contact.name || 'Same as contact'}
+                      onChange={(e) => setNames((n) => ({ ...n, [s]: e.target.value }))}
+                    />
+                  ))}
+                </div>
+              </Card>
+              <Card title="Fare summary">
+                <dl className="space-y-1 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-600 dark:text-slate-400">
+                      {picked.length} × {money(t.fareMinor, t.currency)}
+                    </dt>
+                    <dd className="tabular">{money(total, t.currency)}</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <span className="text-sm font-medium">Total to pay</span>
+                  <span className="tabular text-2xl font-bold tracking-tight text-brand-700 dark:text-brand-500">
+                    {money(total, t.currency)}
+                  </span>
+                </div>
+                {error && (
+                  <div className="mt-3">
+                    <Alert tone="error">{error}</Alert>
+                  </div>
+                )}
+                <Button
+                  className="mt-4 w-full"
+                  disabled={!valid}
+                  loading={book.isPending}
+                  loadingText="Holding your seats…"
+                  onClick={() => {
+                    setError(null);
+                    book.mutate();
+                  }}
+                >
+                  <Lock aria-hidden="true" className="size-4" strokeWidth={1.8} />
+                  Continue to payment
+                </Button>
+                <p className="mt-2 text-center text-xs text-slate-500">
+                  Your seats are held for a short time while you choose how to pay.
+                </p>
+              </Card>
+            </>
+          ) : (
+            <Alert tone="info">
+              <Link
+                className="font-medium underline"
+                to={`/login?next=${encodeURIComponent(`/trips/${tenantId}/${tripId}`)}`}
+              >
+                Sign in
+              </Link>{' '}
+              or{' '}
+              <Link className="font-medium underline" to="/register">
+                create an account
+              </Link>{' '}
+              to book these seats.
+            </Alert>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -399,7 +421,7 @@ export function PayReturnPage() {
       <BookingCard b={b} />
       {b.status === 'CONFIRMED' && (
         <Link
-          className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 font-medium text-white hover:bg-brand-600"
+          className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700"
           to={`/app/bookings/${b.id}`}
         >
           View my tickets
@@ -416,22 +438,21 @@ export function PayReturnPage() {
 
 function BookingCard({ b, children }: { b: MyBooking; children?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 sm:p-5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-medium">
-            {b.origin.city} → {b.destination.city}
-          </p>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {b.company} · {when(b.departureAt, b.timezone)}
-            {b.delayMinutes ? ` (delayed ${b.delayMinutes} min)` : ''}
-            {b.tripStatus === 'CANCELLED' ? ' · trip cancelled' : ''}
-          </p>
-          <p className="text-sm">
-            Ref <strong>{b.reference}</strong> · seats{' '}
-            {b.passengers.map((p) => p.seatLabel).join(', ') || '—'} ·{' '}
-            {money(b.totalMinor, b.currency)}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-sm font-bold text-brand-700 dark:bg-slate-800 dark:text-brand-500"
+          >
+            {initials(b.company)}
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">
+              {b.origin.city} → {b.destination.city}
+            </p>
+            <p className="truncate text-xs text-slate-500">{b.company}</p>
+          </div>
         </div>
         <StatusBadge
           status={
@@ -444,6 +465,37 @@ function BookingCard({ b, children }: { b: MyBooking; children?: ReactNode }) {
           label={STATUS_LABEL[b.status]}
         />
       </div>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-4 dark:border-slate-800">
+        <div>
+          <dt className="text-xs text-slate-500">Departs</dt>
+          <dd className="font-medium">
+            {when(b.departureAt, b.timezone)}
+            {b.delayMinutes ? ` (delayed ${b.delayMinutes} min)` : ''}
+          </dd>
+          {b.tripStatus === 'CANCELLED' && (
+            <dd className="text-xs text-red-700 dark:text-red-400">Trip cancelled</dd>
+          )}
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Seats</dt>
+          <dd className="font-medium">{b.passengers.map((p) => p.seatLabel).join(', ') || '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Reference</dt>
+          <dd className="font-mono font-medium">{b.reference}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Total</dt>
+          <dd className="tabular font-bold text-brand-700 dark:text-brand-500">
+            {money(b.totalMinor, b.currency)}
+          </dd>
+        </div>
+      </dl>
+      {b.status === 'PENDING_PAYMENT' && b.claim && (
+        <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
+          Waiting for the company to confirm your QMoney payment (transaction {b.claim.reference}).
+        </p>
+      )}
       {children}
     </div>
   );
@@ -490,7 +542,7 @@ export function MyBookingsPage() {
           {b.status === 'CONFIRMED' && (
             <div className="mt-3">
               <Link
-                className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 text-sm font-medium text-white hover:bg-brand-600"
+                className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
                 to={`/app/bookings/${b.id}`}
               >
                 View tickets

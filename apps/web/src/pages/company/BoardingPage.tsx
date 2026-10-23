@@ -1,8 +1,9 @@
+import { CheckCircle2, ScanLine, XCircle } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ErrorAlert } from '../../components/ui/Alert';
+import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
+import { Badge, Card } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { api, ApiError } from '../../lib/api';
 import { useCompany } from './company-context';
@@ -98,16 +99,19 @@ export function BoardingPage() {
     if (tripId) input.current?.focus();
   }, [tripId]);
 
+  const counts = manifest.data?.counts;
+  const pct = counts && counts.total > 0 ? Math.round((counts.boarded / counts.total) * 100) : 0;
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <h1 className="text-2xl font-semibold">Boarding</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Boarding</h1>
       <div>
         <label htmlFor="bd-trip" className="mb-1 block text-sm font-medium">
           Trip
         </label>
         <select
           id="bd-trip"
-          className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+          className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-[15px] focus:border-brand-600 dark:border-slate-600 dark:bg-slate-900"
           value={tripId}
           onChange={(e) => {
             setTripId(e.target.value);
@@ -131,16 +135,47 @@ export function BoardingPage() {
 
       {tripId && (
         <>
+          {counts && (
+            <section
+              aria-label="Boarding progress"
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none"
+            >
+              <div className="flex items-end justify-between gap-3">
+                <p className="tabular text-3xl font-bold">
+                  {counts.boarded}
+                  <span className="text-lg font-medium text-slate-500"> / {counts.total}</span>
+                  <span className="ml-2 text-sm font-medium text-slate-500">boarded</span>
+                </p>
+                <p className="tabular text-sm font-medium text-brand-700 dark:text-brand-500">
+                  {pct}%
+                </p>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={counts.total}
+                aria-valuenow={counts.boarded}
+                className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+              >
+                <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
+              </div>
+            </section>
+          )}
+
           <Card title="Scan or enter a ticket">
             <form
-              className="mt-3 flex flex-wrap gap-3"
+              className="flex flex-wrap items-end gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (value.trim() && !scan.isPending) scan.mutate(value);
               }}
             >
               <div className="min-w-56 flex-1">
-                <label htmlFor="bd-code" className="mb-1 block text-sm font-medium">
+                <label
+                  htmlFor="bd-code"
+                  className="mb-1 flex items-center gap-1.5 text-sm font-medium"
+                >
+                  <ScanLine aria-hidden="true" className="size-4" strokeWidth={1.8} />
                   Ticket code or scanner input
                 </label>
                 <input
@@ -151,16 +186,17 @@ export function BoardingPage() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 font-mono text-sm dark:border-slate-600 dark:bg-slate-900"
+                  className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3 font-mono text-base focus:border-brand-600 dark:border-slate-600 dark:bg-slate-900"
                 />
               </div>
               <Button
                 type="submit"
-                className="mt-6"
+                className="min-h-12"
                 loading={scan.isPending}
                 loadingText="Checking…"
                 disabled={!value.trim()}
               >
+                <CheckCircle2 aria-hidden="true" className="size-4" strokeWidth={1.8} />
                 Check ticket
               </Button>
             </form>
@@ -168,8 +204,38 @@ export function BoardingPage() {
               A USB or Bluetooth barcode scanner types into this box and presses Enter by itself.
             </p>
             <div aria-live="assertive" className="mt-3">
-              {outcome?.kind === 'ok' && <Alert tone="success">{outcome.text}</Alert>}
-              {outcome?.kind === 'refused' && <Alert tone="error">{outcome.text}</Alert>}
+              {outcome?.kind === 'ok' && (
+                <div
+                  role="status"
+                  className="flex items-center gap-4 rounded-xl border border-green-200 bg-green-50 p-4 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100"
+                >
+                  <CheckCircle2
+                    aria-hidden="true"
+                    className="size-9 shrink-0 text-green-600"
+                    strokeWidth={1.8}
+                  />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide">Valid</p>
+                    <p className="text-lg font-semibold">{outcome.text}</p>
+                  </div>
+                </div>
+              )}
+              {outcome?.kind === 'refused' && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+                >
+                  <XCircle
+                    aria-hidden="true"
+                    className="size-9 shrink-0 text-red-600"
+                    strokeWidth={1.8}
+                  />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide">Do not board</p>
+                    <p className="text-lg font-semibold">{outcome.text}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -180,31 +246,30 @@ export function BoardingPage() {
             )}
             {manifest.data && (
               <>
-                <p className="mt-2 text-sm" aria-live="polite">
+                <p className="sr-only" aria-live="polite">
                   {manifest.data.counts.boarded} of {manifest.data.counts.total} boarded
                 </p>
-                <ul className="mt-2 divide-y divide-slate-200 text-sm dark:divide-slate-700">
+                <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
                   {manifest.data.passengers.length === 0 && (
                     <li className="py-2 text-slate-500">No confirmed tickets on this trip.</li>
                   )}
                   {manifest.data.passengers.map((p) => (
                     <li
                       key={p.ticketId}
-                      className="flex flex-wrap items-center justify-between gap-2 py-2"
+                      className="flex flex-wrap items-center justify-between gap-3 py-3"
                     >
-                      <span>
-                        <span className="font-medium">Seat {p.seat}</span> · {p.name}{' '}
-                        <span className="font-mono text-xs text-slate-500">{p.code}</span>
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="tabular grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-base font-bold text-brand-700 dark:bg-slate-800 dark:text-brand-500">
+                          {p.seat}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{p.name}</span>
+                          <span className="block font-mono text-xs text-slate-500">{p.code}</span>
+                        </span>
                       </span>
-                      <span
-                        className={
-                          p.status === 'BOARDED'
-                            ? 'font-medium text-emerald-700 dark:text-emerald-400'
-                            : 'text-slate-500'
-                        }
-                      >
+                      <Badge tone={p.status === 'BOARDED' ? 'green' : 'slate'}>
                         {p.status === 'BOARDED' ? 'Boarded' : 'Not yet boarded'}
-                      </span>
+                      </Badge>
                     </li>
                   ))}
                 </ul>

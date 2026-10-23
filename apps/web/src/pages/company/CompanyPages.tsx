@@ -1,5 +1,28 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Armchair,
+  ArrowLeft,
+  BarChart3,
+  Bus,
+  CalendarDays,
+  History,
+  IdCard,
+  KeyRound,
+  LayoutDashboard,
+  MapPin,
+  MessageSquareWarning,
+  Radio,
+  Route,
+  ScanLine,
+  Ticket,
+  UserPlus,
+  Users,
+  Wallet,
+  Waypoints,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { Navigate, Outlet, useParams } from 'react-router';
 import { z } from 'zod';
@@ -14,6 +37,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { email } from '../../lib/schemas';
 import { AccessContext, can, useCompany, type CompanyAccess } from './company-context';
+import { CompanyPulse } from './CompanyPulse';
 
 interface Profile {
   id: string;
@@ -44,33 +68,34 @@ export function CompanyLayout() {
     );
   }
   const a = q.data;
-  const nav: NavItem[] = [{ to: `/c/${tenantId}`, label: 'Overview', end: true }];
+  const nav: NavItem[] = [
+    { to: `/c/${tenantId}`, label: 'Overview', end: true, icon: LayoutDashboard },
+  ];
   if (a.tenantStatus === 'ACTIVE') {
-    if (can(a, 'route.read')) {
-      nav.push({ to: `/c/${tenantId}/routes`, label: 'Routes' });
-      nav.push({ to: `/c/${tenantId}/locations`, label: 'Locations' });
-    }
-    if (can(a, 'trip.read')) nav.push({ to: `/c/${tenantId}/trips`, label: 'Trips' });
-    if (can(a, 'booking.read')) nav.push({ to: `/c/${tenantId}/bookings`, label: 'Bookings' });
-    if (can(a, 'recruitment.manage'))
-      nav.push({ to: `/c/${tenantId}/recruitment`, label: 'Recruitment' });
-    if (can(a, 'finance.report.read')) nav.push({ to: `/c/${tenantId}/reports`, label: 'Reports' });
-    if (can(a, 'support.manage'))
-      nav.push({ to: `/c/${tenantId}/complaints`, label: 'Complaints' });
-    if (can(a, 'ticket.validate')) nav.push({ to: `/c/${tenantId}/boarding`, label: 'Boarding' });
-    if (can(a, 'payment.manage')) nav.push({ to: `/c/${tenantId}/payments`, label: 'Payments' });
-    if (can(a, 'trip.read')) nav.push({ to: `/c/${tenantId}/dispatch`, label: 'Dispatch' });
-    if (can(a, 'route.read')) nav.push({ to: `/c/${tenantId}/calendar`, label: 'Calendar' });
-    if (can(a, 'fleet.read')) nav.push({ to: `/c/${tenantId}/vehicles`, label: 'Vehicles' });
-    if (can(a, 'fleet.read'))
-      nav.push({ to: `/c/${tenantId}/seat-layouts`, label: 'Seat layouts' });
-    if (can(a, 'fleet.read')) nav.push({ to: `/c/${tenantId}/maintenance`, label: 'Maintenance' });
-    if (can(a, 'hr.read')) nav.push({ to: `/c/${tenantId}/staff`, label: 'Staff' });
-    if (can(a, 'membership.read')) nav.push({ to: `/c/${tenantId}/members`, label: 'Team' });
-    if (can(a, 'role.read')) nav.push({ to: `/c/${tenantId}/roles`, label: 'Roles' });
-    if (can(a, 'audit.read')) nav.push({ to: `/c/${tenantId}/audit`, label: 'Activity' });
+    const add = (ok: boolean, group: string, path: string, label: string, icon: LucideIcon) => {
+      if (ok) nav.push({ to: `/c/${tenantId}/${path}`, label, icon, group });
+    };
+    // Grouped the way the sidebar shows them: what happens today, the network, sales, people, insight.
+    add(can(a, 'trip.read'), 'Operations', 'dispatch', 'Dispatch', Radio);
+    add(can(a, 'route.read'), 'Operations', 'calendar', 'Calendar', CalendarDays);
+    add(can(a, 'trip.read'), 'Operations', 'trips', 'Trips', Route);
+    add(can(a, 'ticket.validate'), 'Operations', 'boarding', 'Boarding', ScanLine);
+    add(can(a, 'route.read'), 'Network', 'routes', 'Routes', Waypoints);
+    add(can(a, 'route.read'), 'Network', 'locations', 'Locations', MapPin);
+    add(can(a, 'fleet.read'), 'Network', 'vehicles', 'Vehicles', Bus);
+    add(can(a, 'fleet.read'), 'Network', 'seat-layouts', 'Seat layouts', Armchair);
+    add(can(a, 'booking.read'), 'Sales', 'bookings', 'Bookings', Ticket);
+    add(can(a, 'payment.manage'), 'Sales', 'payments', 'Payments', Wallet);
+    add(can(a, 'membership.read'), 'People', 'members', 'Team', Users);
+    add(can(a, 'role.read'), 'People', 'roles', 'Roles', KeyRound);
+    add(can(a, 'hr.read'), 'People', 'staff', 'Staff', IdCard);
+    add(can(a, 'recruitment.manage'), 'People', 'recruitment', 'Recruitment', UserPlus);
+    add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
+    add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
+    add(can(a, 'audit.read'), 'Insight', 'audit', 'Activity', History);
+    add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
   }
-  nav.push({ to: '/app', label: '← My companies' });
+  nav.push({ to: '/app', label: 'My companies', icon: ArrowLeft, group: 'Account' });
   return (
     <AccessContext.Provider value={{ tenantId, access: a }}>
       <DashboardShell nav={nav} heading="Company workspace">
@@ -87,7 +112,7 @@ export function CompanyOverview() {
     queryFn: ({ signal }) => api<Profile>(`/tenants/${tenantId}/profile`, { signal }),
   });
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {q.isPending && <Spinner label="Loading" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
@@ -102,6 +127,7 @@ export function CompanyOverview() {
               approved.
             </Alert>
           )}
+          {access.tenantStatus === 'ACTIVE' && <CompanyPulse timezone={q.data.timezone} />}
           {access.tenantStatus === 'ACTIVE' && can(access, 'tenant.profile.update') && (
             <ProfileForm profile={q.data} />
           )}

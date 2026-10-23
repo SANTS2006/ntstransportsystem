@@ -241,7 +241,7 @@ export function ComplaintThreadPage() {
             key={m.id}
             className={`max-w-[85%] rounded-xl p-3 text-sm ${
               m.from === 'YOU'
-                ? 'ml-auto bg-brand-700 text-white'
+                ? 'ml-auto bg-brand-600 text-white'
                 : 'bg-slate-100 dark:bg-slate-800'
             }`}
           >

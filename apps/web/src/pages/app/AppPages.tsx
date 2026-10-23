@@ -45,7 +45,7 @@ export function MyCompaniesPage() {
             {user?.email ? `, or ask a company owner to invite ${user.email}` : ''}.
           </p>
           <Link
-            className="mt-4 inline-block rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
+            className="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
             to="/app/apply"
           >
             Register a company

@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { Download } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
+import { linkButton } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
@@ -96,43 +99,58 @@ export function MyTicketsPage() {
         <>
           <div className="flex flex-wrap gap-3 text-sm">
             <a
-              className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 font-medium text-white hover:bg-brand-600"
+              className={linkButton('primary')}
               href={`/api/v1/passenger/bookings/${id}/tickets.pdf`}
             >
+              <Download aria-hidden="true" className="size-4" strokeWidth={1.8} />
               Download tickets (PDF)
             </a>
             <a
-              className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-4 font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+              className={linkButton('secondary')}
               href={`/api/v1/passenger/bookings/${id}/receipt.pdf`}
             >
               Receipt (PDF)
             </a>
           </div>
           <ul className="space-y-4">
-            {list.map((t) => (
-              <li
-                key={t.id}
-                className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
-              >
-                <Qr value={t.token} label={`QR code for seat ${t.seat}`} />
-                <div className="space-y-1">
-                  <p className="text-lg font-semibold">Seat {t.seat}</p>
-                  <p>{t.passengerName}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Code <span className="font-mono">{t.code}</span>
-                  </p>
-                  <p className="text-sm">
-                    {t.status === 'BOARDED'
-                      ? 'Boarded'
-                      : t.status === 'VOID' || b.tripStatus === 'CANCELLED'
-                        ? 'Cancelled'
-                        : b.tripStatus === 'COMPLETED'
-                          ? 'Trip finished: not used'
-                          : 'Ready to use'}
-                  </p>
-                </div>
-              </li>
-            ))}
+            {list.map((t) => {
+              const used = t.status === 'BOARDED';
+              const gone = t.status === 'VOID' || b.tripStatus === 'CANCELLED';
+              const over = b.tripStatus === 'COMPLETED';
+              return (
+                <li
+                  key={t.id}
+                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-level1 sm:flex-row dark:border-slate-700 dark:bg-slate-900 dark:shadow-none"
+                >
+                  <div className="grid place-items-center bg-white p-5 sm:border-r sm:border-dashed sm:border-slate-300">
+                    <Qr value={t.token} label={`QR code for seat ${t.seat}`} />
+                  </div>
+                  <div className="flex-1 space-y-2 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Seat
+                      </p>
+                      <Badge tone={used || over ? 'slate' : gone ? 'red' : 'green'}>
+                        {used
+                          ? 'Boarded'
+                          : gone
+                            ? 'Cancelled'
+                            : over
+                              ? 'Trip finished: not used'
+                              : 'Ready to use'}
+                      </Badge>
+                    </div>
+                    <p className="tabular text-4xl font-bold leading-none text-brand-700 dark:text-brand-500">
+                      {t.seat}
+                    </p>
+                    <p className="font-medium">{t.passengerName}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Code <span className="font-mono font-semibold">{t.code}</span>
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <p className="text-xs text-slate-500">
             Show the QR code to the driver when boarding. If it will not scan, read out the code.

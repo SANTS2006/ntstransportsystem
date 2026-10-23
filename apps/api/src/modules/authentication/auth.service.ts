@@ -47,6 +47,8 @@ export class AuthService {
     private readonly now: () => Date = () => new Date(),
     /** Present when sign-up and sign-in by phone number are available. */
     private readonly otp?: OtpService,
+    /** Sends and checks the codes that confirm an e-mail address (needs no text-message provider). */
+    private readonly emailCodes?: OtpService,
   ) {}
 
   private async issueToken(
@@ -85,16 +87,57 @@ export class AuthService {
         passwordHash: await hashPassword(input.password),
       },
     });
-    const token = await this.issueToken(user.id, 'EMAIL_VERIFY', VERIFY_TTL_MS);
-    await this.mailer.send({
-      to: input.email,
-      template: 'verify-email',
-      data: { link: `${this.appUrl}/verify-email?token=${token}` },
-    });
+    await this.sendEmailCode(user.id, input.email);
     await writeAudit(this.db, {
       action: 'auth.register',
       outcome: 'SUCCESS',
       actorUserId: user.id,
+      requestId: meta.requestId,
+    });
+  }
+
+  /** Mails the code (and the older confirmation link) that proves an address is the person's own. */
+  private async sendEmailCode(userId: string, email: string) {
+    const token = await this.issueToken(userId, 'EMAIL_VERIFY', VERIFY_TTL_MS);
+    const link = `${this.appUrl}/verify-email?token=${token}`;
+    if (!this.emailCodes) {
+      await this.mailer.send({ to: email, template: 'verify-email', data: { link } });
+      return;
+    }
+    await this.emailCodes.issue(email, 'EMAIL_VERIFY', userId, (code) =>
+      this.mailer.send({ to: email, template: 'verify-email', data: { link, code } }),
+    );
+  }
+
+  /** Checks the code from the e-mail and marks the address as confirmed. */
+  async verifyEmailCode(email: string, code: string, meta: ReqMeta) {
+    const r = this.emailCodes ? await this.emailCodes.verify(email, 'EMAIL_VERIFY', code) : null;
+    if (!r?.ok || !r.userId) {
+      await writeAudit(this.db, {
+        action: 'auth.email_code_verify',
+        outcome: 'FAILURE',
+        requestId: meta.requestId,
+      });
+      throw AppError.validation('That code is not right, or it has expired');
+    }
+    await this.db.user.update({ where: { id: r.userId }, data: { emailVerifiedAt: this.now() } });
+    await writeAudit(this.db, {
+      action: 'auth.email_verified',
+      outcome: 'SUCCESS',
+      actorUserId: r.userId,
+      requestId: meta.requestId,
+    });
+  }
+
+  /** Mails another code to an address that signed up and is not confirmed. Never says if it did. */
+  async resendEmailCode(email: string, meta: ReqMeta) {
+    const user = await this.db.user.findUnique({ where: { email } });
+    if (user && !user.emailVerifiedAt && user.status === 'ACTIVE') {
+      await this.sendEmailCode(user.id, email);
+    }
+    await writeAudit(this.db, {
+      action: 'auth.email_code_resent',
+      outcome: 'SUCCESS',
       requestId: meta.requestId,
     });
   }
@@ -206,7 +249,7 @@ export class AuthService {
       if (inactive) throw AppError.forbidden('This account is unavailable');
       throw byPhone
         ? new AppError(403, 'PHONE_NOT_VERIFIED', 'Please verify your phone number first')
-        : AppError.forbidden('Please verify your email address first');
+        : new AppError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email address first');
     }
     await this.db.user.update({
       where: { id: user.id },

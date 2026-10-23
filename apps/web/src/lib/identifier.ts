@@ -14,9 +14,10 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export function checkIdentifier(raw: string, phoneAllowed: boolean): string | null {
   const v = raw.trim();
-  if (!v) return phoneAllowed ? 'Enter your email or phone number' : 'Enter your email address';
+  if (!v) return 'Enter your email address or phone number';
   if (identifierKind(v) === 'email') return EMAIL.test(v) ? null : 'Enter a valid email address';
-  if (!phoneAllowed) return 'Enter a valid email address';
+  if (!phoneAllowed)
+    return 'Phone numbers cannot be used on this server yet. Use your email address.';
   return normalizePhone(v) ? null : 'Enter a valid phone number, or an email address';
 }
 

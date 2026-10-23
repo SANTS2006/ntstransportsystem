@@ -13,6 +13,8 @@ import {
   loginSchema,
   phoneCodeSchema,
   phoneOnlySchema,
+  emailCodeSchema,
+  emailOnlySchema,
   registerPhoneSchema,
   registerSchema,
   resetPhoneSchema,
@@ -108,6 +110,23 @@ export function authRouter({
     await auth.verifyEmail(tokenSchema.parse(req.body).token, meta(req));
     res.json({ message: 'Email verified' });
   });
+
+  r.post('/verify-email-code', limiter('verify-email-code', 20), async (req, res) => {
+    const body = emailCodeSchema.parse(req.body);
+    await auth.verifyEmailCode(body.email, body.code, meta(req));
+    res.json({ message: 'Email verified' });
+  });
+  r.post(
+    '/resend-email-code',
+    limiter('resend-email-code', 10),
+    limiter('email-codes', 10, 60 * 60_000),
+    async (req, res) => {
+      await auth.resendEmailCode(emailOnlySchema.parse(req.body).email, meta(req));
+      res
+        .status(202)
+        .json({ message: 'If the address is waiting to be confirmed, a code has been sent.' });
+    },
+  );
 
   if (phone) {
     // One shared hourly cap per address on everything that sends a text, so nobody can use the
@@ -265,6 +284,8 @@ export function authRouter({
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
+  emailCodeSchema,
+  emailOnlySchema,
   registerPhoneSchema,
   phoneOnlySchema,
   phoneCodeSchema,

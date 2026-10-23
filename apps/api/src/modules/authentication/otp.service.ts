@@ -2,7 +2,16 @@ import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import type { Db } from '../../platform/db.js';
 import type { SmsSender } from '../../platform/sms.js';
 
-export type OtpPurpose = 'REGISTER' | 'PASSWORD_RESET';
+export type OtpPurpose = 'REGISTER' | 'PASSWORD_RESET' | 'EMAIL_VERIFY';
+
+/** E-mail codes are six letters and digits (no 0/O/1/I, which look alike); text codes are digits. */
+const EMAIL_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const makeCode = (purpose: OtpPurpose) =>
+  purpose === 'EMAIL_VERIFY'
+    ? Array.from({ length: 6 }, () => EMAIL_ALPHABET[randomInt(0, EMAIL_ALPHABET.length)]).join('')
+    : String(randomInt(0, 1_000_000)).padStart(6, '0');
+const codeShape = (purpose: OtpPurpose) =>
+  purpose === 'EMAIL_VERIFY' ? /^[A-Z0-9]{6}$/ : /^\d{6}$/;
 
 export const OTP_TTL_MS = 10 * 60_000;
 export const OTP_MAX_ATTEMPTS = 5;
@@ -42,7 +51,13 @@ export class OtpService {
    * Sends a new code unless one was sent a moment ago or too many went out this hour (the caller
    * answers the same either way, so the response reveals nothing). Returns whether one was sent.
    */
-  async issue(phone: string, purpose: OtpPurpose, userId: string | null): Promise<boolean> {
+  async issue(
+    phone: string,
+    purpose: OtpPurpose,
+    userId: string | null,
+    /** How the code reaches the person; texts by default. */
+    deliver: (code: string) => Promise<void> = (code) => this.sms.send(phone, text(code)),
+  ): Promise<boolean> {
     const now = this.now();
     const recent = await this.db.phoneOtp.findMany({
       where: { phone, purpose, createdAt: { gt: new Date(now.getTime() - 3_600_000) } },
@@ -53,7 +68,7 @@ export class OtpService {
     const last = recent[0];
     if (last && now.getTime() - last.createdAt.getTime() < OTP_RESEND_AFTER_MS) return false;
 
-    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const code = makeCode(purpose);
     await this.db.phoneOtp.updateMany({
       where: { phone, purpose, consumedAt: null },
       data: { consumedAt: now }, // only the newest code can work
@@ -68,7 +83,7 @@ export class OtpService {
       },
     });
     try {
-      await this.sms.send(phone, text(code));
+      await deliver(code);
     } catch (err) {
       // The row stays (it counts toward the hourly limit); the person can ask for another code.
       await this.db.phoneOtp.update({ where: { id: row.id }, data: { consumedAt: now } });
@@ -84,7 +99,8 @@ export class OtpService {
     purpose: OtpPurpose,
     code: string,
   ): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-    if (!/^\d{6}$/.test(code)) return { ok: false };
+    code = purpose === 'EMAIL_VERIFY' ? code.trim().toUpperCase() : code;
+    if (!codeShape(purpose).test(code)) return { ok: false };
     const now = this.now();
     const row = await this.db.phoneOtp.findFirst({
       where: { phone, purpose, consumedAt: null, expiresAt: { gt: now } },

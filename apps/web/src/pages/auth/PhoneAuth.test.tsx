@@ -7,7 +7,7 @@ import { AuthProvider } from '../../auth/AuthProvider';
 import LoginPage from './LoginPage';
 import { RESEND_SECONDS, ResetPhonePasswordPage, VerifyPhonePage } from './PhonePages';
 import RegisterPage from './RegisterPage';
-import { ForgotPasswordPage } from './TokenPages';
+import { ForgotPasswordPage, VerifyEmailCodePage } from './TokenPages';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -56,6 +56,7 @@ function renderAt(url: string) {
           <Routes>
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/verify-email-code" element={<VerifyEmailCodePage />} />
             <Route path="/verify-phone" element={<VerifyPhonePage />} />
             <Route path="/reset-password-phone" element={<ResetPhonePasswordPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -75,20 +76,82 @@ afterEach(() => {
 });
 
 describe('Sign up with a phone number', () => {
-  it('asks for a phone number only when the server can send texts', async () => {
-    mockApi({ phoneSignup: false });
+  it('refuses a phone number on the form when the server cannot send texts', async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ phoneSignup: false });
     renderAt('/register');
-    await screen.findByLabelText('Email address');
-    expect(screen.queryByLabelText('Email or phone number')).toBeNull();
+    await user.type(await screen.findByLabelText('Email address / Phone number'), '076 123 456');
+    await user.type(screen.getByLabelText('Full name'), 'Fanta');
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText(/cannot be used on this server yet/)).toBeTruthy();
+    expect(calls.some((c) => c.url === '/auth/register-phone')).toBe(false);
+  });
+
+  it('registers by email, then goes to the code page', async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ phoneSignup: false, handler: () => json(202, { message: 'ok' }) });
+    renderAt('/register');
+    await user.type(
+      await screen.findByLabelText('Email address / Phone number'),
+      'Ada@Example.com',
+    );
+    await user.type(screen.getByLabelText('Full name'), 'Ada Kamara');
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    await waitFor(() => expect(where()).toContain('/verify-email-code'));
+    expect(where()).toBe('/verify-email-code?email=ada%40example.com');
+    expect(calls.find((c) => c.url === '/auth/register')!.body).toMatchObject({
+      email: 'Ada@Example.com',
+    });
+  });
+
+  it('confirms the email with the mailed code and goes to sign in', async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ handler: () => json(200, { message: 'ok' }) });
+    renderAt('/verify-email-code?email=ada%40example.com');
+    expect(await screen.findByText(/ada@example.com/)).toBeTruthy();
+    await user.type(screen.getByLabelText('Code'), 'k7m2xq');
+    await user.click(screen.getByRole('button', { name: 'Confirm email' }));
+    await waitFor(() => expect(where()).toContain('/login'));
+    expect(where()).toContain('verified=1');
+    expect(calls.find((c) => c.url === '/auth/verify-email-code')!.body).toEqual({
+      email: 'ada@example.com',
+      code: 'K7M2XQ',
+    });
+  });
+
+  it('sends someone whose email is not confirmed yet to the code page', async () => {
+    const user = userEvent.setup();
+    mockApi({
+      handler: (c) =>
+        c.url === '/auth/login'
+          ? json(403, {
+              error: {
+                code: 'EMAIL_NOT_VERIFIED',
+                message: 'Please verify your email address first',
+              },
+            })
+          : json(202, {}),
+    });
+    renderAt('/login');
+    await user.type(
+      await screen.findByLabelText('Email address / Phone number'),
+      'ada@example.com',
+    );
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: 'Sign In' }));
+    await waitFor(() => expect(where()).toContain('/verify-email-code'));
+    expect(where()).toBe('/verify-email-code?email=ada%40example.com&resend=1');
   });
 
   it('sends the number as typed, then goes to the code screen with it in international form', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: true, handler: () => json(202, { message: 'ok' }) });
     renderAt('/register');
-    await screen.findByLabelText('Email or phone number');
+    await screen.findByLabelText('Email address / Phone number');
     await user.type(screen.getByLabelText('Full name'), 'Fanta Jalloh');
-    await user.type(screen.getByLabelText('Email or phone number'), '076 123 456');
+    await user.type(screen.getByLabelText('Email address / Phone number'), '076 123 456');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(where()).toContain('/verify-phone'));
@@ -105,9 +168,9 @@ describe('Sign up with a phone number', () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: true });
     renderAt('/register');
-    await screen.findByLabelText('Email or phone number');
+    await screen.findByLabelText('Email address / Phone number');
     await user.type(screen.getByLabelText('Full name'), 'F');
-    await user.type(screen.getByLabelText('Email or phone number'), '1234');
+    await user.type(screen.getByLabelText('Email address / Phone number'), '1234');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     expect(await screen.findByText(/Enter a valid phone number/)).toBeTruthy();
@@ -202,8 +265,8 @@ describe('Sign in with a phone number', () => {
       handler: (c) => (c.url === '/auth/login' ? json(200, { userId: 'u1' }) : undefined),
     });
     renderAt('/login');
-    await screen.findByLabelText('Email or phone number');
-    await user.type(screen.getByLabelText('Email or phone number'), '+232 76 123 456');
+    await screen.findByLabelText('Email address / Phone number');
+    await user.type(screen.getByLabelText('Email address / Phone number'), '+232 76 123 456');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
     await user.click(screen.getByRole('button', { name: 'Sign In' }));
     await waitFor(() => expect(calls.some((c) => c.url === '/auth/login')).toBe(true));
@@ -228,8 +291,8 @@ describe('Sign in with a phone number', () => {
           : json(202, {}),
     });
     renderAt('/login');
-    await screen.findByLabelText('Email or phone number');
-    await user.type(screen.getByLabelText('Email or phone number'), '076123456');
+    await screen.findByLabelText('Email address / Phone number');
+    await user.type(screen.getByLabelText('Email address / Phone number'), '076123456');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
     await user.click(screen.getByRole('button', { name: 'Sign In' }));
     await waitFor(() => expect(where()).toContain('/verify-phone'));
@@ -239,8 +302,10 @@ describe('Sign in with a phone number', () => {
   it('opens with the number filled in, after confirming the number', async () => {
     mockApi({ phoneSignup: true });
     renderAt(`/login?phone=${encodeURIComponent('+23276123456')}&verified=1`);
-    expect(await screen.findByText(/Phone number confirmed/)).toBeTruthy();
-    expect(await screen.findByLabelText('Email or phone number')).toHaveValue('+23276123456');
+    expect(await screen.findByText(/Your account is confirmed/)).toBeTruthy();
+    expect(await screen.findByLabelText('Email address / Phone number')).toHaveValue(
+      '+23276123456',
+    );
   });
 });
 
@@ -249,8 +314,8 @@ describe('Forgotten password by phone', () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: true, handler: () => json(200, { message: 'ok' }) });
     renderAt('/forgot-password');
-    await screen.findByLabelText('Email or phone number');
-    await user.type(screen.getByLabelText('Email or phone number'), '076123456');
+    await screen.findByLabelText('Email address / Phone number');
+    await user.type(screen.getByLabelText('Email address / Phone number'), '076123456');
     await user.click(screen.getByRole('button', { name: 'Send reset link or code' }));
     await waitFor(() => expect(where()).toContain('/reset-password-phone'));
     await user.type(await screen.findByLabelText('Code'), '246810');

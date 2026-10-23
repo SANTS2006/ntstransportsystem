@@ -21,7 +21,15 @@ function useNumber(): string | null {
 }
 
 /** A "send again" button that waits a minute between texts, matching what the server allows. */
-function ResendCode({ phone, startNow }: { phone: string; startNow: boolean }) {
+export function ResendCode({
+  path = '/auth/resend-phone-code',
+  body,
+  startNow,
+}: {
+  path?: string;
+  body: Record<string, string>;
+  startNow: boolean;
+}) {
   const [wait, setWait] = useState(startNow ? RESEND_SECONDS : 0);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
@@ -30,10 +38,10 @@ function ResendCode({ phone, startNow }: { phone: string; startNow: boolean }) {
     return () => window.clearTimeout(t);
   }, [wait]);
   const resend = useMutation({
-    mutationFn: () => api('/auth/resend-phone-code', { method: 'POST', body: { phone } }),
+    mutationFn: () => api(path, { method: 'POST', body }),
     onSuccess: () => {
       setWait(RESEND_SECONDS);
-      setNote('If the number is waiting to be verified, a new code is on its way.');
+      setNote('If the account is waiting to be confirmed, a new code is on its way.');
     },
   });
   return (
@@ -111,7 +119,7 @@ export function VerifyPhonePage() {
           Confirm number
         </Button>
       </form>
-      <ResendCode phone={phone} startNow />
+      <ResendCode body={{ phone }} startNow />
       <div className="flex justify-between">
         <Link className={linkClass} to="/register">
           Use a different number

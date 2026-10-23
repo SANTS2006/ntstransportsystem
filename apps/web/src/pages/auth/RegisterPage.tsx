@@ -4,9 +4,9 @@ import { normalizePhone } from '@nts/shared';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
-import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
+import { GoogleButton } from '../../components/GoogleButton';
 import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
-import { Alert, ErrorAlert } from '../../components/ui/Alert';
+import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
@@ -44,9 +44,11 @@ export default function RegisterPage() {
     },
     onSuccess: (_r, x) => {
       const id = x.identifier.trim();
-      if (identifierKind(id) === 'phone') {
-        void navigate(`/verify-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`);
-      }
+      void navigate(
+        identifierKind(id) === 'phone'
+          ? `/verify-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`
+          : `/verify-email-code?email=${encodeURIComponent(id.toLowerCase())}`,
+      );
     },
   });
   const google = useMutation({
@@ -75,32 +77,14 @@ export default function RegisterPage() {
     if (Object.keys(next).length === 0 && !register.isPending) register.mutate(v);
   };
 
-  // The server answers identically whether or not the address is already registered.
-  if (register.isSuccess && identifierKind(v.identifier) === 'email') {
-    return (
-      <AuthCard title="Check your email">
-        <Alert tone="success">
-          If that address can be registered, we have sent a confirmation link. It expires in 24
-          hours.
-        </Alert>
-        <Link className="text-sm font-semibold text-brand-600" to="/login">
-          Back to sign in
-        </Link>
-      </AuthCard>
-    );
-  }
   return (
     <AuthCard
       title="Create an account"
       subtitle="Book trips, or join the company that invited you."
     >
       {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
-      {googleEnabled && (
-        <>
-          <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />
-          <OrDivider />
-        </>
-      )}
+      <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />
+      <OrDivider />
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
           label="Full name"
@@ -111,18 +95,19 @@ export default function RegisterPage() {
           onChange={(e) => setV({ ...v, displayName: e.target.value })}
         />
         <Field
-          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          label="Email address / Phone number"
           icon={Mail}
           autoComplete="username"
-          inputMode={phoneSignup ? 'text' : 'email'}
-          placeholder={phoneSignup ? 'you@example.com or 076 123 456' : 'you@example.com'}
-          hint={phoneSignup ? PHONE_HINT : undefined}
+          inputMode="text"
+          placeholder="you@example.com or 076 123 456"
+          hint={PHONE_HINT}
           error={errors.identifier}
           value={v.identifier}
           onChange={(e) => setV({ ...v, identifier: e.target.value })}
         />
         <PasswordField
           label="Password"
+          placeholder="Enter your password"
           autoComplete="new-password"
           hint="At least 12 characters. A passphrase works well."
           error={errors.password}

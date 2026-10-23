@@ -6,7 +6,7 @@ import { normalizePhone } from '@nts/shared';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
-import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
+import { GoogleButton } from '../../components/GoogleButton';
 import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -36,7 +36,7 @@ export default function LoginPage() {
   const [challenge, setChallenge] = useState<string | null>(null);
   const { phoneSignup } = useFeatures();
   // Coming back from verifying or resetting by phone: the number is filled in.
-  const [identifier, setIdentifier] = useState(params.get('phone') ?? '');
+  const [identifier, setIdentifier] = useState(params.get('phone') ?? params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [fieldError, setFieldError] = useState<{ id?: string; pw?: string }>({});
   const next = safeNext(params.get('next'));
@@ -62,6 +62,11 @@ export default function LoginPage() {
     onSuccess: finish,
     onError: (e, v) => {
       // The number is right but was never confirmed: go and get a code.
+      if (e instanceof ApiError && e.code === 'EMAIL_NOT_VERIFIED') {
+        void navigate(
+          `/verify-email-code?email=${encodeURIComponent(v.identifier.trim())}&resend=1`,
+        );
+      }
       if (e instanceof ApiError && e.code === 'PHONE_NOT_VERIFIED') {
         const n = normalizePhone(v.identifier);
         if (n) void navigate(`/verify-phone?phone=${encodeURIComponent(n)}&resend=1`);
@@ -117,23 +122,19 @@ export default function LoginPage() {
     <AuthCard title="Sign In" subtitle="Enter your details to access your account.">
       {params.get('reset') && <Alert tone="success">Password updated. Please sign in.</Alert>}
       {params.get('verified') && (
-        <Alert tone="success">Phone number confirmed. Please sign in.</Alert>
+        <Alert tone="success">Your account is confirmed. Please sign in.</Alert>
       )}
       {(login.error ?? google.error) && <ErrorAlert error={login.error ?? google.error} />}
-      {googleEnabled && (
-        <>
-          <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
-          <OrDivider />
-        </>
-      )}
+      <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
+      <OrDivider />
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
-          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          label="Email address / Phone number"
           icon={Mail}
           autoComplete="username"
-          inputMode={phoneSignup ? 'text' : 'email'}
-          placeholder={phoneSignup ? 'you@example.com or 076 123 456' : 'you@example.com'}
-          hint={phoneSignup ? PHONE_HINT : undefined}
+          inputMode="text"
+          placeholder="you@example.com or 076 123 456"
+          hint={PHONE_HINT}
           error={fieldError.id}
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}

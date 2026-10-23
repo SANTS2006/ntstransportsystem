@@ -167,6 +167,23 @@ export const operations: Record<string, Operation> = {
     body: tokenSchema,
     ok: 200,
   },
+  'POST /api/v1/auth/verify-email-code': {
+    summary: 'Confirm an email address with a code',
+    description:
+      'The 6-character code mailed at sign-up. It expires in 10 minutes and allows 5 attempts.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.emailCodeSchema,
+    ok: 200,
+  },
+  'POST /api/v1/auth/resend-email-code': {
+    summary: 'Mail a new confirmation code',
+    description: 'Answers the same whether or not the address is waiting to be confirmed.',
+    tag: 'Auth',
+    access: 'public',
+    body: authBodies.emailOnlySchema,
+    ok: 202,
+  },
   'POST /api/v1/auth/login': {
     summary: 'Sign in with email or phone number and password',
     description:

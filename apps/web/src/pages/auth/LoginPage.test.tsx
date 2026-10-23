@@ -53,7 +53,7 @@ const callsTo = (spy: ReturnType<typeof mockApi>, path: string) =>
   spy.mock.calls.filter(([u]) => String(u).endsWith(path));
 
 async function fillCredentials() {
-  await userEvent.type(screen.getByLabelText('Email address'), 'a@example.com');
+  await userEvent.type(screen.getByLabelText('Email address / Phone number'), 'a@example.com');
   await userEvent.type(screen.getByLabelText('Password'), 'whatever-password');
   await userEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 }
@@ -65,7 +65,7 @@ describe('LoginPage', () => {
     const spy = mockApi({ '/auth/me': signedOut });
     renderLogin();
     await userEvent.click(screen.getByRole('button', { name: 'Sign In' }));
-    expect(await screen.findByText('Enter your email address')).toBeInTheDocument();
+    expect(await screen.findByText('Enter your email address or phone number')).toBeInTheDocument();
     expect(screen.getByText('Enter your password')).toBeInTheDocument();
     expect(callsTo(spy, '/auth/login')).toHaveLength(0);
   });

@@ -24,6 +24,15 @@ export const registerPhoneSchema = z.object({
   displayName: z.string().trim().min(1).max(100),
 });
 export const phoneOnlySchema = z.object({ phone: phoneSchema });
+export const emailOnlySchema = z.object({ email: emailSchema });
+export const emailCodeSchema = z.object({
+  email: emailSchema,
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{6}$/, 'Enter the 6-character code'),
+});
 export const phoneCodeSchema = z.object({
   phone: phoneSchema,
   code: z

@@ -61,6 +61,17 @@ export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): Rendere
   switch (t) {
     case 'verify-email': {
       const link = safeLink(msg.data.link);
+      const code = typeof msg.data.code === 'string' ? msg.data.code : '';
+      if (/^[A-Z0-9]{6}$/.test(code)) {
+        return {
+          subject: 'Your NTS Transport confirmation code',
+          html: layout(
+            'Confirm your email',
+            `<p>Thanks for signing up. Enter this code on the verification page to finish creating your account. It expires in 10 minutes.</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>Or <a href="${link}">confirm with this link</a> (valid for 24 hours).</p>`,
+          ),
+          text: `Your confirmation code is ${code}. It expires in 10 minutes. Never share it.\nOr use this link (24 hours): ${link}\n`,
+        };
+      }
       return {
         subject: 'Confirm your email address',
         html: layout(

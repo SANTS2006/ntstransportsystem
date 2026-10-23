@@ -156,7 +156,12 @@ export function createApp({
           },
         )
       : undefined;
-    const auth = new AuthService(db, mailer, env.APP_URL, mfa, undefined, otp);
+    const emailCodes = new OtpService(
+      db,
+      { send: () => Promise.reject(new Error('e-mail codes are not texted')) },
+      env.MFA_ENCRYPTION_KEY ? deriveSubkey(env.MFA_ENCRYPTION_KEY, 'otp-email') : randomBytes(32),
+    );
+    const auth = new AuthService(db, mailer, env.APP_URL, mfa, undefined, otp, emailCodes);
     const features = { fileUploads: false, phoneSignup: otp !== undefined };
     v1.get('/features', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');

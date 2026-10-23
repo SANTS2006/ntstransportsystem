@@ -67,6 +67,35 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
       .expect(403);
   });
 
+  it('confirms an email with the 6-character code, once, and not with a wrong one', async () => {
+    const email = `${uniq('code')}@example.test`;
+    await request(ctx.app)
+      .post('/api/v1/auth/register')
+      .send({ email, password: PASSWORD, displayName: 'T' })
+      .expect(202);
+    const code = ctx.mailer.last('verify-email')?.data.code ?? '';
+    expect(code).toMatch(/^[A-Z0-9]{6}$/);
+    const wrong = code === 'AAAAAA' ? 'BBBBBB' : 'AAAAAA';
+    await request(ctx.app)
+      .post('/api/v1/auth/verify-email-code')
+      .send({ email, code: wrong })
+      .expect(400);
+    await request(ctx.app)
+      .post('/api/v1/auth/login')
+      .send({ email, password: PASSWORD })
+      .expect(403);
+    // Lower case is accepted; the code works once.
+    await request(ctx.app)
+      .post('/api/v1/auth/verify-email-code')
+      .send({ email, code: code.toLowerCase() })
+      .expect(200);
+    await request(ctx.app).post('/api/v1/auth/verify-email-code').send({ email, code }).expect(400);
+    await request(ctx.app)
+      .post('/api/v1/auth/login')
+      .send({ email, password: PASSWORD })
+      .expect(200);
+  });
+
   it('gives the same registration response for an existing email', async () => {
     const email = await registerVerified();
     const before = ctx.mailer.sent.length;

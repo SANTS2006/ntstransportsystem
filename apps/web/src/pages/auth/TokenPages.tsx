@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { normalizePhone } from '@nts/shared';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AuthCard } from '../../components/layout/Layouts';
@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Mail } from 'lucide-react';
 import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
+import { ResendCode } from './PhonePages';
 import { useFeatures } from '../../lib/features';
 import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
 import { resetSchema, type ResetValues } from '../../lib/schemas';
@@ -115,10 +116,10 @@ export function ForgotPasswordPage() {
         className="space-y-4"
       >
         <Field
-          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          label="Email address / Phone number"
           icon={Mail}
           autoComplete="username"
-          hint={phoneSignup ? PHONE_HINT : undefined}
+          hint={PHONE_HINT}
           error={error}
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
@@ -224,6 +225,92 @@ export function AcceptInvitationPage() {
           </Button>
         </>
       )}
+    </AuthCard>
+  );
+}
+
+const emailCodeShape = /^[A-Za-z0-9]{6}$/;
+
+/** Step two of signing up with an email address: type the 6-character code that was mailed. */
+export function VerifyEmailCodePage() {
+  const [params] = useSearchParams();
+  const email = params.get('email')?.trim().toLowerCase() ?? '';
+  const navigate = useNavigate();
+  const [code, setCode] = useState('');
+  const [problem, setProblem] = useState<string | undefined>();
+  const verify = useMutation({
+    mutationFn: () =>
+      api('/auth/verify-email-code', { method: 'POST', body: { email, code: code.trim() } }),
+    onSuccess: () =>
+      void navigate(`/login?email=${encodeURIComponent(email)}&verified=1`, { replace: true }),
+  });
+  // Sent here from a sign-in that needs a code: ask for one straight away, once.
+  const asked = useRef(false);
+  const autoResend = useMutation({
+    mutationFn: () => api('/auth/resend-email-code', { method: 'POST', body: { email } }),
+  });
+  const wantsResend = params.get('resend') === '1';
+  useEffect(() => {
+    if (email && wantsResend && !asked.current) {
+      asked.current = true;
+      autoResend.mutate();
+    }
+  }, [email, wantsResend, autoResend]);
+
+  if (!email.includes('@')) {
+    return (
+      <AuthCard title="Confirm your email">
+        <Alert tone="error">This page needs your email address. Please start again.</Alert>
+        <Link className={linkClass} to="/register">
+          Create an account
+        </Link>
+      </AuthCard>
+    );
+  }
+  return (
+    <AuthCard
+      title="Enter your code"
+      subtitle={`We emailed a 6-character code to ${email}. It expires in 10 minutes.`}
+    >
+      {verify.error && <ErrorAlert error={verify.error} />}
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!emailCodeShape.test(code.trim())) {
+            setProblem('Enter the 6-character code from the email');
+            return;
+          }
+          setProblem(undefined);
+          if (!verify.isPending) verify.mutate();
+        }}
+        className="space-y-4"
+      >
+        <Field
+          label="Code"
+          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={6}
+          placeholder="ABC123"
+          className="font-mono uppercase tracking-[0.4em]"
+          error={problem}
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+        />
+        <Button type="submit" className="w-full" loading={verify.isPending} loadingText="Checking…">
+          Confirm email
+        </Button>
+      </form>
+      <ResendCode path="/auth/resend-email-code" body={{ email }} startNow />
+      <div className="flex justify-between">
+        <Link className={linkClass} to="/register">
+          Use a different email
+        </Link>
+        <Link className={linkClass} to="/login">
+          Back to sign in
+        </Link>
+      </div>
     </AuthCard>
   );
 }

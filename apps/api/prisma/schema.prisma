@@ -1256,6 +1256,7 @@ model InboxNotification {
 enum OtpPurpose {
   REGISTER
   PASSWORD_RESET
+  EMAIL_VERIFY
 }
 
 model PhoneOtp {

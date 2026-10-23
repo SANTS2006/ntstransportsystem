@@ -12,6 +12,9 @@ const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const VerifyEmailPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.VerifyEmailPage })),
 );
+const VerifyEmailCodePage = lazy(() =>
+  import('./pages/auth/TokenPages').then((m) => ({ default: m.VerifyEmailCodePage })),
+);
 const ForgotPasswordPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.ForgotPasswordPage })),
 );
@@ -168,6 +171,7 @@ export const router = createBrowserRouter([
       { path: '/login', element: s(<LoginPage />) },
       { path: '/register', element: s(<RegisterPage />) },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
+      { path: '/verify-email-code', element: s(<VerifyEmailCodePage />) },
       { path: '/forgot-password', element: s(<ForgotPasswordPage />) },
       { path: '/reset-password', element: s(<ResetPasswordPage />) },
       { path: '/verify-phone', element: s(<VerifyPhonePage />) },

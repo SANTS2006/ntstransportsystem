@@ -139,12 +139,14 @@ export class RecruitmentService {
     return withDb(this.db, ctxOf(s), async (tx) => {
       const j = await tx.jobPosting.findFirst({ where: { id, tenantId: s.tenantId } });
       if (!j) throw AppError.notFound();
-      if (j.status === status) return jobDto(j);
+      // Checked first: an OPEN posting whose closing date has passed is not live, and saying so
+      // is more useful than answering "already open".
       if (status === 'OPEN' && j.closesOn && j.closesOn < todayUtc()) {
         throw AppError.conflict(
           'The closing date has passed. Change it before opening the posting.',
         );
       }
+      if (j.status === status) return jobDto(j);
       const u = await tx.jobPosting.update({ where: { id }, data: { status } });
       await this.audit(tx, s, `recruitment.job_${status.toLowerCase()}`, id, requestId);
       return jobDto(u);

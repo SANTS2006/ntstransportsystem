@@ -585,9 +585,7 @@ describe.skipIf(!TEST_DB_URL)('fares, bookings and seat inventory (database)', (
       a.tenantId,
       body(fx.trip.id, ['4'], { boardingLocationId: o, alightingLocationId: d }),
     ).expect(409);
-    await book(a.owner, a.tenantId, body(fx.trip.id, ['4'], { boardingLocationId: o })).expect(
-      400,
-    );
+    await book(a.owner, a.tenantId, body(fx.trip.id, ['4'], { boardingLocationId: o })).expect(400);
     await book(
       a.owner,
       a.tenantId,

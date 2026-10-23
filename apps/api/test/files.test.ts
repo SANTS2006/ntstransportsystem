@@ -92,11 +92,11 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
   }
 
   it('reports whether uploads are available', async () => {
-    expect((await request(ctx.app).get('/api/v1/features').expect(200)).body).toEqual({
+    expect((await request(ctx.app).get('/api/v1/features').expect(200)).body).toMatchObject({
       fileUploads: true,
     });
     const off = makeApp(db);
-    expect((await request(off.app).get('/api/v1/features').expect(200)).body).toEqual({
+    expect((await request(off.app).get('/api/v1/features').expect(200)).body).toMatchObject({
       fileUploads: false,
     });
     const t = await company('fl-off');

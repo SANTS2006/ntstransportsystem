@@ -184,20 +184,20 @@ export default function HomePage() {
               For transport companies
             </p>
             <h2 className="text-2xl font-semibold tracking-tight">
-              Run a transport company? Register it on NTS.
+              Run a transport company? Get it on NTS.
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Sell seats online, manage routes, vehicles, crew and boarding, and take payments by
-              mobile money or at your desk.
+              Companies are set up by the NTS team. Sell seats online, manage routes, vehicles, crew
+              and boarding, and take payments by mobile money or at your desk.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link to="/app/apply" className={linkButton('primary')}>
-              Register your company
+            <Link to="/jobs" className={linkButton('primary')}>
+              See jobs
               <ArrowRight aria-hidden="true" className="size-4" strokeWidth={1.8} />
             </Link>
-            <Link to="/jobs" className={linkButton('secondary')}>
-              See jobs
+            <Link to="/trips" className={linkButton('secondary')}>
+              Find a trip
             </Link>
           </div>
         </div>

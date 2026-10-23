@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Building2, LayoutDashboard, Power } from 'lucide-react';
+import { ArrowLeft, Building2, LayoutDashboard, Plus, Power, ScrollText } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -8,7 +8,8 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
-import { Spinner } from '../../components/ui/Spinner';
+import { Field } from '../../components/ui/Field';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { ApiError, api } from '../../lib/api';
 
@@ -37,7 +38,7 @@ export function PlatformLayout() {
     return (
       <div className="mx-auto max-w-md p-8">
         <Alert tone="error">Page not found.</Alert>
-        <Link className="mt-4 inline-block text-sm underline" to="/app">
+        <Link className="mt-4 inline-block text-sm font-medium" to="/app">
           Back to dashboard
         </Link>
       </div>
@@ -50,6 +51,7 @@ export function PlatformLayout() {
       nav={[
         { to: '/platform/overview', label: 'Overview', icon: LayoutDashboard, group: 'Platform' },
         { to: '/platform', label: 'Companies', end: true, icon: Building2, group: 'Platform' },
+        { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
         { to: '/app', label: 'Exit admin', icon: ArrowLeft, group: 'Account' },
       ]}
@@ -65,6 +67,24 @@ export function PlatformTenantsPage() {
   const [status, setStatus] = useState('PENDING');
   const [pending, setPending] = useState<{ tenant: TenantRow; action: Action } | null>(null);
   const [reason, setReason] = useState('');
+  const [registering, setRegistering] = useState(false);
+  const [reg, setReg] = useState({
+    name: '',
+    ownerEmail: '',
+    timezone: 'Africa/Freetown',
+    defaultCurrency: 'SLE',
+  });
+  const register = useMutation({
+    mutationFn: () =>
+      api<{ ownerInvitedEmail: string }>('/platform/tenants', { method: 'POST', body: reg }),
+    onSuccess: async (r) => {
+      toast(`Company registered; invitation sent to ${r.ownerInvitedEmail}`, 'success');
+      setRegistering(false);
+      setReg({ name: '', ownerEmail: '', timezone: 'Africa/Freetown', defaultCurrency: 'SLE' });
+      setStatus('ACTIVE');
+      await qc.invalidateQueries({ queryKey: ['platform', 'tenants'] });
+    },
+  });
 
   const q = useQuery({
     queryKey: ['platform', 'tenants', status],
@@ -96,7 +116,18 @@ export function PlatformTenantsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <h1 className="text-2xl font-semibold">Companies</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Companies</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Only platform staff can register a company. Its first owner is invited by email.
+          </p>
+        </div>
+        <Button variant="accent" onClick={() => setRegistering(true)}>
+          <Plus aria-hidden="true" className="size-4" strokeWidth={1.8} />
+          Register a company
+        </Button>
+      </div>
       <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-2">
         {STATUSES.map((s) => (
           <button
@@ -113,13 +144,13 @@ export function PlatformTenantsPage() {
       {mfaMissing && (
         <Alert tone="warning">
           Platform access requires two-step verification.{' '}
-          <Link className="underline" to="/app/security">
+          <Link className="font-medium" to="/app/security">
             Turn it on in Security
           </Link>
           , then reload.
         </Alert>
       )}
-      {q.isPending && <Spinner label="Loading companies" />}
+      {q.isPending && <PageLoader label="Loading companies" />}
       {q.error && !mfaMissing && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       <Card>
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -134,7 +165,7 @@ export function PlatformTenantsPage() {
               <div className="min-w-0">
                 <p className="truncate font-medium">{t.name}</p>
                 <p className="text-xs text-slate-500">
-                  {t.slug} · applied {new Date(t.createdAt).toLocaleDateString()}
+                  {t.slug} · registered {new Date(t.createdAt).toLocaleDateString()}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -156,6 +187,66 @@ export function PlatformTenantsPage() {
           ))}
         </ul>
       </Card>
+
+      <Dialog
+        open={registering}
+        title="Register a company"
+        onClose={() => {
+          setRegistering(false);
+          register.reset();
+        }}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            register.mutate();
+          }}
+        >
+          {register.error && <ErrorAlert error={register.error} />}
+          <Field
+            label="Company name"
+            required
+            value={reg.name}
+            onChange={(e) => setReg({ ...reg, name: e.target.value })}
+          />
+          <Field
+            label="Owner's email"
+            type="email"
+            required
+            hint="They receive an invitation to create their account and become the company owner."
+            value={reg.ownerEmail}
+            onChange={(e) => setReg({ ...reg, ownerEmail: e.target.value })}
+          />
+          <Field
+            label="Timezone"
+            hint="IANA name, e.g. Africa/Freetown"
+            value={reg.timezone}
+            onChange={(e) => setReg({ ...reg, timezone: e.target.value })}
+          />
+          <Field
+            label="Currency"
+            maxLength={3}
+            hint="3-letter code, e.g. SLE"
+            value={reg.defaultCurrency}
+            onChange={(e) => setReg({ ...reg, defaultCurrency: e.target.value.toUpperCase() })}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setRegistering(false);
+                register.reset();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={register.isPending} loadingText="Registering…">
+              Register and invite owner
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Dialog
         open={pending !== null}
@@ -260,7 +351,7 @@ export function PlatformMaintenancePage() {
         Sign-in, platform administration and payment webhooks keep working, so you can switch it off
         again and no payment notification is lost.
       </p>
-      {status.isPending && <Spinner label="Loading" />}
+      {status.isPending && <PageLoader label="Loading" />}
       {status.error && <ErrorAlert error={status.error} onRetry={() => void status.refetch()} />}
       {status.data && (
         <Card

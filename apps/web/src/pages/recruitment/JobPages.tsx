@@ -6,7 +6,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { CvControl } from '../../components/files/FileControls';
@@ -65,7 +65,7 @@ export function JobBoardPage() {
         </div>
         <Button type="submit">Search</Button>
       </form>
-      {jobs.isPending && <Spinner label="Loading jobs" />}
+      {jobs.isPending && <PageLoader label="Loading jobs" />}
       {jobs.error && <ErrorAlert error={jobs.error} onRetry={() => void jobs.refetch()} />}
       {jobs.data?.jobs.length === 0 && <Alert tone="info">No open jobs right now.</Alert>}
       <ul className="space-y-3">
@@ -125,12 +125,12 @@ export function JobDetailPage() {
       void nav('/app/applications');
     },
   });
-  if (job.isPending) return <Spinner label="Loading" />;
+  if (job.isPending) return <PageLoader label="Loading" />;
   if (job.error || !job.data) {
     return (
       <div className="mx-auto max-w-xl space-y-3">
         <Alert tone="error">This job is no longer open.</Alert>
-        <Link className="text-brand-700 underline" to="/jobs">
+        <Link className="text-brand-700 font-medium" to="/jobs">
           All jobs
         </Link>
       </div>
@@ -143,7 +143,7 @@ export function JobDetailPage() {
     form.experience.trim().length >= 10;
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <Link className="text-sm text-brand-700 underline dark:text-brand-500" to="/jobs">
+      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
         All jobs
       </Link>
       <div>
@@ -212,13 +212,13 @@ export function JobDetailPage() {
       ) : (
         <Alert tone="info">
           <Link
-            className="font-medium underline"
+            className="font-medium font-medium"
             to={`/login?next=${encodeURIComponent(`/jobs/${tenantId}/${id}`)}`}
           >
             Sign in
           </Link>{' '}
           or{' '}
-          <Link className="font-medium underline" to="/register">
+          <Link className="font-medium font-medium" to="/register">
             create an account
           </Link>{' '}
           to apply.
@@ -259,11 +259,11 @@ export function MyApplicationsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My job applications</h1>
-        <Link className="text-sm text-brand-700 underline dark:text-brand-500" to="/jobs">
+        <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
           Find jobs
         </Link>
       </div>
-      {q.isPending && <Spinner label="Loading" />}
+      {q.isPending && <PageLoader label="Loading" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data?.applications.length === 0 && (
         <Alert tone="info">You have not applied for any jobs.</Alert>

@@ -6,12 +6,12 @@ import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { TenantScope } from './tenant.guards.js';
 
-const MAX_OPEN_APPLICATIONS_PER_USER = 3;
-
-export interface ApplyInput {
+export interface RegisterInput {
   name: string;
   timezone: string;
   defaultCurrency: string;
+  /** Who is invited to be the first owner; recorded in the audit trail. */
+  ownerEmail: string;
 }
 
 export interface ProfileUpdate {
@@ -71,18 +71,13 @@ export class TenantService {
   }
 
   /**
-   * A signed-in user applies to register a company. The company starts PENDING (no operations
-   * are possible) and the applicant becomes its owner. Runs in platform scope because creating a
-   * tenant is a platform-only database privilege; the caller's identity is verified upstream.
+   * A platform administrator registers a company. Companies cannot register themselves: the
+   * company goes live (ACTIVE) at once and its first owner is invited by email afterwards, so no
+   * user account is made an owner here. Runs in platform scope because creating a tenant is a
+   * platform-only database privilege; the caller's platform role is checked by the route guard.
    */
-  async apply(userId: string, input: ApplyInput, requestId?: string) {
-    return withDb(this.db, { platform: true }, async (tx) => {
-      const open = await tx.membership.count({
-        where: { userId, role: { key: 'owner' }, tenant: { status: 'PENDING' } },
-      });
-      if (open >= MAX_OPEN_APPLICATIONS_PER_USER) {
-        throw AppError.conflict('You have too many applications awaiting review');
-      }
+  async register(actorUserId: string, input: RegisterInput, requestId?: string) {
+    return withDb(this.db, { platform: true, userId: actorUserId }, async (tx) => {
       const slug = `${slugify(input.name)}-${randomBytes(3).toString('hex')}`;
       const tenant = await tx.tenant.create({
         data: {
@@ -90,23 +85,27 @@ export class TenantService {
           slug,
           timezone: input.timezone,
           defaultCurrency: input.defaultCurrency,
-          status: 'PENDING',
+          status: 'ACTIVE',
         },
       });
       const ownerRoleId = await TenantService.seedRoles(tx, tenant.id);
-      await tx.membership.create({
-        data: { tenantId: tenant.id, userId, roleId: ownerRoleId, status: 'ACTIVE' },
-      });
       await writeAudit(tx, {
-        action: 'tenant.applied',
+        action: 'platform.tenant_created',
         outcome: 'SUCCESS',
         tenantId: tenant.id,
-        actorUserId: userId,
+        actorUserId,
         targetType: 'tenant',
         targetId: tenant.id,
         requestId,
+        summary: { ownerEmail: input.ownerEmail },
       });
-      return { id: tenant.id, name: tenant.name, slug: tenant.slug, status: tenant.status };
+      return {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        status: tenant.status,
+        ownerRoleId,
+      };
     });
   }
 

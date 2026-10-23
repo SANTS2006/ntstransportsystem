@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
 import { Alert, ErrorAlert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Spinner } from '../ui/Spinner';
+import { PageLoader } from '../ui/Spinner';
 import { useToast } from '../ui/Toast';
 import { VoiceRecorder } from './VoiceRecorder';
 
@@ -250,7 +250,7 @@ function AttachmentRow({ f, linkPath }: { f: FileInfo; linkPath: (id: string) =>
         {media !== 'document' && !shown && (
           <button
             type="button"
-            className="text-brand-700 underline dark:text-brand-500"
+            className="text-brand-700 font-medium dark:text-brand-500"
             disabled={show.isPending}
             onClick={() => show.mutate()}
           >
@@ -259,7 +259,7 @@ function AttachmentRow({ f, linkPath }: { f: FileInfo; linkPath: (id: string) =>
         )}
         <button
           type="button"
-          className="text-brand-700 underline dark:text-brand-500"
+          className="text-brand-700 font-medium dark:text-brand-500"
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
@@ -338,7 +338,7 @@ export function Attachments({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">Attachments</p>
-      {list.isPending && <Spinner label="Loading attachments" />}
+      {list.isPending && <PageLoader label="Loading attachments" />}
       {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
       {files.length === 0 && !list.isPending && <p className="text-xs text-slate-500">None.</p>}
       <ul className="space-y-2 text-sm">

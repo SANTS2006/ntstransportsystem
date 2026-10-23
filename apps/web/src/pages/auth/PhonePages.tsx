@@ -11,7 +11,7 @@ import { Field } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { resetPhoneSchema, verifyCodeSchema, type ResetPhoneValues } from '../../lib/schemas';
 
-const linkClass = 'text-sm text-brand-700 underline dark:text-brand-500';
+const linkClass = 'text-sm text-brand-700 font-medium dark:text-brand-500';
 export const RESEND_SECONDS = 60;
 
 /** The number in the address bar, only if it really is one (otherwise the page asks to start over). */
@@ -40,7 +40,7 @@ function ResendCode({ phone, startNow }: { phone: string; startNow: boolean }) {
     <div className="space-y-1 text-sm">
       <button
         type="button"
-        className={`${linkClass} disabled:text-slate-500 disabled:no-underline`}
+        className={`${linkClass} disabled:text-slate-500`}
         disabled={wait > 0 || resend.isPending}
         onClick={() => resend.mutate()}
       >

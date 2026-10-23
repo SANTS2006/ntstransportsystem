@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ErrorAlert } from '../../components/ui/Alert';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
 export const METHOD_LABEL: Record<string, string> = {
@@ -54,7 +54,7 @@ export function CashupTab({
     queryFn: ({ signal }) =>
       api<Cashup>(`/tenants/${tenantId}/reports/cashup?from=${from}&to=${to}`, { signal }),
   });
-  if (q.isPending && enabled) return <Spinner label="Loading cash-up" />;
+  if (q.isPending && enabled) return <PageLoader label="Loading cash-up" />;
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   const d = q.data;
   if (!d) return null;

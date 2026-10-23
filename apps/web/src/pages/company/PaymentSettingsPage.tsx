@@ -7,7 +7,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useCompany } from './company-context';
@@ -74,7 +74,7 @@ export function PaymentSettingsPage() {
         credentials are encrypted and cannot be read back. Passengers can only book online once this
         is set up and enabled.
       </p>
-      {q.isPending && <Spinner label="Loading settings" />}
+      {q.isPending && <PageLoader label="Loading settings" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <>

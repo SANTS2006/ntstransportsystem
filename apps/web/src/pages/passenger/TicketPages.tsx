@@ -6,7 +6,7 @@ import { Link, useParams } from 'react-router';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { linkButton } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Card';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
 interface Ticket {
@@ -70,7 +70,7 @@ export function MyTicketsPage() {
     queryFn: ({ signal }) =>
       api<{ tickets: Ticket[] }>(`/passenger/bookings/${id}/tickets`, { signal }),
   });
-  if (booking.isPending || tickets.isPending) return <Spinner label="Loading your tickets" />;
+  if (booking.isPending || tickets.isPending) return <PageLoader label="Loading your tickets" />;
   if (booking.error)
     return <ErrorAlert error={booking.error} onRetry={() => void booking.refetch()} />;
   if (tickets.error)
@@ -79,7 +79,7 @@ export function MyTicketsPage() {
   const list = tickets.data.tickets;
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <Link className="text-sm text-brand-700 underline dark:text-brand-500" to="/app/bookings">
+      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/bookings">
         My bookings
       </Link>
       <div>

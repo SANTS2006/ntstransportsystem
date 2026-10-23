@@ -4,7 +4,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { can, useCompany } from './company-context';
@@ -214,7 +214,7 @@ export function BookingsPage() {
               )}
             </div>
 
-            {tripId && seatMap.isPending && <Spinner label="Loading seats" />}
+            {tripId && seatMap.isPending && <PageLoader label="Loading seats" />}
             {seatMap.error && (
               <ErrorAlert error={seatMap.error} onRetry={() => void seatMap.refetch()} />
             )}
@@ -320,7 +320,7 @@ export function BookingsPage() {
             </select>
           </div>
         </div>
-        {list.isPending && <Spinner label="Loading bookings" />}
+        {list.isPending && <PageLoader label="Loading bookings" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {list.data?.bookings.length === 0 && (
@@ -354,13 +354,13 @@ export function BookingsPage() {
                 {b.status === 'CONFIRMED' && (
                   <>
                     <a
-                      className="text-sm text-brand-700 underline dark:text-brand-500"
+                      className="text-sm text-brand-700 font-medium dark:text-brand-500"
                       href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/tickets.pdf`}
                     >
                       Tickets
                     </a>
                     <a
-                      className="text-sm text-brand-700 underline dark:text-brand-500"
+                      className="text-sm text-brand-700 font-medium dark:text-brand-500"
                       href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/receipt.pdf`}
                     >
                       Receipt

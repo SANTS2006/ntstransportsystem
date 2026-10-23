@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Card, StatTile } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { CashupTab } from './CashupTab';
 import { useCompany } from './company-context';
@@ -92,7 +92,7 @@ export function ReportsPage() {
       </div>
       {!valid && <Alert tone="error">Choose a start date that is not after the end date.</Alert>}
 
-      {summary.isPending && valid && <Spinner label="Loading summary" />}
+      {summary.isPending && valid && <PageLoader label="Loading summary" />}
       {summary.error && <ErrorAlert error={summary.error} onRetry={() => void summary.refetch()} />}
       {s && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -157,7 +157,7 @@ export function ReportsPage() {
               </select>
             )}
             {valid && (
-              <a className="text-sm text-brand-700 underline dark:text-brand-500" href={csvHref}>
+              <a className="text-sm text-brand-700 font-medium dark:text-brand-500" href={csvHref}>
                 Download CSV
               </a>
             )}
@@ -166,7 +166,7 @@ export function ReportsPage() {
 
         {tab === 'sales' && (
           <div className="mt-4 overflow-x-auto">
-            {sales.isPending && valid && <Spinner label="Loading sales" />}
+            {sales.isPending && valid && <PageLoader label="Loading sales" />}
             {sales.error && <ErrorAlert error={sales.error} onRetry={() => void sales.refetch()} />}
             {sales.data && (
               <>
@@ -217,7 +217,7 @@ export function ReportsPage() {
 
         {tab === 'occupancy' && (
           <div className="mt-4 overflow-x-auto">
-            {occ.isPending && valid && <Spinner label="Loading occupancy" />}
+            {occ.isPending && valid && <PageLoader label="Loading occupancy" />}
             {occ.error && <ErrorAlert error={occ.error} onRetry={() => void occ.refetch()} />}
             {occ.data && (
               <>

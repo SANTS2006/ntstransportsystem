@@ -32,7 +32,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader, Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { email } from '../../lib/schemas';
@@ -113,7 +113,7 @@ export function CompanyOverview() {
   });
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      {q.isPending && <Spinner label="Loading" />}
+      {q.isPending && <PageLoader label="Loading" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <>
@@ -274,7 +274,7 @@ export function TeamPage() {
         <InviteForm roles={roles.data?.roles ?? []} onInvited={refresh} />
       )}
       <Card title="Members">
-        {members.isPending && <Spinner label="Loading team" />}
+        {members.isPending && <PageLoader label="Loading team" />}
         {members.error && (
           <ErrorAlert error={members.error} onRetry={() => void members.refetch()} />
         )}
@@ -432,7 +432,7 @@ export function RolesPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <h1 className="text-2xl font-semibold">Roles & permissions</h1>
-      {q.isPending && <Spinner label="Loading roles" />}
+      {q.isPending && <PageLoader label="Loading roles" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data?.roles.map((r) => (
         <Card
@@ -477,7 +477,7 @@ export function ActivityPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <h1 className="text-2xl font-semibold">Activity</h1>
-      {q.isPending && <Spinner label="Loading activity" />}
+      {q.isPending && <PageLoader label="Loading activity" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       <Card>
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">

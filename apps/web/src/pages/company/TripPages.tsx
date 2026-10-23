@@ -7,7 +7,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useRoutes, useVehicles } from './CatalogPages';
@@ -313,7 +313,7 @@ export function TripsPage() {
       )}
 
       <Card title="Schedules">
-        {schedules.isPending && <Spinner label="Loading schedules" />}
+        {schedules.isPending && <PageLoader label="Loading schedules" />}
         {schedules.error && (
           <ErrorAlert error={schedules.error} onRetry={() => void schedules.refetch()} />
         )}
@@ -386,7 +386,7 @@ export function TripsPage() {
             />
           </div>
         </div>
-        {trips.isPending && <Spinner label="Loading trips" />}
+        {trips.isPending && <PageLoader label="Loading trips" />}
         {trips.error && <ErrorAlert error={trips.error} onRetry={() => void trips.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {trips.data?.trips.length === 0 && (

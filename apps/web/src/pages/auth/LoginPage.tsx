@@ -1,28 +1,33 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { ArrowRight, LockKeyhole, Mail } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { normalizePhone } from '@nts/shared';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
-import { AuthCard } from '../../components/layout/Layouts';
+import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Field } from '../../components/ui/Field';
-import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { ApiError, api, safeNext } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
-import {
-  loginSchema,
-  mfaCodeSchema,
-  phoneLoginSchema,
-  recoveryCodeSchema,
-  type LoginValues,
-  type PhoneLoginValues,
-} from '../../lib/schemas';
+import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { mfaCodeSchema, recoveryCodeSchema } from '../../lib/schemas';
 
 type LoginResponse = { userId: string } | { mfaRequired: true; challengeToken: string };
+
+/** Divider with a word in the middle, between Google and the form. */
+export function OrDivider() {
+  return (
+    <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wider text-slate-400">
+      <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+      or
+      <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const [params] = useSearchParams();
@@ -30,11 +35,10 @@ export default function LoginPage() {
   const { refresh } = useAuth();
   const [challenge, setChallenge] = useState<string | null>(null);
   const { phoneSignup } = useFeatures();
-  const [chosen, setChosen] = useState<Method | null>(null);
-  // Coming back from verifying or resetting by phone: start on the phone tab with the number filled in.
-  const cameByPhone = params.get('phone') !== null;
-  const method: Method =
-    phoneSignup && (chosen ?? (cameByPhone ? 'phone' : 'email')) === 'phone' ? 'phone' : 'email';
+  // Coming back from verifying or resetting by phone: the number is filled in.
+  const [identifier, setIdentifier] = useState(params.get('phone') ?? '');
+  const [password, setPassword] = useState('');
+  const [fieldError, setFieldError] = useState<{ id?: string; pw?: string }>({});
   const next = safeNext(params.get('next'));
 
   const finish = async (res: LoginResponse) => {
@@ -46,21 +50,20 @@ export default function LoginPage() {
     void navigate(next, { replace: true });
   };
 
-  const password = useMutation({
-    mutationFn: (v: LoginValues) => api<LoginResponse>('/auth/login', { method: 'POST', body: v }),
-    onSuccess: finish,
-  });
-  const byPhone = useMutation({
-    mutationFn: (v: PhoneLoginValues) =>
-      api<LoginResponse>('/auth/login', {
-        method: 'POST',
-        body: { phone: normalizePhone(v.phone) ?? v.phone, password: v.password },
-      }),
+  const login = useMutation({
+    mutationFn: (v: { identifier: string; password: string }) => {
+      const id = v.identifier.trim();
+      const body =
+        identifierKind(id) === 'email'
+          ? { email: id, password: v.password }
+          : { phone: normalizePhone(id) ?? id, password: v.password };
+      return api<LoginResponse>('/auth/login', { method: 'POST', body });
+    },
     onSuccess: finish,
     onError: (e, v) => {
       // The number is right but was never confirmed: go and get a code.
       if (e instanceof ApiError && e.code === 'PHONE_NOT_VERIFIED') {
-        const n = normalizePhone(v.phone);
+        const n = normalizePhone(v.identifier);
         if (n) void navigate(`/verify-phone?phone=${encodeURIComponent(n)}&resend=1`);
       }
     },
@@ -71,6 +74,36 @@ export default function LoginPage() {
     onSuccess: finish,
   });
 
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const id = checkIdentifier(identifier, phoneSignup);
+    const pw = password ? undefined : 'Enter your password';
+    setFieldError({ ...(id ? { id } : {}), ...(pw ? { pw } : {}) });
+    if (!id && !pw && !login.isPending) login.mutate({ identifier, password });
+  };
+
+  if (login.error instanceof ApiError && login.error.status === 429) {
+    return (
+      <AuthCard title="Account temporarily locked">
+        <div className="flex flex-col items-center gap-3 rounded-xl bg-amber-50 p-6 text-center dark:bg-slate-800">
+          <LockKeyhole aria-hidden="true" className="size-10 text-accent-600" strokeWidth={1.6} />
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            There have been too many sign-in attempts. To keep your account safe, sign-in is paused
+            for a few minutes. Try again shortly, or reset your password if you have forgotten it.
+          </p>
+        </div>
+        <Button className="w-full" onClick={() => login.reset()}>
+          Back to sign in
+        </Button>
+        <Link
+          className="block text-center text-sm font-semibold text-brand-600"
+          to="/forgot-password"
+        >
+          Reset my password
+        </Link>
+      </AuthCard>
+    );
+  }
   if (challenge) {
     return (
       <MfaStep
@@ -81,118 +114,64 @@ export default function LoginPage() {
     );
   }
   return (
-    <AuthCard title="Sign in" subtitle="Welcome back.">
+    <AuthCard title="Sign In" subtitle="Enter your details to access your account.">
       {params.get('reset') && <Alert tone="success">Password updated. Please sign in.</Alert>}
       {params.get('verified') && (
         <Alert tone="success">Phone number confirmed. Please sign in.</Alert>
       )}
-      {phoneSignup && <MethodTabs label="Sign in with" value={method} onChange={setChosen} />}
-      {method === 'phone' ? (
+      {(login.error ?? google.error) && <ErrorAlert error={login.error ?? google.error} />}
+      {googleEnabled && (
         <>
-          {(byPhone.error ?? google.error) && <ErrorAlert error={byPhone.error ?? google.error} />}
-          <PhonePasswordForm
-            initialPhone={params.get('phone') ?? ''}
-            onSubmit={(v) => byPhone.mutate(v)}
-            pending={byPhone.isPending}
-          />
-        </>
-      ) : (
-        <>
-          {(password.error ?? google.error) && (
-            <ErrorAlert error={password.error ?? google.error} />
-          )}
-          <PasswordForm onSubmit={(v) => password.mutate(v)} pending={password.isPending} />
-        </>
-      )}
-      {googleEnabled && method === 'email' && (
-        <>
-          <p className="text-center text-xs text-slate-500">or</p>
           <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
+          <OrDivider />
         </>
       )}
-      <div className="flex justify-between text-sm">
-        <Link className="text-brand-700 underline dark:text-brand-500" to="/forgot-password">
-          Forgot password?
+      <form noValidate onSubmit={submit} className="space-y-4">
+        <Field
+          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          icon={Mail}
+          autoComplete="username"
+          inputMode={phoneSignup ? 'text' : 'email'}
+          placeholder={phoneSignup ? 'you@example.com or 076 123 456' : 'you@example.com'}
+          hint={phoneSignup ? PHONE_HINT : undefined}
+          error={fieldError.id}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+        />
+        <PasswordField
+          label="Password"
+          autoComplete="current-password"
+          placeholder="Enter your password"
+          error={fieldError.pw}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <div className="flex justify-end text-sm">
+          <Link className="font-medium text-brand-600" to="/forgot-password">
+            Forgot password?
+          </Link>
+        </div>
+        <Button
+          type="submit"
+          className="w-full min-h-12 text-base"
+          loading={login.isPending}
+          loadingText="Signing in…"
+        >
+          Sign In
+          <ArrowRight aria-hidden="true" className="size-5" strokeWidth={1.8} />
+        </Button>
+      </form>
+      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+        Don&apos;t have an account?{' '}
+        <Link className="font-semibold text-brand-600" to="/register">
+          Create an account
         </Link>
-        <Link className="text-brand-700 underline dark:text-brand-500" to="/register">
-          Create account
-        </Link>
-      </div>
+      </p>
+      <AuthNotice title="Secure. Reliable. Built for Transportation.">
+        Book trips, and access your company&apos;s operations, tickets, drivers and vehicles in one
+        place.
+      </AuthNotice>
     </AuthCard>
-  );
-}
-
-function PhonePasswordForm({
-  initialPhone,
-  onSubmit,
-  pending,
-}: {
-  initialPhone: string;
-  onSubmit: (v: PhoneLoginValues) => void;
-  pending: boolean;
-}) {
-  const form = useForm<PhoneLoginValues>({
-    resolver: zodResolver(phoneLoginSchema),
-    defaultValues: { phone: initialPhone, password: '' },
-  });
-  const { errors } = form.formState;
-  return (
-    <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <Field
-        label="Phone number"
-        type="tel"
-        inputMode="tel"
-        autoComplete="username"
-        hint={PHONE_HINT}
-        error={errors.phone?.message}
-        {...form.register('phone')}
-      />
-      <Field
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password?.message}
-        {...form.register('password')}
-      />
-      <Button type="submit" className="w-full" loading={pending} loadingText="Signing in…">
-        Sign in
-      </Button>
-    </form>
-  );
-}
-
-function PasswordForm({
-  onSubmit,
-  pending,
-}: {
-  onSubmit: (v: LoginValues) => void;
-  pending: boolean;
-}) {
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
-  });
-  const { errors } = form.formState;
-  return (
-    <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <Field
-        label="Email"
-        type="email"
-        autoComplete="username"
-        error={errors.email?.message}
-        {...form.register('email')}
-      />
-      <Field
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password?.message}
-        {...form.register('password')}
-      />
-      <Button type="submit" className="w-full" loading={pending} loadingText="Signing in…">
-        Sign in
-      </Button>
-    </form>
   );
 }
 
@@ -281,14 +260,14 @@ function MfaStep({
       <div className="flex justify-between text-sm">
         <button
           type="button"
-          className="text-brand-700 underline dark:text-brand-500"
+          className="text-brand-700 font-medium dark:text-brand-500"
           onClick={() => setUseRecovery((v) => !v)}
         >
           {useRecovery ? 'Use authenticator code' : 'Use a recovery code'}
         </button>
         <button
           type="button"
-          className="text-slate-600 underline dark:text-slate-300"
+          className="text-slate-600 font-medium dark:text-slate-300"
           onClick={onCancel}
         >
           Back

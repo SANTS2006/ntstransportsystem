@@ -60,15 +60,6 @@ export const mfaCodeSchema = z.object({
 export const recoveryCodeSchema = z.object({
   recoveryCode: z.string().trim().min(8, 'Enter a recovery code').max(40),
 });
-export const applySchema = z.object({
-  name: z.string().trim().min(2, 'Enter the company name').max(120),
-  timezone: z.string().trim().min(1, 'Choose a timezone'),
-  defaultCurrency: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code'),
-});
 
 export type LoginValues = z.infer<typeof loginSchema>;
 export type PhoneLoginValues = z.infer<typeof phoneLoginSchema>;
@@ -76,4 +67,3 @@ export type RegisterPhoneValues = z.infer<typeof registerPhoneSchema>;
 export type ResetPhoneValues = z.infer<typeof resetPhoneSchema>;
 export type RegisterValues = z.infer<typeof registerSchema>;
 export type ResetValues = z.infer<typeof resetSchema>;
-export type ApplyValues = z.infer<typeof applySchema>;

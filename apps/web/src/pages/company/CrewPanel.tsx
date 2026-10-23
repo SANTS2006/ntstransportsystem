@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { useCompany } from './company-context';
 
@@ -70,7 +70,7 @@ export function CrewPanel({
   return (
     <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Crew</p>
-      {crew.isPending && <Spinner label="Loading crew" />}
+      {crew.isPending && <PageLoader label="Loading crew" />}
       {crew.error && <ErrorAlert error={crew.error} onRetry={() => void crew.refetch()} />}
       {crew.data?.crew.length === 0 && <p className="text-slate-500">No crew assigned yet.</p>}
       <ul className="space-y-1">

@@ -33,13 +33,6 @@ const timezone = z
     }
   }, 'Unknown timezone');
 
-const applySchema = z
-  .object({
-    name: z.string().trim().min(2).max(120),
-    timezone: timezone.default('UTC'),
-    defaultCurrency: currency.default('SLE'),
-  })
-  .strict();
 const profileSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
@@ -95,12 +88,9 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
     return req.auth.userId;
   };
 
-  // --- Not tenant-scoped: the caller's own companies and onboarding -------------------------
+  // --- Not tenant-scoped: the caller's own companies. Companies are registered by the platform. ---
   r.get('/tenants/mine', requireAuth, async (req, res) => {
     res.json({ tenants: await tenants.listMine(uid(req)) });
-  });
-  r.post('/tenants', requireAuth, async (req, res) => {
-    res.status(201).json(await tenants.apply(uid(req), applySchema.parse(req.body), req.id));
   });
   r.post('/invitations/accept', requireAuth, async (req, res) => {
     res.json(await members.accept(uid(req), acceptSchema.parse(req.body).token, req.id));
@@ -225,7 +215,6 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
-  applySchema,
   profileSchema,
   inviteSchema,
   changeRoleSchema,

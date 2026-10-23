@@ -122,6 +122,46 @@ export class MembershipService {
     return { id: result.id, email, role: result.role };
   }
 
+  /**
+   * Invites the first owner of a company a platform administrator has just registered. The
+   * invitation is the only way into a new company: the person signs up (or signs in) with this
+   * email and accepts, which makes them owner.
+   */
+  async inviteOwner(actorUserId: string, tenantId: string, email: string, requestId?: string) {
+    const token = generateToken();
+    const result = await withDb(this.db, { platform: true, userId: actorUserId }, async (tx) => {
+      const role = await tx.role.findFirstOrThrow({ where: { tenantId, key: 'owner' } });
+      const invitation = await tx.invitation.create({
+        data: {
+          tenantId,
+          email,
+          roleId: role.id,
+          tokenHash: hashToken(token),
+          invitedBy: actorUserId,
+          expiresAt: new Date(this.now().getTime() + INVITE_TTL_MS),
+        },
+      });
+      const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+      await writeAudit(tx, {
+        action: 'membership.invited',
+        outcome: 'SUCCESS',
+        tenantId,
+        actorUserId,
+        targetType: 'invitation',
+        targetId: invitation.id,
+        requestId,
+        summary: { role: 'owner', byPlatform: true },
+      });
+      return { id: invitation.id, tenantName: tenant.name };
+    });
+    await this.mailer.send({
+      to: email,
+      template: 'tenant-invitation',
+      data: { company: result.tenantName, link: `${this.appUrl}/accept-invitation?token=${token}` },
+    });
+    return { id: result.id, email };
+  }
+
   async listInvitations(s: TenantScope) {
     const rows = await withDb(this.db, this.ctx(s), (tx) =>
       tx.invitation.findMany({

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Card, StatTile } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -59,7 +59,7 @@ export function PlatformOverviewPage() {
         <p className="pb-2 text-xs text-slate-500">Days are UTC.</p>
       </div>
       {!valid && <Alert tone="error">Choose a start date that is not after the end date.</Alert>}
-      {q.isPending && valid && <Spinner label="Loading overview" />}
+      {q.isPending && valid && <PageLoader label="Loading overview" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {o && (
         <>

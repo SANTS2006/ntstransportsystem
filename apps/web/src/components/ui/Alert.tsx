@@ -49,7 +49,7 @@ export function ErrorAlert({ error, onRetry }: { error: unknown; onRetry?: () =>
         <p className="mt-1 text-xs opacity-80">Reference: {api.requestId}</p>
       )}
       {onRetry && (api?.retryable ?? true) && (
-        <button type="button" onClick={onRetry} className="mt-2 text-xs font-medium underline">
+        <button type="button" onClick={onRetry} className="mt-2 text-xs font-medium font-medium">
           Try again
         </button>
       )}

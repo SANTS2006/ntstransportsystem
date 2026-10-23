@@ -13,7 +13,7 @@ import {
 import { Link } from 'react-router';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Badge, Card, StatTile } from '../../components/ui/Card';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { clockTime, minutesLabel, money } from '../../lib/format';
 import { can, useCompany } from './company-context';
@@ -180,7 +180,7 @@ export function CompanyPulse({ timezone }: { timezone: string }) {
                   {a.text}
                 </span>
                 <Link
-                  className="shrink-0 font-medium text-brand-700 underline dark:text-brand-500"
+                  className="shrink-0 font-medium text-brand-700 font-medium dark:text-brand-500"
                   to={a.to}
                 >
                   Open
@@ -197,14 +197,14 @@ export function CompanyPulse({ timezone }: { timezone: string }) {
             title="Today's runs"
             action={
               <Link
-                className="text-sm font-medium text-brand-700 underline dark:text-brand-500"
+                className="text-sm font-medium text-brand-700 font-medium dark:text-brand-500"
                 to={`/c/${tenantId}/dispatch`}
               >
                 Dispatch board
               </Link>
             }
           >
-            {board.isPending && <Spinner label="Loading today's runs" />}
+            {board.isPending && <PageLoader label="Loading today's runs" />}
             {b && b.trips.length === 0 && (
               <p className="text-sm text-slate-500">No trips are scheduled for today.</p>
             )}

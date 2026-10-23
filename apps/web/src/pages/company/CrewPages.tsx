@@ -7,7 +7,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useVehicles } from './CatalogPages';
@@ -142,7 +142,7 @@ export function StaffPage() {
         </Card>
       )}
       <Card>
-        {q.isPending && <Spinner label="Loading staff" />}
+        {q.isPending && <PageLoader label="Loading staff" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {q.data?.employees.length === 0 && <li className="py-2 text-slate-500">No staff yet.</li>}
@@ -408,7 +408,7 @@ export function MaintenancePage() {
       <Card
         title={`Needs attention${alerts.data ? ` (next 30 days${attention ? `: ${attention}` : ''})` : ''}`}
       >
-        {alerts.isPending && <Spinner label="Loading alerts" />}
+        {alerts.isPending && <PageLoader label="Loading alerts" />}
         {alerts.error && <ErrorAlert error={alerts.error} onRetry={() => void alerts.refetch()} />}
         {alerts.data && attention === 0 && (
           <p className="text-sm text-slate-500">Nothing is expiring or overdue.</p>
@@ -531,7 +531,7 @@ export function MaintenancePage() {
       )}
 
       <Card title="Jobs">
-        {records.isPending && <Spinner label="Loading jobs" />}
+        {records.isPending && <PageLoader label="Loading jobs" />}
         {records.error && (
           <ErrorAlert error={records.error} onRetry={() => void records.refetch()} />
         )}

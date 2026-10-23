@@ -5,7 +5,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { Attachments, useFileUploadsEnabled } from '../../components/files/FileControls';
@@ -56,12 +56,12 @@ export function MyComplaintsPage() {
       <h1 className="text-2xl font-semibold">My complaints</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         To report a problem, open the booking it is about in{' '}
-        <Link className="underline" to="/app/bookings">
+        <Link className="font-medium" to="/app/bookings">
           My bookings
         </Link>
         .
       </p>
-      {q.isPending && <Spinner label="Loading" />}
+      {q.isPending && <PageLoader label="Loading" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data?.complaints.length === 0 && (
         <Alert tone="info">You have not sent any complaints.</Alert>
@@ -218,12 +218,12 @@ export function ComplaintThreadPage() {
     },
     onError: (e) => toast(errMsg(e), 'error'),
   });
-  if (q.isPending) return <Spinner label="Loading" />;
+  if (q.isPending) return <PageLoader label="Loading" />;
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   const c = q.data;
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link className="text-sm text-brand-700 underline dark:text-brand-500" to="/app/complaints">
+      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/complaints">
         My complaints
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card } from '../../components/ui/Card';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api, ApiError } from '../../lib/api';
 import { useCompany } from './company-context';
 
@@ -129,7 +129,7 @@ export function BoardingPage() {
             </option>
           ))}
         </select>
-        {trips.isPending && <Spinner label="Loading trips" />}
+        {trips.isPending && <PageLoader label="Loading trips" />}
         {trips.error && <ErrorAlert error={trips.error} onRetry={() => void trips.refetch()} />}
       </div>
 
@@ -240,7 +240,7 @@ export function BoardingPage() {
           </Card>
 
           <Card title="Manifest">
-            {manifest.isPending && <Spinner label="Loading manifest" />}
+            {manifest.isPending && <PageLoader label="Loading manifest" />}
             {manifest.error && (
               <ErrorAlert error={manifest.error} onRetry={() => void manifest.refetch()} />
             )}

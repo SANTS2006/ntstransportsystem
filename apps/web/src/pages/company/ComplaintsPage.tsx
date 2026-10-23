@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { Attachments } from '../../components/files/FileControls';
@@ -126,7 +126,7 @@ export function ComplaintsPage() {
               ))}
             </select>
           </div>
-          {list.isPending && <Spinner label="Loading complaints" />}
+          {list.isPending && <PageLoader label="Loading complaints" />}
           {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
           {list.data?.complaints.length === 0 && <Alert tone="info">No complaints.</Alert>}
           <ul className="space-y-2">
@@ -161,7 +161,7 @@ export function ComplaintsPage() {
 
         <div>
           {!openId && <Alert tone="info">Choose a complaint to read and reply.</Alert>}
-          {openId && detail.isPending && <Spinner label="Loading" />}
+          {openId && detail.isPending && <PageLoader label="Loading" />}
           {detail.error && (
             <ErrorAlert error={detail.error} onRetry={() => void detail.refetch()} />
           )}

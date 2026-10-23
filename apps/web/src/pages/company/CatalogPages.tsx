@@ -7,7 +7,7 @@ import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { can, useCompany } from './company-context';
@@ -122,7 +122,7 @@ export function LocationsPage() {
         </Card>
       )}
       <Card>
-        {q.isPending && <Spinner label="Loading locations" />}
+        {q.isPending && <PageLoader label="Loading locations" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {q.data?.locations.length === 0 && (
@@ -316,7 +316,7 @@ export function VehiclesPage() {
         </Card>
       )}
       <Card>
-        {q.isPending && <Spinner label="Loading vehicles" />}
+        {q.isPending && <PageLoader label="Loading vehicles" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {q.data?.vehicles.length === 0 && (
@@ -644,7 +644,7 @@ export function RoutesPage() {
         </Card>
       )}
       <Card>
-        {q.isPending && <Spinner label="Loading routes" />}
+        {q.isPending && <PageLoader label="Loading routes" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {q.data?.routes.length === 0 && <li className="py-2 text-slate-500">No routes yet.</li>}

@@ -304,15 +304,6 @@ export const operations: Record<string, Operation> = {
     access: 'session',
     ok: 200,
   },
-  'POST /api/v1/tenants': {
-    summary: 'Apply to register a company',
-    description:
-      'Creates a PENDING company with the caller as owner. Nothing operational is possible until a platform administrator approves it.',
-    tag: 'Companies',
-    access: 'session',
-    body: tenant.applySchema,
-    ok: 201,
-  },
   'POST /api/v1/invitations/accept': {
     summary: 'Accept a company invitation',
     description: "The signed-in account's verified email must match the invited address.",
@@ -441,6 +432,34 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Platform administration ----------------------------------------------------------------
+  'POST /api/v1/platform/tenants': {
+    summary: 'Register a company (platform)',
+    description:
+      'Only platform staff can register a company; users cannot register one for themselves. The company is ACTIVE at once and the given email is invited as its first owner.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS',
+    body: platform.registerSchema,
+    ok: 201,
+  },
+  'GET /api/v1/platform/audit': {
+    summary: 'Platform audit log',
+    description:
+      'Every audited event across all companies, newest first. Platform role and enrolled MFA required.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | SECURITY_AUDIT',
+    paged: true,
+    query: [
+      { name: 'action', description: 'Action name contains this text' },
+      { name: 'outcome', description: 'Outcome', enum: ['SUCCESS', 'FAILURE', 'DENIED'] },
+      { name: 'tenantId', description: 'Only this company' },
+      { name: 'actorUserId', description: 'Only this person' },
+      { name: 'from', description: 'First day, YYYY-MM-DD (UTC)' },
+      { name: 'to', description: 'Last day, YYYY-MM-DD (UTC)' },
+    ],
+    ok: 200,
+  },
   'GET /api/v1/platform/overview': {
     summary: 'Platform-wide figures',
     description:

@@ -6,7 +6,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
 export type PayMethod = 'ORANGE_MONEY' | 'AFRIMONEY' | 'QMONEY' | 'ONLINE';
@@ -86,12 +86,12 @@ export function PayMethodPage() {
     },
   });
 
-  if (q.isPending) return <Spinner label="Loading payment options" />;
+  if (q.isPending) return <PageLoader label="Loading payment options" />;
   if (q.error || !q.data) {
     return (
       <div className="mx-auto max-w-xl space-y-4">
         <Alert tone="error">We could not find that booking.</Alert>
-        <Link className="text-brand-700 underline" to="/app/bookings">
+        <Link className="text-brand-700 font-medium" to="/app/bookings">
           My bookings
         </Link>
       </div>
@@ -109,7 +109,7 @@ export function PayMethodPage() {
             : 'This booking is no longer waiting for payment.'}
         </Alert>
         <Link
-          className="text-brand-700 underline"
+          className="text-brand-700 font-medium"
           to={booking.status === 'CONFIRMED' ? `/app/bookings/${booking.id}` : '/app/bookings'}
         >
           {booking.status === 'CONFIRMED' ? 'View my tickets' : 'My bookings'}
@@ -240,7 +240,7 @@ export function PayMethodPage() {
         </Card>
       )}
 
-      <Link className="inline-block text-sm text-brand-700 underline" to="/app/bookings">
+      <Link className="inline-block text-sm text-brand-700 font-medium" to="/app/bookings">
         Pay later from My bookings
       </Link>
     </div>

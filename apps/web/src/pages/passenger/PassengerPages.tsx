@@ -7,7 +7,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { clockTime, duration, initials, shortDate } from '../../lib/format';
@@ -122,12 +122,12 @@ export function TripBookPage() {
     },
   });
 
-  if (q.isPending) return <Spinner label="Loading trip" />;
+  if (q.isPending) return <PageLoader label="Loading trip" />;
   if (q.error || !q.data) {
     return (
       <div className="mx-auto max-w-xl space-y-4">
         <Alert tone="error">This trip is no longer available for online booking.</Alert>
-        <Link className="text-brand-700 underline" to="/trips">
+        <Link className="text-brand-700 font-medium" to="/trips">
           Back to search
         </Link>
       </div>
@@ -342,13 +342,13 @@ export function TripBookPage() {
           ) : (
             <Alert tone="info">
               <Link
-                className="font-medium underline"
+                className="font-medium font-medium"
                 to={`/login?next=${encodeURIComponent(`/trips/${tenantId}/${tripId}`)}`}
               >
                 Sign in
               </Link>{' '}
               or{' '}
-              <Link className="font-medium underline" to="/register">
+              <Link className="font-medium font-medium" to="/register">
                 create an account
               </Link>{' '}
               to book these seats.
@@ -385,7 +385,7 @@ export function PayReturnPage() {
   }, []);
 
   if (!bookingId) return <Alert tone="error">This page needs a booking reference.</Alert>;
-  if (q.isPending) return <Spinner label="Checking your payment" />;
+  if (q.isPending) return <PageLoader label="Checking your payment" />;
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   const b = q.data;
   return (
@@ -427,7 +427,7 @@ export function PayReturnPage() {
           View my tickets
         </Link>
       )}
-      <Link className="block text-brand-700 underline" to="/app/bookings">
+      <Link className="block text-brand-700 font-medium" to="/app/bookings">
         My bookings
       </Link>
     </div>
@@ -526,12 +526,12 @@ export function MyBookingsPage() {
           Find a trip
         </Button>
       </div>
-      {q.isPending && <Spinner label="Loading your bookings" />}
+      {q.isPending && <PageLoader label="Loading your bookings" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data?.bookings.length === 0 && (
         <Alert tone="info">
           You have no bookings yet.{' '}
-          <Link className="underline" to="/trips">
+          <Link className="font-medium" to="/trips">
             Search for a trip
           </Link>
           .
@@ -548,7 +548,7 @@ export function MyBookingsPage() {
                 View tickets
               </Link>
               <Link
-                className="ml-3 inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-500"
+                className="ml-3 inline-flex min-h-11 items-center text-sm text-brand-700 font-medium dark:text-brand-500"
                 to={`/app/complaints/new?booking=${b.id}`}
               >
                 Report a problem

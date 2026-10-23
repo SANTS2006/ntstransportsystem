@@ -5,7 +5,7 @@ import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 
@@ -49,7 +49,7 @@ export function QmoneyCard({ tenantId }: { tenantId: string }) {
         send the money, and type the transaction number. Their seats are held for two hours while
         you check your QMoney statement and press &ldquo;Take payment&rdquo; on the booking.
       </p>
-      {q.isPending && <Spinner label="Loading QMoney settings" />}
+      {q.isPending && <PageLoader label="Loading QMoney settings" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <form

@@ -1,97 +1,53 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
+import { ArrowRight, Mail, User } from 'lucide-react';
 import { normalizePhone } from '@nts/shared';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
-import { AuthCard } from '../../components/layout/Layouts';
+import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Field } from '../../components/ui/Field';
-import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
-import {
-  registerPhoneSchema,
-  registerSchema,
-  type RegisterPhoneValues,
-  type RegisterValues,
-} from '../../lib/schemas';
+import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { registerSchema } from '../../lib/schemas';
+import { OrDivider } from './LoginPage';
 
-/** Sign up with a phone number: the next step is typing the code that is texted to it. */
-function PhoneRegisterForm() {
-  const navigate = useNavigate();
-  const form = useForm<RegisterPhoneValues>({
-    resolver: zodResolver(registerPhoneSchema),
-    defaultValues: { displayName: '', phone: '', password: '' },
-  });
-  const register = useMutation({
-    mutationFn: (v: RegisterPhoneValues) =>
-      api('/auth/register-phone', { method: 'POST', body: v }),
-    onSuccess: (_r, v) =>
-      void navigate(
-        `/verify-phone?phone=${encodeURIComponent(normalizePhone(v.phone) ?? v.phone)}`,
-      ),
-  });
-  const { errors } = form.formState;
-  return (
-    <>
-      {register.error && <ErrorAlert error={register.error} />}
-      <form
-        noValidate
-        onSubmit={form.handleSubmit((v) => register.mutate(v))}
-        className="space-y-4"
-      >
-        <Field
-          label="Full name"
-          autoComplete="name"
-          error={errors.displayName?.message}
-          {...form.register('displayName')}
-        />
-        <Field
-          label="Phone number"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          hint={PHONE_HINT}
-          error={errors.phone?.message}
-          {...form.register('phone')}
-        />
-        <Field
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          hint="At least 12 characters. A passphrase works well."
-          error={errors.password?.message}
-          {...form.register('password')}
-        />
-        <Button
-          type="submit"
-          className="w-full"
-          loading={register.isPending}
-          loadingText="Sending code…"
-        >
-          Send me a code
-        </Button>
-      </form>
-    </>
-  );
+interface Values {
+  displayName: string;
+  identifier: string;
+  password: string;
 }
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const { phoneSignup } = useFeatures();
-  const [method, setMethod] = useState<Method>('email');
-  const byPhone = phoneSignup && method === 'phone';
-  const form = useForm<RegisterValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { displayName: '', email: '', password: '' },
-  });
+  const [v, setV] = useState<Values>({ displayName: '', identifier: '', password: '' });
+  const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
+
   const register = useMutation({
-    mutationFn: (v: RegisterValues) => api('/auth/register', { method: 'POST', body: v }),
+    mutationFn: (x: Values) => {
+      const id = x.identifier.trim();
+      if (identifierKind(id) === 'email') {
+        return api('/auth/register', {
+          method: 'POST',
+          body: { displayName: x.displayName, email: id, password: x.password },
+        });
+      }
+      return api('/auth/register-phone', {
+        method: 'POST',
+        body: { displayName: x.displayName, phone: id, password: x.password },
+      });
+    },
+    onSuccess: (_r, x) => {
+      const id = x.identifier.trim();
+      if (identifierKind(id) === 'phone') {
+        void navigate(`/verify-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`);
+      }
+    },
   });
   const google = useMutation({
     mutationFn: (credential: string) =>
@@ -105,17 +61,29 @@ export default function RegisterPage() {
       void navigate('/app', { replace: true });
     },
   });
-  const { errors } = form.formState;
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const name = registerSchema.shape.displayName.safeParse(v.displayName);
+    const pw = registerSchema.shape.password.safeParse(v.password);
+    const next: Partial<Record<keyof Values, string>> = {};
+    if (!name.success) next.displayName = name.error.issues[0]?.message ?? 'Enter your name';
+    const idError = checkIdentifier(v.identifier, phoneSignup);
+    if (idError) next.identifier = idError;
+    if (!pw.success) next.password = pw.error.issues[0]?.message ?? 'Choose a stronger password';
+    setErrors(next);
+    if (Object.keys(next).length === 0 && !register.isPending) register.mutate(v);
+  };
 
   // The server answers identically whether or not the address is already registered.
-  if (register.isSuccess) {
+  if (register.isSuccess && identifierKind(v.identifier) === 'email') {
     return (
       <AuthCard title="Check your email">
         <Alert tone="success">
           If that address can be registered, we have sent a confirmation link. It expires in 24
           hours.
         </Alert>
-        <Link className="text-sm text-brand-700 underline dark:text-brand-500" to="/login">
+        <Link className="text-sm font-semibold text-brand-600" to="/login">
           Back to sign in
         </Link>
       </AuthCard>
@@ -123,66 +91,64 @@ export default function RegisterPage() {
   }
   return (
     <AuthCard
-      title="Create your account"
-      subtitle="Book trips, or register your transport company."
+      title="Create an account"
+      subtitle="Book trips, or join the company that invited you."
     >
-      {phoneSignup && <MethodTabs label="Sign up with" value={method} onChange={setMethod} />}
-      {byPhone ? (
-        <PhoneRegisterForm />
-      ) : (
+      {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
+      {googleEnabled && (
         <>
-          {(register.error ?? google.error) && (
-            <ErrorAlert error={register.error ?? google.error} />
-          )}
-          <form
-            noValidate
-            onSubmit={form.handleSubmit((v) => register.mutate(v))}
-            className="space-y-4"
-          >
-            <Field
-              label="Full name"
-              autoComplete="name"
-              error={errors.displayName?.message}
-              {...form.register('displayName')}
-            />
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              error={errors.email?.message}
-              {...form.register('email')}
-            />
-            <Field
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              hint="At least 12 characters. A passphrase works well."
-              error={errors.password?.message}
-              {...form.register('password')}
-            />
-            <Button
-              type="submit"
-              className="w-full"
-              loading={register.isPending}
-              loadingText="Creating account…"
-            >
-              Create account
-            </Button>
-          </form>
-        </>
-      )}
-      {googleEnabled && !byPhone && (
-        <>
-          <p className="text-center text-xs text-slate-500">or</p>
           <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />
+          <OrDivider />
         </>
       )}
-      <p className="text-sm">
+      <form noValidate onSubmit={submit} className="space-y-4">
+        <Field
+          label="Full name"
+          icon={User}
+          autoComplete="name"
+          error={errors.displayName}
+          value={v.displayName}
+          onChange={(e) => setV({ ...v, displayName: e.target.value })}
+        />
+        <Field
+          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          icon={Mail}
+          autoComplete="username"
+          inputMode={phoneSignup ? 'text' : 'email'}
+          placeholder={phoneSignup ? 'you@example.com or 076 123 456' : 'you@example.com'}
+          hint={phoneSignup ? PHONE_HINT : undefined}
+          error={errors.identifier}
+          value={v.identifier}
+          onChange={(e) => setV({ ...v, identifier: e.target.value })}
+        />
+        <PasswordField
+          label="Password"
+          autoComplete="new-password"
+          hint="At least 12 characters. A passphrase works well."
+          error={errors.password}
+          value={v.password}
+          onChange={(e) => setV({ ...v, password: e.target.value })}
+        />
+        <Button
+          type="submit"
+          className="min-h-12 w-full text-base"
+          loading={register.isPending}
+          loadingText="Creating account…"
+        >
+          Create account
+          <ArrowRight aria-hidden="true" className="size-5" strokeWidth={1.8} />
+        </Button>
+      </form>
+      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
         Already registered?{' '}
-        <Link className="text-brand-700 underline dark:text-brand-500" to="/login">
+        <Link className="font-semibold text-brand-600" to="/login">
           Sign in
         </Link>
       </p>
+      <AuthNotice title="Joining a transport company?">
+        Companies are registered by the NTS team. Ask your company owner to invite your email, then
+        create your account with that same address.
+      </AuthNotice>
     </AuthCard>
   );
 }

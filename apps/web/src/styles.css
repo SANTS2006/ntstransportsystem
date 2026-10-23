@@ -11,49 +11,32 @@
  * inside `.theme-platform`, so no component needs to know which area it is in.
  */
 :root {
-  --brand-50: #f0fdfa;
-  --brand-100: #ccfbf1;
-  --brand-200: #99f6e4;
-  --brand-500: #14b8a6;
-  --brand-600: #0d9488;
-  --brand-700: #0f766e;
-  --brand-800: #115e59;
-  /* Secondary accent: used sparingly (alerts that need attention, the platform theme). */
-  --accent-50: #fff7ed;
-  --accent-100: #ffedd5;
-  --accent-500: #f97316;
-  --accent-600: #ea580c;
-  --accent-700: #c2410c;
-  --canvas: #f8fafc;
-  --ink: #0f172a;
-}
-.theme-platform {
   /* Logo colours: deep navy, bright blue, orange, amber. */
   --brand-50: #eef5ff;
   --brand-100: #d9e8fb;
   --brand-200: #b3d1f5;
   --brand-500: #0075df;
-  --brand-600: #01356f;
-  --brand-700: #01183a;
-  --brand-800: #01122b;
+  --brand-600: #0075df;
+  --brand-700: #0a5cb8;
+  --brand-800: #01356f;
+  --brand-900: #01183a;
   --accent-50: #fff4e5;
   --accent-100: #ffe3bd;
   --accent-500: #fc8b01;
   --accent-600: #e87a00;
   --accent-700: #b85f00;
+  --canvas: #f4f7fb;
+  --ink: #0f172a;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #0b1220;
-    --ink: #e2e8f0;
-  }
-  .theme-platform {
-    /* On a dark canvas the navy needs lifting to stay visible. */
     --brand-50: #0b1a33;
     --brand-100: #102a52;
     --brand-500: #3b9bff;
-    --brand-600: #1f6fd1;
-    --brand-700: #0f56ac;
+    --brand-600: #1f84ea;
+    --brand-700: #0f66c4;
+    --canvas: #0b1220;
+    --ink: #e2e8f0;
   }
 }
 
@@ -66,6 +49,7 @@
   --color-brand-600: var(--brand-600);
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
   --color-accent-50: var(--accent-50);
   --color-accent-100: var(--accent-100);
   --color-accent-500: var(--accent-500);
@@ -114,6 +98,26 @@ html {
   background-clip: content-box;
 }
 
+/* Links never underline: they are told apart by colour, weight and position. */
+a,
+a:hover,
+a:focus,
+a:active {
+  text-decoration: none !important;
+}
+
+/* Page titles share one look everywhere: heavier, tighter, in the logo navy. */
+main h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-800);
+}
+@media (prefers-color-scheme: dark) {
+  main h1 {
+    color: var(--ink);
+  }
+}
+
 /* Money and counts line up in columns. */
 .tabular {
   font-variant-numeric: tabular-nums;
@@ -125,6 +129,26 @@ html {
   }
   100% {
     transform: translateX(300%);
+  }
+}
+
+@keyframes nts-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.75;
+  }
+}
+@keyframes nts-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
   }
 }
 

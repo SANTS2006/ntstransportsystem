@@ -57,6 +57,7 @@ import { FleetService } from './modules/catalog/fleet.service.js';
 import { ScheduleService } from './modules/catalog/schedule.service.js';
 import { MembershipService } from './modules/tenants/membership.service.js';
 import { PlatformReportService } from './modules/report/platform-report.service.js';
+import { PlatformAuditService } from './modules/audit/platform-audit.service.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
 import { RoleService } from './modules/tenants/role.service.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
@@ -183,7 +184,16 @@ export function createApp({
     const tenants = new TenantService(db);
     const members = new MembershipService(db, mailer, env.APP_URL);
     v1.use(tenantRouter({ db, tenants, members, roles: new RoleService(db) }));
-    v1.use('/platform', platformRouter(db, tenants, new PlatformReportService(db)));
+    v1.use(
+      '/platform',
+      platformRouter(
+        db,
+        tenants,
+        new PlatformReportService(db),
+        members,
+        new PlatformAuditService(db),
+      ),
+    );
     v1.use(
       catalogRouter({
         db,

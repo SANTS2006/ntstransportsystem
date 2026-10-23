@@ -53,9 +53,9 @@ const callsTo = (spy: ReturnType<typeof mockApi>, path: string) =>
   spy.mock.calls.filter(([u]) => String(u).endsWith(path));
 
 async function fillCredentials() {
-  await userEvent.type(screen.getByLabelText('Email'), 'a@example.com');
+  await userEvent.type(screen.getByLabelText('Email address'), 'a@example.com');
   await userEvent.type(screen.getByLabelText('Password'), 'whatever-password');
-  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -64,8 +64,8 @@ describe('LoginPage', () => {
   it('validates locally and never calls the server with invalid input', async () => {
     const spy = mockApi({ '/auth/me': signedOut });
     renderLogin();
-    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByText('Enter a valid email address')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+    expect(await screen.findByText('Enter your email address')).toBeInTheDocument();
     expect(screen.getByText('Enter your password')).toBeInTheDocument();
     expect(callsTo(spy, '/auth/login')).toHaveLength(0);
   });

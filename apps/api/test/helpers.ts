@@ -111,7 +111,11 @@ export function makeApp(
 let n = 0;
 export const uniq = (p: string) => `${p}-${Date.now().toString(36)}-${++n}`;
 
-export async function createTenantWithOwner(db: Db, label: string) {
+export async function createTenantWithOwner(
+  db: Db,
+  label: string,
+  status: 'ACTIVE' | 'PENDING' = 'ACTIVE',
+) {
   const slug = uniq(label);
   const email = `${slug}@example.test`;
   const user = await db.user.create({
@@ -123,7 +127,7 @@ export async function createTenantWithOwner(db: Db, label: string) {
     },
   });
   const tenant = await withDb(db, { platform: true }, async (tx) => {
-    const t = await tx.tenant.create({ data: { name: label, slug, status: 'ACTIVE' } });
+    const t = await tx.tenant.create({ data: { name: label, slug, status } });
     const ownerRoleId = await TenantService.seedRoles(tx, t.id);
     await tx.membership.create({
       data: { tenantId: t.id, userId: user.id, roleId: ownerRoleId, status: 'ACTIVE' },

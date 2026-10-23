@@ -64,31 +64,58 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     );
 
   describe('company application and platform lifecycle', () => {
-    it('lets a user apply; the company starts PENDING with the applicant as owner', async () => {
+    it('does not let a user register a company for themselves', async () => {
       const u = await newClient(ctx.app, db, 'applicant');
-      const res = await u.call('post', '/tenants').send({ name: 'Sierra Coaches Ltd' }).expect(201);
-      expect(res.body.status).toBe('PENDING');
-      const id = res.body.id as string;
-
+      await u.call('post', '/tenants').send({ name: 'Sierra Coaches Ltd' }).expect(404);
+      await u
+        .call('post', '/platform/tenants')
+        .send({ name: 'Sierra Coaches Ltd', ownerEmail: 'someone@example.test' })
+        .expect(404);
       const mine = await u.call('get', '/tenants/mine').expect(200);
+      expect(mine.body.tenants).toEqual([]);
+    });
+
+    it('lets platform staff register a company, ACTIVE, and invites its first owner', async () => {
+      const ops = await platformUser('OPERATIONS');
+      const ownerEmail = `${uniq('first-owner')}@example.test`;
+      const res = await ops
+        .call('post', '/platform/tenants')
+        .send({ name: 'Sierra Coaches Ltd', ownerEmail })
+        .expect(201);
+      expect(res.body).toMatchObject({ status: 'ACTIVE', ownerInvitedEmail: ownerEmail });
+      const id = res.body.id as string;
+      const mail = ctx.mailer.sent.find(
+        (m) => m.to === ownerEmail && m.template === 'tenant-invitation',
+      );
+      expect(mail).toBeDefined();
+
+      // Unknown keys are rejected, including a client-chosen status.
+      await ops
+        .call('post', '/platform/tenants')
+        .send({ name: 'Mass Assign Co', ownerEmail, status: 'ACTIVE' })
+        .expect(400);
+
+      // The invited person signs up with that email and accepts: they become the owner.
+      const owner = await newClient(ctx.app, db, 'first-owner');
+      await db.user.update({ where: { id: owner.userId }, data: { email: ownerEmail } });
+      const token = tokenFrom(String((mail?.data as { link?: string } | undefined)?.link));
+      await owner.call('post', '/invitations/accept').send({ token }).expect(200);
+      const mine = await owner.call('get', '/tenants/mine').expect(200);
       expect(mine.body.tenants).toEqual([
         expect.objectContaining({
           tenantId: id,
-          status: 'PENDING',
+          status: 'ACTIVE',
           role: expect.objectContaining({ key: 'owner' }),
         }),
       ]);
-      // May read its own profile to see review status, but cannot operate yet.
-      await u.call('get', `/tenants/${id}/profile`).expect(200);
-      await u.call('get', `/tenants/${id}/memberships`).expect(403);
+
+      const audit = await withDb(db, { platform: true }, (tx) =>
+        tx.auditLog.findMany({ where: { tenantId: id, action: 'platform.tenant_created' } }),
+      );
+      expect(audit).toHaveLength(1);
     });
 
-    it('rejects client-supplied tenant status/slug on application and profile update', async () => {
-      const u = await newClient(ctx.app, db, 'massassign');
-      await u
-        .call('post', '/tenants')
-        .send({ name: 'Mass Assign Co', status: 'ACTIVE' })
-        .expect(400);
+    it('rejects client-supplied tenant status/slug on profile update', async () => {
       const { tenant, owner } = await activeCompany('ma-active');
       await owner
         .call('patch', `/tenants/${tenant.id}/profile`)
@@ -131,12 +158,9 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     });
 
     it('lets OPERATIONS approve, reject and suspend with legal transitions only', async () => {
-      const applicant = await newClient(ctx.app, db, 'life');
-      const a = await applicant
-        .call('post', '/tenants')
-        .send({ name: 'Lifecycle Transport' })
-        .expect(201);
-      const id = a.body.id as string;
+      const pend = await createTenantWithOwner(db, 'life', 'PENDING');
+      const applicant = await loginClient(ctx.app, db, pend.email, pend.password);
+      const id = pend.tenant.id;
       const ops = await platformUser('OPERATIONS');
 
       const pending = await ops.call('get', '/platform/tenants?status=PENDING').expect(200);
@@ -175,14 +199,39 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     });
 
     it('does not let SUPPORT change company status, but lets them read', async () => {
-      const applicant = await newClient(ctx.app, db, 'supp');
-      const a = await applicant
-        .call('post', '/tenants')
-        .send({ name: 'Support Test Co' })
-        .expect(201);
+      const a = { body: { id: (await createTenantWithOwner(db, 'supp', 'PENDING')).tenant.id } };
       const support = await platformUser('SUPPORT');
       await support.call('get', '/platform/tenants').expect(200);
       await support.call('post', `/platform/tenants/${a.body.id}/approve`).send({}).expect(403);
+    });
+
+    it('shows the audit log to SECURITY_AUDIT and SUPER_ADMIN only, with filters', async () => {
+      const { tenant } = await activeCompany('audit-view');
+      const ops = await platformUser('OPERATIONS');
+      await ops
+        .call('post', `/platform/tenants/${tenant.id}/suspend`)
+        .send({ reason: 'audit test' })
+        .expect(200);
+      await ops.call('get', '/platform/audit').expect(403);
+
+      const sec = await newClient(ctx.app, db, 'plat-sec');
+      await enrollMfa(sec);
+      await db.platformRoleAssignment.create({
+        data: { userId: sec.userId, role: 'SECURITY_AUDIT' },
+      });
+      const res = await sec
+        .call('get', `/platform/audit?tenantId=${tenant.id}&action=tenant_suspend`)
+        .expect(200);
+      expect(res.body.total).toBeGreaterThan(0);
+      expect(res.body.events[0]).toMatchObject({
+        action: 'platform.tenant_suspend',
+        tenant: { id: tenant.id },
+      });
+      expect(res.body.events[0].actor).toMatchObject({ id: ops.userId });
+      await sec.call('get', '/platform/audit?outcome=NOPE').expect(400);
+
+      const nobody = await newClient(ctx.app, db, 'audit-nobody');
+      await nobody.call('get', '/platform/audit').expect(404);
     });
 
     it('does not give a company owner any platform access', async () => {

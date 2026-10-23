@@ -1,7 +1,8 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
+import { AuthLayout } from './components/layout/AuthLayout';
 import { AppShell, PublicLayout, RequireAuth } from './components/layout/Layouts';
-import { Spinner } from './components/ui/Spinner';
+import { PageLoader } from './components/ui/Spinner';
 
 // Route-level code splitting: each area downloads only when visited (low-bandwidth friendly).
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -31,9 +32,6 @@ const AcceptInvitationPage = lazy(() =>
 );
 const MyCompaniesPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.MyCompaniesPage })),
-);
-const ApplyCompanyPage = lazy(() =>
-  import('./pages/app/AppPages').then((m) => ({ default: m.ApplyCompanyPage })),
 );
 const SecurityPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.SecurityPage })),
@@ -106,6 +104,9 @@ const PlatformOverviewPage = lazy(() =>
 const PlatformMaintenancePage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
 );
+const PlatformAuditPage = lazy(() =>
+  import('./pages/platform/PlatformAuditPage').then((m) => ({ default: m.PlatformAuditPage })),
+);
 const ComplaintsPage = lazy(() =>
   import('./pages/company/ComplaintsPage').then((m) => ({ default: m.ComplaintsPage })),
 );
@@ -146,11 +147,7 @@ const PlatformTenantsPage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformTenantsPage })),
 );
 
-const fallback = (
-  <div className="grid min-h-[40vh] place-items-center">
-    <Spinner size="lg" label="Loading" />
-  </div>
-);
+const fallback = <PageLoader label="Loading" />;
 const s = (node: ReactNode) => <Suspense fallback={fallback}>{node}</Suspense>;
 
 export const router = createBrowserRouter([
@@ -163,6 +160,11 @@ export const router = createBrowserRouter([
       { path: '/trips', element: s(<TripSearchPage />) },
       { path: '/trips/:tenantId/:tripId', element: s(<TripBookPage />) },
       { path: '/pay/return', element: <RequireAuth>{s(<PayReturnPage />)}</RequireAuth> },
+    ],
+  },
+  {
+    element: <AuthLayout />,
+    children: [
       { path: '/login', element: s(<LoginPage />) },
       { path: '/register', element: s(<RegisterPage />) },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
@@ -192,7 +194,6 @@ export const router = createBrowserRouter([
       { path: 'complaints', element: s(<MyComplaintsPage />) },
       { path: 'complaints/new', element: s(<NewComplaintPage />) },
       { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
-      { path: 'apply', element: s(<ApplyCompanyPage />) },
       { path: 'security', element: s(<SecurityPage />) },
     ],
   },
@@ -227,6 +228,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: s(<PlatformTenantsPage />) },
       { path: 'overview', element: s(<PlatformOverviewPage />) },
+      { path: 'audit', element: s(<PlatformAuditPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
     ],
   },

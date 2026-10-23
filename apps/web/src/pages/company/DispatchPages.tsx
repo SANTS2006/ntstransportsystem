@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useRoutes, useSeatLayouts, useVehicles } from './CatalogPages';
@@ -72,7 +72,7 @@ function Timeline({ tripId, fmt }: { tripId: string; fmt: (iso: string) => strin
     queryFn: ({ signal }) =>
       api<{ items: TripEvent[] }>(`/tenants/${tenantId}/trips/${tripId}/events`, { signal }),
   });
-  if (q.isPending) return <Spinner label="Loading timeline" />;
+  if (q.isPending) return <PageLoader label="Loading timeline" />;
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   if (q.data.items.length === 0) return <p className="text-xs text-slate-500">No events yet.</p>;
   return (
@@ -174,7 +174,7 @@ export function DispatchPage() {
         />
       </div>
 
-      {board.isPending && <Spinner label="Loading the board" />}
+      {board.isPending && <PageLoader label="Loading the board" />}
       {board.error && <ErrorAlert error={board.error} onRetry={() => void board.refetch()} />}
       {board.data && (
         <>
@@ -461,7 +461,7 @@ export function CalendarPage() {
         </Card>
       )}
       <Card title="Upcoming blackouts">
-        {list.isPending && <Spinner label="Loading blackouts" />}
+        {list.isPending && <PageLoader label="Loading blackouts" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {list.data?.items.length === 0 && (
@@ -596,7 +596,7 @@ export function SeatLayoutsPage() {
         </Card>
       )}
       <Card>
-        {list.isPending && <Spinner label="Loading layouts" />}
+        {list.isPending && <PageLoader label="Loading layouts" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
         <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
           {list.data?.items.length === 0 && (

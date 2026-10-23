@@ -4,7 +4,7 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { CvControl } from '../../components/files/FileControls';
@@ -231,7 +231,7 @@ export function RecruitmentPage() {
             </form>
           </Card>
           <Card>
-            {jobs.isPending && <Spinner label="Loading postings" />}
+            {jobs.isPending && <PageLoader label="Loading postings" />}
             {jobs.error && <ErrorAlert error={jobs.error} onRetry={() => void jobs.refetch()} />}
             <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
               {jobs.data?.jobs.length === 0 && (
@@ -313,7 +313,7 @@ export function RecruitmentPage() {
                 ))}
               </select>
             </div>
-            {apps.isPending && <Spinner label="Loading applications" />}
+            {apps.isPending && <PageLoader label="Loading applications" />}
             {apps.error && <ErrorAlert error={apps.error} onRetry={() => void apps.refetch()} />}
             {apps.data?.applications.length === 0 && <Alert tone="info">No applications.</Alert>}
             <ul className="space-y-2">
@@ -340,7 +340,7 @@ export function RecruitmentPage() {
 
           <div>
             {!openId && <Alert tone="info">Choose an application to review.</Alert>}
-            {openId && detail.isPending && <Spinner label="Loading" />}
+            {openId && detail.isPending && <PageLoader label="Loading" />}
             {detail.error && (
               <ErrorAlert error={detail.error} onRetry={() => void detail.refetch()} />
             )}

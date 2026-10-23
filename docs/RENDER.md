@@ -96,7 +96,7 @@ Sign-in cookies are same-origin because the API also serves the web app.
 
    Sign out and in again; **Platform admin** appears in the menu.
 
-3. **Register a company** (menu: Register a company), approve it under Platform admin, and set up
+3. **Register a company** as a platform administrator (Platform admin → Companies → Register a company); the owner you name gets an invitation e-mail. Then set up
    its locations, vehicles, routes and trips in the company workspace.
 4. **Quick demo data instead:** to get a ready-made company, trips and demo accounts, run the dev
    seed against the new database from your machine (it never prints passwords; they are written

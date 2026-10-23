@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { SearchBar } from '../../components/travel/SearchBar';
 import { TripResultCard, type TripCardData } from '../../components/travel/TripResultCard';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { addDays, isoDay } from '../../lib/format';
 
@@ -89,7 +89,7 @@ export function TripSearchPage() {
         </div>
       )}
 
-      {results.isFetching && <Spinner label="Searching" />}
+      {results.isFetching && <PageLoader label="Searching" />}
       {results.error && <ErrorAlert error={results.error} onRetry={() => void results.refetch()} />}
       {results.data && trips.length === 0 && (
         <Alert tone="info">No trips found for that day. Try the next day, or a nearby city.</Alert>

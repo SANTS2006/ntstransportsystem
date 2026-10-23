@@ -3,17 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { ME_KEY, useAuth } from '../../auth/AuthProvider';
 import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
-import { Spinner } from '../../components/ui/Spinner';
+import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { applySchema, mfaCodeSchema, type ApplyValues } from '../../lib/schemas';
+import { mfaCodeSchema } from '../../lib/schemas';
 
 interface MyTenant {
   tenantId: string;
@@ -36,20 +36,15 @@ export function MyCompaniesPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageTitle>My companies</PageTitle>
-      {q.isPending && <Spinner label="Loading companies" />}
+      {q.isPending && <PageLoader label="Loading companies" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && q.data.tenants.length === 0 && (
         <Card>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            You do not belong to a transport company yet. Register yours
-            {user?.email ? `, or ask a company owner to invite ${user.email}` : ''}.
+            You do not belong to a transport company yet. Companies are registered by the NTS
+            platform team; ask your company owner to invite {user?.email ?? user?.phone ?? 'you'} to
+            join.
           </p>
-          <Link
-            className="mt-4 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            to="/app/apply"
-          >
-            Register a company
-          </Link>
         </Card>
       )}
       <ul className="space-y-3">
@@ -64,7 +59,7 @@ export function MyCompaniesPage() {
                 <div className="flex items-center gap-3">
                   <StatusBadge status={t.status} />
                   <Link
-                    className="text-sm font-medium text-brand-700 underline dark:text-brand-500"
+                    className="text-sm font-medium text-brand-700 font-medium dark:text-brand-500"
                     to={`/c/${t.tenantId}`}
                   >
                     Open
@@ -80,59 +75,6 @@ export function MyCompaniesPage() {
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-export function ApplyCompanyPage() {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const defaultTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const form = useForm<ApplyValues>({
-    resolver: zodResolver(applySchema),
-    defaultValues: { name: '', timezone: defaultTz, defaultCurrency: 'SLE' },
-  });
-  const apply = useMutation({
-    mutationFn: (v: ApplyValues) => api<{ id: string }>('/tenants', { method: 'POST', body: v }),
-    onSuccess: async (res) => {
-      await qc.invalidateQueries({ queryKey: ['tenants'] });
-      void navigate(`/c/${res.id}`);
-    },
-  });
-  const { errors } = form.formState;
-  return (
-    <div className="mx-auto max-w-xl">
-      <PageTitle>Register a company</PageTitle>
-      <Card>
-        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-          Your application is reviewed by the platform team before the company goes live. You become
-          its owner.
-        </p>
-        {apply.error && <ErrorAlert error={apply.error} />}
-        <form
-          noValidate
-          onSubmit={form.handleSubmit((v) => apply.mutate(v))}
-          className="mt-4 space-y-4"
-        >
-          <Field label="Company name" error={errors.name?.message} {...form.register('name')} />
-          <Field
-            label="Timezone"
-            hint="IANA name, e.g. Africa/Freetown"
-            error={errors.timezone?.message}
-            {...form.register('timezone')}
-          />
-          <Field
-            label="Currency"
-            maxLength={3}
-            hint="3-letter code, e.g. SLE"
-            error={errors.defaultCurrency?.message}
-            {...form.register('defaultCurrency')}
-          />
-          <Button type="submit" loading={apply.isPending} loadingText="Submitting…">
-            Submit application
-          </Button>
-        </form>
-      </Card>
     </div>
   );
 }
@@ -212,7 +154,7 @@ export function SecurityPage() {
         </Card>
       )}
       <Card title="Active sessions">
-        {sessions.isPending && <Spinner label="Loading sessions" />}
+        {sessions.isPending && <PageLoader label="Loading sessions" />}
         {sessions.error && (
           <ErrorAlert error={sessions.error} onRetry={() => void sessions.refetch()} />
         )}
@@ -301,7 +243,7 @@ function MfaEnroll({ onEnabled }: { onEnabled: () => void }) {
           className="rounded bg-white p-1"
         />
       ) : (
-        <Spinner label="Generating code" />
+        <PageLoader label="Generating code" />
       )}
       <details className="text-xs">
         <summary className="cursor-pointer">Can't scan? Enter this key manually</summary>

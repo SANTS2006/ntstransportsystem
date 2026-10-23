@@ -7,13 +7,14 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Field } from '../../components/ui/Field';
-import { MethodTabs, PHONE_HINT, type Method } from '../../components/auth/MethodTabs';
+import { Mail } from 'lucide-react';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
-import { forgotPhoneSchema, forgotSchema, resetSchema, type ResetValues } from '../../lib/schemas';
+import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { resetSchema, type ResetValues } from '../../lib/schemas';
 
-const linkClass = 'text-sm text-brand-700 underline dark:text-brand-500';
+const linkClass = 'text-sm text-brand-700 font-medium dark:text-brand-500';
 
 /**
  * The token is consumed only when the user presses the button (a POST). Auto-submitting on load
@@ -59,64 +60,28 @@ export function VerifyEmailPage() {
   );
 }
 
-/** Ask for a password-reset code by text message. */
-function PhoneForgotForm({ tabs }: { tabs: React.ReactNode }) {
-  const navigate = useNavigate();
-  const form = useForm<{ phone: string }>({
-    resolver: zodResolver(forgotPhoneSchema),
-    defaultValues: { phone: '' },
-  });
-  const send = useMutation({
-    mutationFn: (v: { phone: string }) =>
-      api('/auth/forgot-password-phone', { method: 'POST', body: v }),
-    onSuccess: (_r, v) =>
-      void navigate(
-        `/reset-password-phone?phone=${encodeURIComponent(normalizePhone(v.phone) ?? v.phone)}`,
-      ),
-  });
-  return (
-    <AuthCard
-      title="Reset your password"
-      subtitle="Enter your phone number and we will text you a code."
-    >
-      {tabs}
-      {send.error && <ErrorAlert error={send.error} />}
-      <form noValidate onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-4">
-        <Field
-          label="Phone number"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          hint={PHONE_HINT}
-          error={form.formState.errors.phone?.message}
-          {...form.register('phone')}
-        />
-        <Button type="submit" className="w-full" loading={send.isPending} loadingText="Sending…">
-          Text me a code
-        </Button>
-      </form>
-      <Link className={linkClass} to="/login">
-        Back to sign in
-      </Link>
-    </AuthCard>
-  );
-}
-
 export function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const { phoneSignup } = useFeatures();
-  const [method, setMethod] = useState<Method>('email');
-  const tabs = phoneSignup ? (
-    <MethodTabs label="Reset with" value={method} onChange={setMethod} />
-  ) : null;
-  const form = useForm<{ email: string }>({
-    resolver: zodResolver(forgotSchema),
-    defaultValues: { email: '' },
-  });
+  const [identifier, setIdentifier] = useState('');
+  const [error, setError] = useState<string | undefined>();
   const send = useMutation({
-    mutationFn: (v: { email: string }) => api('/auth/forgot-password', { method: 'POST', body: v }),
+    mutationFn: (raw: string) => {
+      const id = raw.trim();
+      return identifierKind(id) === 'email'
+        ? api('/auth/forgot-password', { method: 'POST', body: { email: id } })
+        : api('/auth/forgot-password-phone', { method: 'POST', body: { phone: id } });
+    },
+    onSuccess: (_r, raw) => {
+      const id = raw.trim();
+      if (identifierKind(id) === 'phone') {
+        void navigate(
+          `/reset-password-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`,
+        );
+      }
+    },
   });
-  if (phoneSignup && method === 'phone') return <PhoneForgotForm tabs={tabs} />;
-  if (send.isSuccess) {
+  if (send.isSuccess && identifierKind(identifier) === 'email') {
     return (
       <AuthCard title="Check your email">
         <Alert tone="success">
@@ -130,19 +95,36 @@ export function ForgotPasswordPage() {
     );
   }
   return (
-    <AuthCard title="Reset your password" subtitle="Enter your email and we will send a link.">
-      {tabs}
+    <AuthCard
+      title="Reset your password"
+      subtitle={
+        phoneSignup
+          ? 'Enter your email or phone number and we will send a link or a code.'
+          : 'Enter your email and we will send a link.'
+      }
+    >
       {send.error && <ErrorAlert error={send.error} />}
-      <form noValidate onSubmit={form.handleSubmit((v) => send.mutate(v))} className="space-y-4">
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          const problem = checkIdentifier(identifier, phoneSignup);
+          setError(problem ?? undefined);
+          if (!problem && !send.isPending) send.mutate(identifier);
+        }}
+        className="space-y-4"
+      >
         <Field
-          label="Email"
-          type="email"
-          autoComplete="email"
-          error={form.formState.errors.email?.message}
-          {...form.register('email')}
+          label={phoneSignup ? 'Email or phone number' : 'Email address'}
+          icon={Mail}
+          autoComplete="username"
+          hint={phoneSignup ? PHONE_HINT : undefined}
+          error={error}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
         />
         <Button type="submit" className="w-full" loading={send.isPending} loadingText="Sending…">
-          Send reset link
+          {phoneSignup ? 'Send reset link or code' : 'Send reset link'}
         </Button>
       </form>
       <Link className={linkClass} to="/login">
@@ -179,17 +161,15 @@ export function ResetPasswordPage() {
     <AuthCard title="Choose a new password" subtitle="All your other sessions will be signed out.">
       {reset.error && <ErrorAlert error={reset.error} />}
       <form noValidate onSubmit={form.handleSubmit((v) => reset.mutate(v))} className="space-y-4">
-        <Field
+        <PasswordField
           label="New password"
-          type="password"
           autoComplete="new-password"
           hint="At least 12 characters."
           error={errors.password?.message}
           {...form.register('password')}
         />
-        <Field
+        <PasswordField
           label="Confirm new password"
-          type="password"
           autoComplete="new-password"
           error={errors.confirm?.message}
           {...form.register('confirm')}

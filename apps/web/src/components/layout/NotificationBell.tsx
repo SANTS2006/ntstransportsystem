@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../../lib/api';
 import { Button } from '../ui/Button';
-import { Spinner } from '../ui/Spinner';
+import { PageLoader } from '../ui/Spinner';
 
 interface Item {
   id: string;
@@ -132,13 +132,13 @@ export function NotificationBell() {
           <div className="max-h-96 overflow-y-auto">
             {list.isPending && (
               <div className="p-4">
-                <Spinner label="Loading notifications" />
+                <PageLoader label="Loading notifications" />
               </div>
             )}
             {list.error && (
               <p className="p-4 text-sm text-red-700 dark:text-red-400">
                 Could not load notifications.{' '}
-                <button type="button" className="underline" onClick={() => void list.refetch()}>
+                <button type="button" className="font-medium" onClick={() => void list.refetch()}>
                   Try again
                 </button>
               </p>

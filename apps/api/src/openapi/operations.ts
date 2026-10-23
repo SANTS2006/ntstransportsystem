@@ -919,6 +919,16 @@ export const operations: Record<string, Operation> = {
     permission: 'booking.read',
     ok: 200,
   },
+  'POST /api/v1/tenants/{tenantId}/bookings/{id}/desk-payment': {
+    summary: 'Take payment at the desk and confirm the booking',
+    description:
+      'For cash, mobile money shown at the counter, or bank transfer. The amount is always the booking total. Records the method, an optional receipt reference and who took it, closes any open online checkout for the booking, issues the tickets and is audited. A booking can be paid at the desk once.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'payment.collect',
+    body: booking.deskPaymentBody,
+    ok: 201,
+  },
   'POST /api/v1/tenants/{tenantId}/bookings/{id}/cancel': {
     summary: 'Cancel a booking and release its seats',
     description: 'Reports whether a refund is required; refunds are handled by payments.',

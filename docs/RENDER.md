@@ -111,14 +111,9 @@ Sign-in cookies are same-origin because the API also serves the web app.
 ## What will and will not work
 
 - **Works:** accounts, two-factor, companies and approval, fleet/routes/trips, seat maps, staff and
-  roles, booking holds, tickets and QR codes (after a paid booking), boarding, complaints,
+  roles, booking holds, payment at the desk, tickets and QR codes (after a paid booking), boarding, complaints,
   recruitment (without file uploads), reports, in-app notifications, maintenance mode.
-- **Payments need a Monime account.** There is no "mark as paid at the desk" action yet, so without
-  a Monime **test** account (token starts `mon_test_`) a booking stays "held" and expires after
-  15 minutes. With one, the company owner enters its space id, token and webhook secret under
-  **Payments** and registers the webhook URL shown there. This flow has only been tested against
-  a mock, never against real Monime. If you want to test everything without Monime, tell me and
-  I will add a staff "take payment at the desk" action.
+- **Payments:** staff can take payment at the desk (**Bookings**, then **Take payment**: cash, mobile money shown at the counter, or bank transfer), which confirms the booking and issues the tickets, so you can test the whole flow without Monime. Online payment by passengers needs a Monime account: a **test** one (token starts `mon_test_`) whose space id, token and webhook secret the company owner enters under **Payments**, with the webhook URL shown there registered in Monime. That online flow has only been tested against a mock, never against real Monime.
 - **No uploads** (CVs, complaint attachments) until you set the four `R2_*` variables.
 - **No Google sign-in** until `GOOGLE_CLIENT_ID` is set on the service and
   `VITE_GOOGLE_CLIENT_ID` is available at build time (add both as environment variables, then

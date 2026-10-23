@@ -8,6 +8,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { can, useCompany } from './company-context';
+import { DeskPaymentDialog, type DeskPaymentBooking } from './DeskPaymentDialog';
 
 const MAX_SEATS = 8;
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -52,6 +53,8 @@ export function BookingsPage() {
   const toast = useToast();
   const qc = useQueryClient();
   const manage = can(access, 'booking.manage');
+  const collect = can(access, 'payment.collect');
+  const [desk, setDesk] = useState<DeskPaymentBooking | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
 
   const profile = useQuery({
@@ -360,6 +363,20 @@ export function BookingsPage() {
                     </a>
                   </>
                 )}
+                {collect && b.status === 'PENDING_PAYMENT' && (
+                  <Button
+                    onClick={() =>
+                      setDesk({
+                        id: b.id,
+                        reference: b.reference,
+                        totalMinor: b.totalMinor,
+                        currency: b.currency,
+                      })
+                    }
+                  >
+                    Take payment
+                  </Button>
+                )}
                 {manage && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED') && (
                   <Button
                     variant="danger"
@@ -376,6 +393,16 @@ export function BookingsPage() {
           ))}
         </ul>
       </Card>
+      <DeskPaymentDialog
+        tenantId={tenantId}
+        booking={desk}
+        onClose={() => setDesk(null)}
+        onPaid={() => {
+          setDesk(null);
+          toast('Payment recorded. The booking is confirmed and the tickets are ready.', 'success');
+          void refresh();
+        }}
+      />
     </div>
   );
 }

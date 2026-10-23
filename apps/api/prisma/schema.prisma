@@ -918,6 +918,9 @@ model Payment {
   idempotencyKey    String        @map("idempotency_key")
   paidAt            DateTime?     @map("paid_at") @db.Timestamptz(6)
   lastError         String?       @map("last_error")
+  method            String? // desk payments: CASH | MOBILE_MONEY | BANK_TRANSFER
+  collectedBy       String?       @map("collected_by") @db.Uuid
+  reference         String? // desk payments: receipt or transaction number
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -160,6 +160,7 @@ export async function confirmBookingInTx(
   tx: Tx,
   tenantId: string,
   bookingId: string,
+  by?: { reason: string; actorUserId: string },
 ): Promise<'confirmed' | 'already' | 'unavailable'> {
   const b = await tx.booking.findFirst({ where: { id: bookingId, tenantId } });
   if (!b) return 'unavailable';
@@ -171,8 +172,8 @@ export async function confirmBookingInTx(
     bookingId,
     ['PENDING_PAYMENT'],
     'CONFIRMED',
-    'Payment received',
-    null,
+    by?.reason ?? 'Payment received',
+    by?.actorUserId ?? null,
   );
   if (!r) return 'unavailable';
   await issueTicketsInTx(tx, tenantId, bookingId);
@@ -553,6 +554,85 @@ export class BookingService {
       if (r === 'unavailable')
         throw AppError.conflict('The seat hold has expired or the booking was cancelled');
     });
+  }
+
+  /**
+   * Staff take payment at the counter and the booking is confirmed on the spot. Unlike the online
+   * path there is no provider to ask, so the safeguards are: a permission of its own, one desk
+   * payment per booking (database-enforced), the amount is always the booking's own total (never
+   * typed in), the payment row records the method and who took it, and the action is audited.
+   * Any online checkout still open for the booking is closed; if that customer pays online anyway
+   * it is flagged for a refund by the payments module.
+   */
+  async collectAtDesk(
+    s: TenantScope,
+    bookingId: string,
+    input: { method: 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER'; reference?: string | undefined },
+    requestId?: string,
+  ) {
+    return mapDbErrors(
+      () =>
+        withDb(this.db, ctxOf(s), async (tx) => {
+          const b = await tx.booking.findFirst({ where: { id: bookingId, tenantId: s.tenantId } });
+          if (!b) throw AppError.notFound();
+          if (b.status === 'CONFIRMED') throw AppError.conflict('This booking is already paid');
+          if (b.status !== 'PENDING_PAYMENT') {
+            throw AppError.conflict('This booking was cancelled or its hold expired');
+          }
+          await tx.payment.updateMany({
+            where: { tenantId: s.tenantId, bookingId, status: { in: ['CREATED', 'PENDING'] } },
+            data: { status: 'CANCELLED', lastError: 'Paid at the desk' },
+          });
+          const now = new Date();
+          const payment = await tx.payment.create({
+            data: {
+              tenantId: s.tenantId,
+              bookingId,
+              provider: 'DESK',
+              status: 'PAID',
+              amountMinor: b.totalMinor,
+              currency: b.currency,
+              idempotencyKey: `desk:${bookingId}`,
+              paidAt: now,
+              method: input.method,
+              collectedBy: s.userId,
+              reference: input.reference ?? null,
+            },
+          });
+          const outcome = await confirmBookingInTx(tx, s.tenantId, bookingId, {
+            reason: `Paid at the desk (${input.method.toLowerCase().replaceAll('_', ' ')})`,
+            actorUserId: s.userId,
+          });
+          if (outcome !== 'confirmed') {
+            throw AppError.conflict('This booking can no longer be confirmed');
+          }
+          await writeAudit(tx, {
+            action: 'payment.collected_at_desk',
+            outcome: 'SUCCESS',
+            tenantId: s.tenantId,
+            actorUserId: s.userId,
+            targetType: 'payment',
+            targetId: payment.id,
+            requestId,
+            summary: {
+              bookingId,
+              amountMinor: b.totalMinor,
+              currency: b.currency,
+              method: input.method,
+            },
+          });
+          return {
+            id: payment.id,
+            bookingId,
+            method: input.method,
+            amountMinor: b.totalMinor,
+            currency: b.currency,
+            reference: input.reference ?? null,
+            paidAt: now.toISOString(),
+          };
+        }),
+      { unique: 'This booking is already paid' },
+    );
   }
 
   /**

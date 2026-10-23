@@ -491,6 +491,44 @@ describe.skipIf(!TEST_DB_URL)('payments (database, fake Monime)', () => {
     expect(refund[0]!.payload).toMatchObject({ paymentId: p.paymentId, amountMinor: 50_000 });
   }, 300_000);
 
+  it('flags an online payment that completes after the booking was paid at the desk', async () => {
+    const { tenantId, owner, secret, book } = await setup('pay-desk-dup');
+    const bk = await book(['3']);
+    const p = (
+      await owner.call('post', `/tenants/${tenantId}/bookings/${bk.id}/payments`).expect(201)
+    ).body as { paymentId: string; redirectUrl: string };
+    const sessionId = p.redirectUrl.split('/').pop()!;
+
+    // The customer is at the counter instead: staff take the money and the booking is confirmed.
+    await owner
+      .call('post', `/tenants/${tenantId}/bookings/${bk.id}/desk-payment`)
+      .send({ method: 'CASH' })
+      .expect(201);
+    expect(await statusOf(owner, tenantId, bk.id)).toBe('CONFIRMED');
+    expect(
+      (await plat((tx) => tx.payment.findFirstOrThrow({ where: { id: p.paymentId } }))).status,
+    ).toBe('CANCELLED'); // the open checkout was closed on our side
+
+    // Then the open checkout is completed anyway: they have paid twice.
+    gw.set(sessionId, 'completed');
+    const out = await deliver(tenantId, secret, {
+      id: 'dup-1',
+      name: 'checkout_session.completed',
+      data: { id: sessionId },
+    }).expect(200);
+    expect(out.body.status).toBe('paid_unfulfilled');
+    expect(await statusOf(owner, tenantId, bk.id)).toBe('CONFIRMED'); // still confirmed, once
+    expect(
+      (await plat((tx) => tx.payment.findFirstOrThrow({ where: { id: p.paymentId } }))).status,
+    ).toBe('PAID_UNFULFILLED');
+    const refund = await plat((tx) =>
+      tx.outboxEvent.findMany({ where: { tenantId, type: 'payment.refund_required' } }),
+    );
+    expect(refund).toHaveLength(1);
+    expect(refund[0]!.payload).toMatchObject({ paymentId: p.paymentId });
+    expect(await plat((tx) => tx.ticket.count({ where: { bookingId: bk.id } }))).toBe(1);
+  }, 400_000);
+
   it('keeps payments private to their company', async () => {
     const a = await setup('pay-iso-a');
     const b = await setup('pay-iso-b');

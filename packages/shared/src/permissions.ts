@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   'ticket.validate',
   'payment.read',
   'payment.manage',
+  'payment.collect',
   'finance.report.read',
   'hr.read',
   'hr.manage',
@@ -41,7 +42,7 @@ export const DEFAULT_TENANT_ROLES: Record<string, { name: string; permissions: P
   },
   sales_agent: {
     name: 'Ticketing/Sales Agent',
-    permissions: ['route.read', 'trip.read', 'booking.read', 'booking.manage'],
+    permissions: ['route.read', 'trip.read', 'booking.read', 'booking.manage', 'payment.collect'],
   },
   driver: { name: 'Driver', permissions: ['trip.read', 'ticket.validate'] },
   finance_officer: {

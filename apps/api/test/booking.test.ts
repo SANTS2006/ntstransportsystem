@@ -370,4 +370,136 @@ describe.skipIf(!TEST_DB_URL)('fares, bookings and seat inventory (database)', (
     const agent = await member(a.tenantId, 'sales_agent');
     await book(agent, a.tenantId, body(fx.trip.id, ['2'])).expect(201);
   }, 300_000);
+
+  it('takes payment at the desk once, with tickets, history and audit, for permitted roles only', async () => {
+    const { tenantId, owner } = await company('desk');
+    const other = await company('desk-other');
+    const fx = await kit(tenantId);
+    const agent = await member(tenantId, 'sales_agent');
+    const made = await book(agent, tenantId, body(fx.trip.id, ['1', '2'])).expect(201);
+    const url = `/tenants/${tenantId}/bookings/${made.body.id}/desk-payment`;
+
+    // Who may and may not, and what is accepted.
+    for (const role of ['driver', 'auditor', 'finance_officer', 'dispatcher']) {
+      await (await member(tenantId, role)).call('post', url).send({ method: 'CASH' }).expect(403);
+    }
+    await other.owner.call('post', url).send({ method: 'CASH' }).expect(404);
+    await agent.call('post', url).send({ method: 'BITCOIN' }).expect(400);
+    await agent.call('post', url).send({}).expect(400);
+    await agent.call('post', url).send({ method: 'CASH', amountMinor: 1 }).expect(400); // the amount is never typed in
+    await agent
+      .call('post', url)
+      .send({ method: 'CASH', reference: 'x'.repeat(81) })
+      .expect(400);
+    expect(
+      (await owner.call('get', `/tenants/${tenantId}/bookings/${made.body.id}`).expect(200)).body
+        .status,
+    ).toBe('PENDING_PAYMENT'); // nothing above changed anything
+
+    const paid = await agent
+      .call('post', url)
+      .send({ method: 'CASH', reference: 'RCPT-100' })
+      .expect(201);
+    expect(paid.body).toMatchObject({
+      method: 'CASH',
+      amountMinor: 100_000, // two seats at the 500.00 fare, taken from the booking
+      currency: 'SLE',
+      reference: 'RCPT-100',
+    });
+    const got = (
+      await owner.call('get', `/tenants/${tenantId}/bookings/${made.body.id}`).expect(200)
+    ).body;
+    expect(got.status).toBe('CONFIRMED');
+
+    const rows = await plat(async (tx) => ({
+      payments: await tx.payment.findMany({ where: { bookingId: made.body.id } }),
+      tickets: await tx.ticket.count({ where: { bookingId: made.body.id } }),
+      history: await tx.bookingStatusHistory.findMany({
+        where: { bookingId: made.body.id, toStatus: 'CONFIRMED' },
+      }),
+      events: await tx.outboxEvent.count({
+        where: {
+          tenantId,
+          type: 'booking.confirmed',
+          dedupeKey: `booking.confirmed:${made.body.id}`,
+        },
+      }),
+      audit: await tx.auditLog.findMany({
+        where: { tenantId, action: 'payment.collected_at_desk' },
+      }),
+    }));
+    expect(rows.payments).toHaveLength(1);
+    expect(rows.payments[0]).toMatchObject({
+      provider: 'DESK',
+      status: 'PAID',
+      method: 'CASH',
+      collectedBy: agent.userId,
+      amountMinor: 100_000,
+    });
+    expect(rows.tickets).toBe(2);
+    expect(rows.history[0]).toMatchObject({ actorUserId: agent.userId });
+    expect(rows.history[0]!.reason).toContain('desk');
+    expect(rows.events).toBe(1);
+    expect(rows.audit).toHaveLength(1);
+    expect(rows.audit[0]).toMatchObject({ actorUserId: agent.userId, outcome: 'SUCCESS' });
+
+    // Only once; a cancelled booking cannot be paid.
+    await agent.call('post', url).send({ method: 'CASH' }).expect(409);
+    const gone = await book(agent, tenantId, body(fx.trip.id, ['3'])).expect(201);
+    await owner
+      .call('post', `/tenants/${tenantId}/bookings/${gone.body.id}/cancel`)
+      .send({ reason: 'changed mind' })
+      .expect(200);
+    await agent
+      .call('post', `/tenants/${tenantId}/bookings/${gone.body.id}/desk-payment`)
+      .send({ method: 'MOBILE_MONEY' })
+      .expect(409);
+
+    // Two clerks taking the same payment at the same moment: exactly one wins.
+    const race = await book(agent, tenantId, body(fx.trip.id, ['4'])).expect(201);
+    const second = await member(tenantId, 'sales_agent');
+    const results = await Promise.all(
+      [agent, second].map((c) =>
+        c
+          .call('post', `/tenants/${tenantId}/bookings/${race.body.id}/desk-payment`)
+          .send({ method: 'BANK_TRANSFER' }),
+      ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await plat((tx) => tx.payment.count({ where: { bookingId: race.body.id } }))).toBe(1);
+
+    // The database refuses malformed desk payments and a second one for the same booking.
+    const base = {
+      tenantId,
+      bookingId: race.body.id,
+      amountMinor: 1,
+      currency: 'SLE',
+      status: 'PAID' as const,
+    };
+    await expect(
+      plat((tx) =>
+        tx.payment.create({ data: { ...base, provider: 'DESK', idempotencyKey: uniq('k') } }),
+      ),
+    ).rejects.toThrow(); // no method, no collector
+    await expect(
+      plat((tx) =>
+        tx.payment.create({
+          data: {
+            ...base,
+            provider: 'DESK',
+            method: 'CASH',
+            collectedBy: agent.userId,
+            idempotencyKey: uniq('k'),
+          },
+        }),
+      ),
+    ).rejects.toThrow(); // already paid at the desk
+    await expect(
+      plat((tx) =>
+        tx.payment.create({
+          data: { ...base, provider: 'MONIME', method: 'CASH', idempotencyKey: uniq('k') },
+        }),
+      ),
+    ).rejects.toThrow(); // online payments carry no desk fields
+  }, 600_000);
 });

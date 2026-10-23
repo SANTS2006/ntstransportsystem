@@ -48,6 +48,12 @@ const bookingCreate = z
   .strict();
 
 const cancelBody = z.object({ reason: trim.min(2).max(300) }).strict();
+const deskPaymentBody = z
+  .object({
+    method: z.enum(['CASH', 'MOBILE_MONEY', 'BANK_TRANSFER']),
+    reference: trim.min(1).max(80).optional(),
+  })
+  .strict();
 const listQuery = z.object({
   status: z.enum(['PENDING_PAYMENT', 'CONFIRMED', 'CANCELLED', 'EXPIRED']).optional(),
   tripId: uuid.optional(),
@@ -118,10 +124,17 @@ export function bookingRouter({ db, bookings }: BookingRouterDeps): ExpressRoute
     );
   });
 
+  t.post('/bookings/:id/desk-payment', perm('payment.collect'), async (req, res) => {
+    const body = deskPaymentBody.parse(req.body);
+    res
+      .status(201)
+      .json(await bookings.collectAtDesk(scope(req), uuidParam(req, 'id'), body, req.id));
+  });
+
   const r = Router();
   r.use('/tenants/:tenantId', t);
   return r;
 }
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
-export const requestSchemas = { fareBody, bookingCreate, cancelBody };
+export const requestSchemas = { fareBody, bookingCreate, cancelBody, deskPaymentBody };

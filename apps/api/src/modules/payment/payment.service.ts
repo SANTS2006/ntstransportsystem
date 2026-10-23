@@ -261,6 +261,9 @@ export class PaymentService {
     });
     return rows.map((p) => ({
       id: p.id,
+      provider: p.provider,
+      method: p.method,
+      reference: p.reference,
       status: p.status,
       amountMinor: p.amountMinor,
       currency: p.currency,
@@ -319,8 +322,21 @@ export class PaymentService {
       if (res.count !== 1) return 'already_settled';
 
       const outcome = await confirmBookingInTx(tx, tenantId, payment.bookingId);
-      if (outcome === 'unavailable') {
-        // Paid, but the seats were already released (hold lapsed and resold, or cancelled).
+      // 'already' with another settled payment on the booking (typically paid at the desk while this
+      // checkout was still open) means the customer has paid twice: this one needs a refund.
+      const duplicate =
+        outcome === 'already' &&
+        (await tx.payment.count({
+          where: {
+            tenantId,
+            bookingId: payment.bookingId,
+            status: 'PAID',
+            id: { not: paymentId },
+          },
+        })) > 0;
+      if (outcome === 'unavailable' || duplicate) {
+        // Paid, but the seats were already released (hold lapsed and resold, or cancelled), or the
+        // booking had already been paid another way.
         await tx.payment.updateMany({
           where: { id: paymentId },
           data: { status: 'PAID_UNFULFILLED' },

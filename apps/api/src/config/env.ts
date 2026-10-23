@@ -47,6 +47,12 @@ const baseSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),
   R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   R2_BUCKET: z.string().min(1).optional(),
+  // Serve the built web app (apps/web/dist) from this API process, so one origin hosts both.
+  // Relative paths resolve against the working directory. Unset: the API only serves /api and /health.
+  WEB_DIST_DIR: z.string().min(1).optional(),
+  // TEST DEPLOYMENTS ONLY: allow production mode without Brevo, logging each e-mail (including
+  // verification and reset links) instead of sending it. Anyone who can read the logs can use them.
+  ALLOW_DEV_MAILER: bool,
   // Development only: keep uploads in this directory instead of R2.
   STORAGE_DEV_DIR: z.string().min(1).optional(),
   // 32 random bytes, base64. Encrypts TOTP seeds at rest. Generate: openssl rand -base64 32
@@ -79,8 +85,7 @@ export const envSchema = baseSchema.superRefine((env, ctx) => {
     'REDIS_URL',
     'SESSION_SECRET',
     'MFA_ENCRYPTION_KEY',
-    'BREVO_API_KEY',
-    'MAIL_FROM_EMAIL',
+    ...(env.ALLOW_DEV_MAILER ? [] : (['BREVO_API_KEY', 'MAIL_FROM_EMAIL'] as const)),
   ] as const;
   for (const key of required) {
     if (!env[key]) {
@@ -121,9 +126,17 @@ export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   // A blank value (e.g. `REDIS_URL=` copied from .env.example) means "not configured".
-  const present = Object.fromEntries(
+  const present: Record<string, string | undefined> = Object.fromEntries(
     Object.entries(source).filter(([, v]) => v !== undefined && v.trim() !== ''),
   );
+  // On Render the service's own public https URL is provided, and the app and API share it when
+  // the API serves the web app. Explicit settings always win.
+  const self = present.RENDER_EXTERNAL_URL;
+  if (self) {
+    present.APP_URL ??= self;
+    present.API_URL ??= self;
+    present.CORS_ORIGINS ??= self;
+  }
   const parsed = envSchema.safeParse(present);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');

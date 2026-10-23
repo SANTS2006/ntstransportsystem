@@ -198,3 +198,11 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [x] Checked: the web build renders and loads its self-hosted fonts under the CSP (served by a small static server sending the same header).
 - [ ] **Not verified:** the images have never been built or run (no Docker here), nginx itself has not loaded the config, the CSP has not been tried with Google sign-in or against a real deployment, and no restore drill has been done.
 - [ ] Not built: metrics/alerting, error tracking, log shipping, uptime checks, `MFA_ENCRYPTION_KEY` rotation, data-retention jobs, a deploy workflow in CI.
+
+## Platform overview and Render test deployment (2026-10-24)
+
+- [x] Platform-wide overview (`GET /platform/overview`, page at `/platform/overview`): companies by status, users, confirmed sales per currency, ten biggest companies, open complaints, notification backlog and failed notices. Platform roles + MFA only. Web: 37 tests pass.
+- [x] One-service hosting: the API can serve the built web app (`WEB_DIST_DIR`, with the content-security-policy, no-store shell, immutable assets, and JSON 404s for `/api` and `/health`); verified with the compiled server started the way Render starts it (`npm run start -w @nts/api`) and with 8 unit tests.
+- [x] `render.yaml`, `docs/RENDER.md`, `npm run db:provision` (creates `nts_app`, migrates, re-applies grants, proves the role is restricted, prints the app URL once), `ALLOW_DEV_MAILER` (explicit, production-only opt-out of Brevo for test deployments), and Render URL defaults. Tests: env rules, provisioning helpers.
+- [ ] **Not verified:** nothing has run on Render itself; `db:provision` has not been run against a real database (only its helpers are tested; the same steps were done by hand on the main database earlier); the platform overview's database test is written but has not been run; Render's proxy chain vs `trust proxy`; Google sign-in under the CSP.
+- [ ] Known gap: no staff "take payment at the desk" action, so completing a booking needs a Monime account.

@@ -47,6 +47,7 @@ export function PlatformLayout() {
       heading="Platform administration"
       nav={[
         { to: '/platform', label: 'Companies', end: true },
+        { to: '/platform/overview', label: 'Overview' },
         { to: '/platform/maintenance', label: 'Maintenance' },
         { to: '/app', label: '← Exit admin' },
       ]}

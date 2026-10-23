@@ -16,7 +16,8 @@
     "seed:dev": "tsx scripts/dev-seed.ts",
     "postinstall": "prisma generate",
     "prebuild": "prisma generate",
-    "pretypecheck": "prisma generate"
+    "pretypecheck": "prisma generate",
+    "db:provision": "tsx scripts/provision-db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",

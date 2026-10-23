@@ -1,9 +1,11 @@
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BookingService } from '../src/modules/booking/booking.service.js';
 import { withDb, type Db, type Tx } from '../src/platform/db.js';
 import {
   createDb,
   createTenantWithOwner,
+  enrollMfa,
   loginClient,
   makeApp,
   newClient,
@@ -304,5 +306,60 @@ describe.skipIf(!TEST_DB_URL)('company reports (database)', () => {
       await other.owner.call('get', `${base(other.tenantId)}/sales?${q(today, today)}`).expect(200)
     ).body;
     expect(mine.totals).toEqual({ bookings: 0, seats: 0, revenueMinor: 0 });
+  }, 600_000);
+
+  it('gives platform staff platform-wide figures, and nobody else', async () => {
+    const support = await newClient(ctx.app, db, 'ov-support');
+    await enrollMfa(support);
+    await db.platformRoleAssignment.create({ data: { userId: support.userId, role: 'SUPPORT' } });
+    const noMfa = await newClient(ctx.app, db, 'ov-nomfa');
+    await db.platformRoleAssignment.create({ data: { userId: noMfa.userId, role: 'SUPPORT' } });
+    const ordinary = await newClient(ctx.app, db, 'ov-user');
+
+    await ordinary.call('get', '/platform/overview').expect(404);
+    await noMfa.call('get', '/platform/overview').expect(403);
+    await request(ctx.app).get('/api/v1/platform/overview').expect(401);
+    await support.call('get', '/platform/overview?from=2026-02-01&to=2026-01-01').expect(400);
+    await support.call('get', '/platform/overview?from=nope&to=2026-01-01').expect(400);
+
+    type Sales = { currency: string; bookings: number; seats: number; revenueMinor: number }[];
+    const day = new Date().toISOString().slice(0, 10);
+    const range = `from=${day}&to=${day}`;
+    const get = async () =>
+      (await support.call('get', `/platform/overview?${range}`).expect(200)).body as {
+        range: { from: string; to: string };
+        tenants: Record<string, number>;
+        users: { total: number };
+        sales: Sales;
+        topCompanies: { name: string }[];
+        openComplaints: number;
+        outbox: { pending: number; deadLettered: number };
+      };
+    const before = await get();
+    const of = (s: Sales, cur: string) =>
+      s.find((r) => r.currency === cur) ?? { bookings: 0, seats: 0, revenueMinor: 0 };
+
+    const k = await setup('ov-co');
+    await k.book(k.tripA.id, ['1', '2']); // 2 seats at 100.00
+    await k.book(k.tripB.id, ['1']); // 1 seat at 250.00
+    await k.book(k.tripB.id, ['2'], false); // held, never paid: not a sale
+    const after = await get();
+    const cur = (await plat((tx) => tx.tenant.findUniqueOrThrow({ where: { id: k.tenantId } })))
+      .defaultCurrency;
+    expect(after.range).toEqual({ from: day, to: day });
+    expect(of(after.sales, cur).bookings - of(before.sales, cur).bookings).toBe(2);
+    expect(of(after.sales, cur).seats - of(before.sales, cur).seats).toBe(3);
+    expect(of(after.sales, cur).revenueMinor - of(before.sales, cur).revenueMinor).toBe(45_000);
+    expect(after.users.total).toBeGreaterThan(before.users.total);
+    expect(after.tenants.ACTIVE).toBeGreaterThanOrEqual(1);
+    expect(typeof after.outbox.pending).toBe('number');
+    expect(after.topCompanies.length).toBeLessThanOrEqual(10);
+
+    // A range with no sales answers with empty lists, not an error.
+    const old = (
+      await support.call('get', '/platform/overview?from=2000-01-01&to=2000-01-02').expect(200)
+    ).body as { sales: unknown[]; topCompanies: unknown[] };
+    expect(old.sales).toEqual([]);
+    expect(old.topCompanies).toEqual([]);
   }, 600_000);
 });

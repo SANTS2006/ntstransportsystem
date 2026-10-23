@@ -14,7 +14,7 @@
 /* eslint-disable no-console -- operator CLI */
 import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import { config } from 'dotenv';
 
@@ -272,13 +272,13 @@ interface Session {
   lineItems: { price: { currency: string; value: number }; quantity: number }[];
 }
 const sessions = new Map<string, Session>();
-const readBody = (req: import('node:http').IncomingMessage) =>
+const readBody = (req: IncomingMessage) =>
   new Promise<string>((ok) => {
     let s = '';
     req.on('data', (c: Buffer) => (s += c.toString()));
     req.on('end', () => ok(s));
   });
-const send = (res: import('node:http').ServerResponse, code: number, body: unknown) => {
+const send = (res: ServerResponse, code: number, body: unknown) => {
   res.writeHead(code, { 'content-type': 'application/json' });
   res.end(JSON.stringify(body));
 };

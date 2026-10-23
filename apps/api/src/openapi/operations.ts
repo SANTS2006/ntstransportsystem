@@ -393,6 +393,19 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Platform administration ----------------------------------------------------------------
+  'GET /api/v1/platform/overview': {
+    summary: 'Platform-wide figures',
+    description:
+      'Companies by status, users, confirmed sales per currency and the ten biggest companies in the date range (default: the last 30 days, UTC days), plus open complaints and the notification backlog.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS | SUPPORT',
+    query: [
+      { name: 'from', description: 'First day, YYYY-MM-DD (UTC)' },
+      { name: 'to', description: 'Last day, YYYY-MM-DD (UTC)' },
+    ],
+    ok: 200,
+  },
   'GET /api/v1/platform/tenants': {
     summary: 'List companies (platform)',
     description:

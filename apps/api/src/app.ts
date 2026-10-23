@@ -52,6 +52,7 @@ import { CatalogService } from './modules/catalog/catalog.service.js';
 import { FleetService } from './modules/catalog/fleet.service.js';
 import { ScheduleService } from './modules/catalog/schedule.service.js';
 import { MembershipService } from './modules/tenants/membership.service.js';
+import { PlatformReportService } from './modules/report/platform-report.service.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
 import { RoleService } from './modules/tenants/role.service.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
@@ -63,6 +64,7 @@ import type { Mailer } from './modules/notifications/mailer.js';
 import type { Db } from './platform/db.js';
 import type { RateLimitStoreFactory } from './platform/redis.js';
 import { healthRouter, type ReadinessCheck } from './modules/health/health.routes.js';
+import { mountWeb } from './web-static.js';
 import { errorHandler, notFoundHandler, requestId } from './platform/http.js';
 import { mountApiDocs } from './openapi/docs.js';
 import { Router, routesOf, type RouteInfo } from './platform/router.js';
@@ -155,7 +157,7 @@ export function createApp({
     const tenants = new TenantService(db);
     const members = new MembershipService(db, mailer, env.APP_URL);
     v1.use(tenantRouter({ db, tenants, members, roles: new RoleService(db) }));
-    v1.use('/platform', platformRouter(db, tenants));
+    v1.use('/platform', platformRouter(db, tenants, new PlatformReportService(db)));
     v1.use(
       catalogRouter({
         db,
@@ -227,6 +229,7 @@ export function createApp({
   // Further feature modules are mounted here phase by phase.
   if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') mountApiDocs(app, v1);
   app.use('/api/v1', v1);
+  if (env.WEB_DIST_DIR) mountWeb(app, env.WEB_DIST_DIR);
   // Every registered route with its full path: the API documentation is generated from, and
   // tested against, this table so the two cannot drift apart.
   app.locals.routeTable = [

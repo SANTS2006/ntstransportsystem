@@ -19,9 +19,11 @@ function buildMailer(): Mailer {
       senderName: env.MAIL_FROM_NAME,
     });
   }
-  // loadEnv guarantees Brevo settings exist in production, so this is development only.
+  // loadEnv guarantees Brevo settings exist in production unless ALLOW_DEV_MAILER is set.
   logger.warn(
-    'BREVO_API_KEY/MAIL_FROM_EMAIL not set: emails are logged, not sent (development only)',
+    env.NODE_ENV === 'production'
+      ? 'ALLOW_DEV_MAILER is on: emails (with their links) are logged, NOT sent. Test deployments only.'
+      : 'BREVO_API_KEY/MAIL_FROM_EMAIL not set: emails are logged, not sent (development only)',
   );
   return new DevLogMailer(logger);
 }

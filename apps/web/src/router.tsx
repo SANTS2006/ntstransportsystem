@@ -89,6 +89,11 @@ const BoardingPage = lazy(() =>
 const MyTicketsPage = lazy(() =>
   import('./pages/passenger/TicketPages').then((m) => ({ default: m.MyTicketsPage })),
 );
+const PlatformOverviewPage = lazy(() =>
+  import('./pages/platform/PlatformOverviewPage').then((m) => ({
+    default: m.PlatformOverviewPage,
+  })),
+);
 const PlatformMaintenancePage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
 );
@@ -209,6 +214,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth>{s(<PlatformLayout />)}</RequireAuth>,
     children: [
       { index: true, element: s(<PlatformTenantsPage />) },
+      { path: 'overview', element: s(<PlatformOverviewPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
     ],
   },

@@ -1,0 +1,36 @@
+# Render Blueprint: one web service that serves the API and the web app from the same origin.
+# Step-by-step instructions: docs/RENDER.md
+#
+# `plan: free` is for trying the system out: it sleeps after 15 minutes without traffic (about a
+# minute to wake), and while it sleeps the background jobs (expiring unpaid bookings, sending
+# notifications) do not run. Use a paid plan for anything that must stay awake.
+services:
+  - type: web
+    name: nts-transport
+    runtime: node
+    # Ohio is next to the Neon default region (us-east-2); every request makes several database
+    # round trips, so keeping them close matters more than being close to the users.
+    region: ohio
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start -w @nts/api
+    healthCheckPath: /health/live
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      # The built web app, relative to apps/api (where `npm run start -w @nts/api` runs).
+      - key: WEB_DIST_DIR
+        value: ../web/dist
+      # APP_URL, API_URL and CORS_ORIGINS default to this service's own https URL on Render.
+      # Test deployment: log e-mails instead of sending them (look for the links in the Render
+      # logs). Remove this and set BREVO_API_KEY + MAIL_FROM_EMAIL to send real e-mail.
+      - key: ALLOW_DEV_MAILER
+        value: 'true'
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        sync: false # 32 random bytes, base64: see docs/RENDER.md. Keep it; do not change it later.
+      - key: DATABASE_URL
+        sync: false # the nts_app URL printed by `npm run db:provision`
+      - key: REDIS_URL
+        sync: false # rediss://default:<password>@<host>.upstash.io:6379

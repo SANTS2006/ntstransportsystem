@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { DEFAULT_TENANT_ROLES } from '@nts/shared';
 import type { TenantStatus } from '../../generated/prisma/enums.js';
 import { withDb, type Db, type Tx } from '../../platform/db.js';
@@ -25,14 +25,6 @@ export interface ProfileUpdate {
   defaultCurrency?: string | undefined;
   crewMinRestMinutes?: number | undefined;
 }
-
-const slugify = (name: string) =>
-  name
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || 'company';
 
 /** Legal lifecycle transitions. Anything not listed is rejected. */
 export const TENANT_TRANSITIONS = {

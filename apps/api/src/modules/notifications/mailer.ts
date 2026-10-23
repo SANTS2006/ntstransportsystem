@@ -34,7 +34,9 @@ export class DevLogMailer implements Mailer {
   constructor(private readonly logger: Logger) {}
   async send(msg: MailMessage) {
     // Passwords and codes are left out of the log even here.
-    const { password: _p, code: _c, ...safe } = msg.data;
+    const safe = { ...msg.data };
+    delete safe.password;
+    delete safe.code;
     this.logger.warn({ template: msg.template, to: msg.to, data: safe }, 'DEV mail (not sent)');
   }
 }

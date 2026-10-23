@@ -6,7 +6,7 @@
 # notifications) do not run. Use a paid plan for anything that must stay awake.
 services:
   - type: web
-    name: nts-transport
+    name: ntstransport
     runtime: node
     # Ohio is next to the Neon default region (us-east-2); every request makes several database
     # round trips, so keeping them close matters more than being close to the users.

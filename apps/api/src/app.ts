@@ -30,6 +30,8 @@ import { deriveSubkey } from './platform/crypto.js';
 import { LocalDiskStorage, R2Storage, type FileStorage } from './platform/storage.js';
 import { reportRouter } from './modules/report/report.routes.js';
 import { ReportService } from './modules/report/report.service.js';
+import { InboxService } from './modules/notifications/inbox.service.js';
+import { inboxRouter } from './modules/notifications/inbox.routes.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
 import { PassengerService } from './modules/passenger/passenger.service.js';
 import { PaymentService } from './modules/payment/payment.service.js';
@@ -171,6 +173,7 @@ export function createApp({
       }),
     );
     v1.use(bookingRouter({ db, bookings: new BookingService(db) }));
+    v1.use(inboxRouter({ inbox: new InboxService(db) }));
     if (box) {
       const payments = new PaymentService(
         db,

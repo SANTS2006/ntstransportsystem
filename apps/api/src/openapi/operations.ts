@@ -994,6 +994,31 @@ export const operations: Record<string, Operation> = {
     access: 'public',
     ok: 200,
   },
+  'GET /api/v1/me/notifications': {
+    summary: "List the caller's in-app notifications",
+    description: 'Newest first, at most 30, with the unread total. Add ?unread=1 for unread only.',
+    tag: 'Notifications',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/me/notifications/unread-count': {
+    summary: 'Number of unread in-app notifications',
+    tag: 'Notifications',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/me/notifications/read-all': {
+    summary: 'Mark all notifications as read',
+    tag: 'Notifications',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/me/notifications/{id}/read': {
+    summary: 'Mark one notification as read',
+    tag: 'Notifications',
+    access: 'session',
+    ok: 204,
+  },
   'POST /api/v1/passenger/bookings': {
     optional: true,
     summary: 'Book seats as a signed-in passenger',

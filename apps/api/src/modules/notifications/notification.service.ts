@@ -1,5 +1,6 @@
 import { withDb, type Db } from '../../platform/db.js';
 import type { ClaimedEvent, OutboxHandler } from '../../platform/outbox.js';
+import { inboxLink, inboxText } from './inbox-text.js';
 import type { Mailer } from './mailer.js';
 
 const money = (minor: number, currency: string) =>
@@ -64,6 +65,8 @@ export class NotificationService {
     data: Record<string, string>,
   ): Promise<void> {
     if (sent.has(recipientKey)) return;
+    // The in-app copy goes first: it is idempotent, so a retry after a failed send adds nothing.
+    await this.inbox(e, recipientKey, template, to, data);
     await this.mailer.send({ to, template, data });
     sent.add(recipientKey);
     await withDb(this.db, { tenantId: e.tenantId }, (tx) =>
@@ -72,6 +75,40 @@ export class NotificationService {
         skipDuplicates: true,
       }),
     );
+  }
+
+  /** Adds the notice to the recipient's in-app inbox when they have an account. */
+  private async inbox(
+    e: ClaimedEvent,
+    recipientKey: string,
+    template: Parameters<Mailer['send']>[0]['template'],
+    to: string,
+    data: Record<string, string>,
+  ): Promise<void> {
+    const text = inboxText(template, data);
+    if (!text) return;
+    await withDb(this.db, { platform: true }, async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { email: to.toLowerCase() },
+        select: { id: true },
+      });
+      if (!user) return;
+      await tx.inboxNotification.createMany({
+        data: [
+          {
+            tenantId: e.tenantId,
+            userId: user.id,
+            outboxEventId: e.id,
+            dedupeKey: recipientKey,
+            template,
+            title: text.title,
+            body: text.body,
+            link: inboxLink(data.link),
+          },
+        ],
+        skipDuplicates: true,
+      });
+    });
   }
 
   /** Booking contact plus the passenger account that made it (never a staff member who booked for them). */

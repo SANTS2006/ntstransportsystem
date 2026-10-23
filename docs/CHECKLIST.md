@@ -173,3 +173,11 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [x] Platform operator (MFA sign-in): maintenance mode on (banner, API 503 `MAINTENANCE` with `Retry-After`, public page message) and off again.
 - [x] Fixed after the check: "Open CV" only appears when a CV exists (`cv` on applicant and HR DTOs), finished trips no longer say "Ready to use", attachments show a loading state, singular "1 rating/complaint", outbox worker drains full batches (up to 8 per tick).
 - [ ] Not verified: how the PDFs look (layout was not inspected visually), camera-based QR scanning (typed token/code only), real R2, Monime and email delivery.
+
+## Phase 14: in-app notifications (2026-10-24)
+- [x] `inbox_notifications` (migration 1700): written by the same outbox handlers that send e-mail, for recipients who have an account (booking, trip, refund, complaint and application notices; never account e-mails). Idempotent per event and recipient, so a retry after a failed send adds nothing. RLS; `nts_app` can insert and mark `read_at` only (no delete, no other updates). Stored links are in-app paths only (CHECK constraint and a second check in the web).
+- [x] API: `GET /me/notifications` (30 newest, unread total, `?unread=1`), `GET /me/notifications/unread-count`, `POST /me/notifications/:id/read`, `POST /me/notifications/read-all`; always the caller's own rows; another user's id answers 404.
+- [x] Web: bell with unread badge in the dashboard sidebar (polls every 60 s), panel with mark-read and mark-all, follows in-app links only.
+- [x] Verified: API 89 unit tests (found and fixed a length-limit bug in the text clamp), web 34 tests (bell: count, mark read and navigate, refuses an off-site link, tolerates an odd response), typecheck, lint, build. Migration applied to the main database.
+- [ ] **Not verified:** the database test `notification.test.ts` > "puts the same notice in the passenger inbox..." is written but NOT run, and migration 1700 is NOT applied to the test branch: the test-branch logins (`TEST_OWNER_DATABASE_URL` and `TEST_DATABASE_URL`) started failing with "password authentication failed" on 2026-10-24. The bell has also not been checked in a browser.
+- [ ] Not built: e-mail/in-app preferences, SMS, push, paging beyond the newest 30, clean-up of old notices.

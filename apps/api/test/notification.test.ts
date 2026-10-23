@@ -1,3 +1,4 @@
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { renderMail } from '../src/modules/notifications/templates.js';
 import { NotificationService } from '../src/modules/notifications/notification.service.js';
@@ -377,4 +378,90 @@ describe.skipIf(!TEST_DB_URL)('notifications from the outbox (database)', () => 
     // The other company's mailer saw nothing from this company's events.
     expect(other.mailer.sent).toHaveLength(0);
   }, 400_000);
+
+  it('puts the same notice in the passenger inbox, once, visible only to them', async () => {
+    const k = await kit('nt-inbox');
+    const pax = await newClient(ctx.app, db, 'ntinbox');
+    const stranger = await newClient(ctx.app, db, 'ntinbox-other');
+    await plat((tx) =>
+      tx.paymentSettings.create({
+        data: {
+          tenantId: k.tenantId,
+          spaceId: 'spc-y',
+          apiTokenEnc: 'v1.a.b.c',
+          webhookSecretEnc: 'v1.a.b.c',
+        },
+      }),
+    );
+    const mine = (
+      await pax
+        .call('post', '/passenger/bookings')
+        .send({
+          tenantId: k.tenantId,
+          tripId: k.trip.id,
+          contact: { name: 'Pax', phone: '+23277000998' },
+          passengers: [{ fullName: 'Pax', seatLabel: '6' }],
+        })
+        .expect(201)
+    ).body as { id: string };
+    await bookings.markPaid(k.tenantId, mine.id);
+    await k.drain();
+    await k.drain(); // a second pass adds nothing
+
+    const inbox = (await pax.call('get', '/me/notifications').expect(200)).body as {
+      unread: number;
+      items: { id: string; title: string; body: string; link: string | null; read: boolean }[];
+    };
+    expect(inbox.unread).toBe(1);
+    expect(inbox.items).toHaveLength(1);
+    expect(inbox.items[0]).toMatchObject({
+      title: 'Booking confirmed',
+      link: `/app/bookings/${mine.id}`,
+      read: false,
+    });
+    expect(inbox.items[0]!.body).toContain('Seats 6');
+    expect((await pax.call('get', '/me/notifications/unread-count').expect(200)).body).toEqual({
+      unread: 1,
+    });
+
+    // Nobody else sees it, and nobody else can mark it read.
+    expect((await stranger.call('get', '/me/notifications').expect(200)).body).toMatchObject({
+      unread: 0,
+      items: [],
+    });
+    await stranger.call('post', `/me/notifications/${inbox.items[0]!.id}/read`).expect(404);
+    expect((await pax.call('get', '/me/notifications/unread-count').expect(200)).body).toEqual({
+      unread: 1,
+    });
+
+    await pax.call('post', `/me/notifications/${inbox.items[0]!.id}/read`).expect(204);
+    await pax.call('post', `/me/notifications/${inbox.items[0]!.id}/read`).expect(204); // repeatable
+    const after = (await pax.call('get', '/me/notifications?unread=1').expect(200)).body as {
+      unread: number;
+      items: unknown[];
+    };
+    expect(after).toEqual({ unread: 0, items: [] });
+    expect(
+      (
+        (await pax.call('post', '/me/notifications/read-all').expect(200)).body as {
+          marked: number;
+        }
+      ).marked,
+    ).toBe(0);
+    await pax.call('post', '/me/notifications/not-a-uuid/read').expect(400);
+
+    // Signed-out callers get nothing, and the database never lets a notice be edited or removed.
+    await request(ctx.app).get('/api/v1/me/notifications').expect(401);
+    await expect(
+      plat((tx) => tx.inboxNotification.deleteMany({ where: { id: inbox.items[0]!.id } })),
+    ).rejects.toThrow();
+    await expect(
+      plat((tx) =>
+        tx.inboxNotification.updateMany({
+          where: { id: inbox.items[0]!.id },
+          data: { title: 'x' },
+        }),
+      ),
+    ).rejects.toThrow();
+  }, 600_000);
 });

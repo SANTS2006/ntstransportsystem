@@ -6,6 +6,7 @@ import { Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { MaintenanceBanner } from './MaintenanceBanner';
+import { NotificationBell } from './NotificationBell';
 import { TopProgress } from './TopProgress';
 import type { ReactNode } from 'react';
 
@@ -175,7 +176,10 @@ export function DashboardShell({
         Skip to content
       </a>
       <aside className="border-b border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 lg:border-b-0 lg:border-r">
-        <Brand />
+        <div className="flex items-center justify-between gap-2">
+          <Brand />
+          <NotificationBell />
+        </div>
         {heading && (
           <p className="mt-4 truncate text-xs font-semibold uppercase tracking-wide text-slate-500">
             {heading}

@@ -76,6 +76,7 @@ model User {
   platformRoles PlatformRoleAssignment[]
   mfa           MfaCredential?
   recoveryCodes RecoveryCode[]
+  inbox         InboxNotification[]
 
   @@map("users")
 }
@@ -189,6 +190,7 @@ model Tenant {
   jobApplications        JobApplication[]
   applicationEvents      ApplicationEvent[]
   storedFiles            StoredFile[]
+  inbox                  InboxNotification[]
   paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
@@ -1208,4 +1210,29 @@ model StoredFile {
 
   @@index([tenantId, kind, ownerId])
   @@map("stored_files")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 14: in-app notifications. Written by the same outbox handlers that send e-mail, for
+// recipients who have an account. Rows are only ever marked read, never removed.
+
+model InboxNotification {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  outboxEventId String    @map("outbox_event_id") @db.Uuid
+  dedupeKey     String    @map("dedupe_key")
+  template      String
+  title         String
+  body          String
+  link          String? // a path inside the web app, never an absolute URL
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([outboxEventId, userId, dedupeKey])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("inbox_notifications")
 }

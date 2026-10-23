@@ -181,3 +181,9 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [x] Verified: API 89 unit tests (found and fixed a length-limit bug in the text clamp), web 34 tests (bell: count, mark read and navigate, refuses an off-site link, tolerates an odd response), typecheck, lint, build. Migration applied to the main database.
 - [ ] **Not verified:** the database test `notification.test.ts` > "puts the same notice in the passenger inbox..." is written but NOT run, and migration 1700 is NOT applied to the test branch: the test-branch logins (`TEST_OWNER_DATABASE_URL` and `TEST_DATABASE_URL`) started failing with "password authentication failed" on 2026-10-24. The bell has also not been checked in a browser.
 - [ ] Not built: e-mail/in-app preferences, SMS, push, paging beyond the newest 30, clean-up of old notices.
+
+## Deployment files and runbook (2026-10-24)
+- [x] `deploy/api.Dockerfile`, `deploy/web.Dockerfile`, `deploy/nginx.conf.template` (same-origin `/api/` proxy, SPA fallback, 6 MB body limit, security headers and a Content-Security-Policy), `.dockerignore`, and `docs/DEPLOYMENT.md` (shape, env pitfalls, first deployment, release and rollback, backups, operating signals).
+- [x] Checked: the web build renders and loads its self-hosted fonts under the CSP (served by a small static server sending the same header).
+- [ ] **Not verified:** the images have never been built or run (no Docker here), nginx itself has not loaded the config, the CSP has not been tried with Google sign-in or against a real deployment, and no restore drill has been done.
+- [ ] Not built: metrics/alerting, error tracking, log shipping, uptime checks, `MFA_ENCRYPTION_KEY` rotation, data-retention jobs, a deploy workflow in CI.

@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
-import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
+import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field, PasswordField } from '../../components/ui/Field';
@@ -168,10 +168,6 @@ export default function LoginPage() {
           Create an account
         </Link>
       </p>
-      <AuthNotice title="Secure. Reliable. Built for Transportation.">
-        Book trips, and access your company&apos;s operations, tickets, drivers and vehicles in one
-        place.
-      </AuthNotice>
     </AuthCard>
   );
 }

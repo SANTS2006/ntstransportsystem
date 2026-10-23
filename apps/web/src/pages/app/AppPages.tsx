@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router';
 import { ME_KEY, useAuth } from '../../auth/AuthProvider';
-import { GoogleButton, googleEnabled } from '../../components/GoogleButton';
+import { GoogleButton } from '../../components/GoogleButton';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card, StatusBadge } from '../../components/ui/Card';
@@ -13,6 +13,7 @@ import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { useFeatures } from '../../lib/features';
 import { mfaCodeSchema } from '../../lib/schemas';
 
 interface MyTenant {
@@ -117,6 +118,7 @@ export function SecurityPage() {
       await refresh();
     },
   });
+  const { googleClientId } = useFeatures();
   const googleLinked = user?.identities.some((i) => i.provider === 'GOOGLE');
 
   return (
@@ -129,7 +131,7 @@ export function SecurityPage() {
           <MfaEnroll onEnabled={() => void qc.invalidateQueries({ queryKey: ME_KEY })} />
         )}
       </Card>
-      {googleEnabled && (
+      {googleClientId && (
         <Card title="Google sign-in">
           {googleLinked ? (
             <p className="text-sm">Your Google account is linked.</p>

@@ -9,6 +9,7 @@ export type ErrorCode =
   | 'PAYMENT_PROVIDER_ERROR'
   | 'MAINTENANCE'
   | 'PHONE_NOT_VERIFIED'
+  | 'EMAIL_NOT_VERIFIED'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {

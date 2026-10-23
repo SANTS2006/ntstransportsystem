@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
-import { AuthCard, AuthNotice } from '../../components/layout/Layouts';
+import { AuthCard } from '../../components/layout/Layouts';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field, PasswordField } from '../../components/ui/Field';
@@ -26,6 +26,8 @@ export default function RegisterPage() {
   const { refresh } = useAuth();
   const { phoneSignup } = useFeatures();
   const [v, setV] = useState<Values>({ displayName: '', identifier: '', password: '' });
+  const [agreed, setAgreed] = useState(false);
+  const [agreeError, setAgreeError] = useState<string | undefined>();
   const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
 
   const register = useMutation({
@@ -74,7 +76,8 @@ export default function RegisterPage() {
     if (idError) next.identifier = idError;
     if (!pw.success) next.password = pw.error.issues[0]?.message ?? 'Choose a stronger password';
     setErrors(next);
-    if (Object.keys(next).length === 0 && !register.isPending) register.mutate(v);
+    if (!agreed) setAgreeError('You must agree to continue.');
+    if (Object.keys(next).length === 0 && agreed && !register.isPending) register.mutate(v);
   };
 
   return (
@@ -83,7 +86,16 @@ export default function RegisterPage() {
       subtitle="Book trips, or join the company that invited you."
     >
       {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
-      <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />
+      <GoogleButton
+        text="signup_with"
+        onCredential={(c) => {
+          if (!agreed) {
+            setAgreeError('Tick the box to agree before creating an account.');
+            return;
+          }
+          google.mutate(c);
+        }}
+      />
       <OrDivider />
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
@@ -114,6 +126,26 @@ export default function RegisterPage() {
           value={v.password}
           onChange={(e) => setV({ ...v, password: e.target.value })}
         />
+        <div>
+          <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={agreed}
+              aria-describedby={agreeError ? 'agree-err' : undefined}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                if (e.target.checked) setAgreeError(undefined);
+              }}
+              className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand-600"
+            />
+            <span>I have read and agree to the NTS Transport terms of use and privacy policy.</span>
+          </label>
+          {agreeError && (
+            <p id="agree-err" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">
+              {agreeError}
+            </p>
+          )}
+        </div>
         <Button
           type="submit"
           className="min-h-12 w-full text-base"
@@ -130,10 +162,6 @@ export default function RegisterPage() {
           Sign in
         </Link>
       </p>
-      <AuthNotice title="Joining a transport company?">
-        Companies are registered by the NTS team. Ask your company owner to invite your email, then
-        create your account with that same address.
-      </AuthNotice>
     </AuthCard>
   );
 }

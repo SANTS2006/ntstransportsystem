@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useFeatures } from '../lib/features';
 
 interface GoogleIdApi {
   initialize: (cfg: { client_id: string; callback: (r: { credential: string }) => void }) => void;
@@ -10,7 +11,6 @@ declare global {
   }
 }
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const SRC = 'https://accounts.google.com/gsi/client';
 let scriptPromise: Promise<void> | undefined;
 
@@ -32,7 +32,7 @@ function loadGsi(): Promise<void> {
 /**
  * Google Identity Services button. The browser only ever receives an ID token (`credential`) and
  * hands it to our backend, which verifies it. Nothing in the token is trusted client-side.
- * Renders nothing when VITE_GOOGLE_CLIENT_ID is not configured.
+ * The client ID comes from the server (GOOGLE_CLIENT_ID); without it a disabled button shows.
  */
 export function GoogleButton({
   onCredential,
@@ -41,6 +41,7 @@ export function GoogleButton({
   onCredential: (credential: string) => void;
   text?: 'signin_with' | 'signup_with' | 'continue_with';
 }) {
+  const CLIENT_ID = useFeatures().googleClientId;
   const host = useRef<HTMLDivElement>(null);
   const cb = useRef(onCredential);
   cb.current = onCredential;
@@ -66,7 +67,7 @@ export function GoogleButton({
     return () => {
       cancelled = true;
     };
-  }, [text]);
+  }, [text, CLIENT_ID]);
 
   if (!CLIENT_ID) {
     // Still shown, so people see the option; it cannot work until the server owner sets it up.
@@ -74,7 +75,7 @@ export function GoogleButton({
       <button
         type="button"
         disabled
-        title="Google sign-in has not been set up on this server yet"
+        title="Google sign-in has not been set up on this server yet (GOOGLE_CLIENT_ID)"
         className="flex min-h-12 w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-[15px] font-semibold text-slate-400 dark:border-slate-700 dark:bg-slate-900"
       >
         <GoogleMark />
@@ -116,5 +117,3 @@ function GoogleMark() {
     </svg>
   );
 }
-
-export const googleEnabled = Boolean(CLIENT_ID);

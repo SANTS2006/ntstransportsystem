@@ -218,23 +218,6 @@ export function AuthCard({
   );
 }
 
-/** The reassurance box at the foot of the card. */
-export function AuthNotice({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl bg-brand-50 p-4 dark:bg-slate-800">
-      <ShieldCheck
-        aria-hidden="true"
-        className="mt-0.5 size-6 shrink-0 text-brand-600"
-        strokeWidth={1.8}
-      />
-      <div>
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="text-xs text-slate-600 dark:text-slate-400">{children}</p>
-      </div>
-    </div>
-  );
-}
-
 /** Gate for signed-in areas. The server still authorizes every request; this only routes users. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading, error, refresh } = useAuth();

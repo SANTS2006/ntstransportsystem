@@ -187,7 +187,7 @@ export const operations: Record<string, Operation> = {
   'POST /api/v1/auth/login': {
     summary: 'Sign in with email or phone number and password',
     description:
-      'On success sets the HttpOnly `sid` session cookie and a readable `csrf` cookie. If the account has two-step verification the response is `{ mfaRequired: true, challengeToken }` and no session is created yet. Send either `email` or `phone`. A phone account that is not verified yet gets 403 `PHONE_NOT_VERIFIED`. Failures never reveal whether the account exists; repeated failures lock the account progressively.',
+      'On success sets the HttpOnly `sid` session cookie and a readable `csrf` cookie. If the account has two-step verification the response is `{ mfaRequired: true, challengeToken }` and no session is created yet. Send either `email` or `phone`. An account whose phone number or email is not confirmed yet gets 403 `PHONE_NOT_VERIFIED` or `EMAIL_NOT_VERIFIED`. Failures never reveal whether the account exists; repeated failures lock the account progressively.',
     tag: 'Auth',
     access: 'public',
     body: loginSchema,

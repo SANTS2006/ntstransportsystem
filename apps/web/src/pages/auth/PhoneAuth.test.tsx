@@ -83,9 +83,25 @@ describe('Sign up with a phone number', () => {
     await user.type(await screen.findByLabelText('Email address / Phone number'), '076 123 456');
     await user.type(screen.getByLabelText('Full name'), 'Fanta');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     expect(await screen.findByText(/cannot be used on this server yet/)).toBeTruthy();
     expect(calls.some((c) => c.url === '/auth/register-phone')).toBe(false);
+  });
+
+  it('does not create the account until the agreement box is ticked', async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ phoneSignup: false });
+    renderAt('/register');
+    await user.type(
+      await screen.findByLabelText('Email address / Phone number'),
+      'ada@example.com',
+    );
+    await user.type(screen.getByLabelText('Full name'), 'Ada Kamara');
+    await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText('You must agree to continue.')).toBeTruthy();
+    expect(calls.some((c) => c.url === '/auth/register')).toBe(false);
   });
 
   it('registers by email, then goes to the code page', async () => {
@@ -98,6 +114,7 @@ describe('Sign up with a phone number', () => {
     );
     await user.type(screen.getByLabelText('Full name'), 'Ada Kamara');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(where()).toContain('/verify-email-code'));
     expect(where()).toBe('/verify-email-code?email=ada%40example.com');
@@ -153,6 +170,7 @@ describe('Sign up with a phone number', () => {
     await user.type(screen.getByLabelText('Full name'), 'Fanta Jalloh');
     await user.type(screen.getByLabelText('Email address / Phone number'), '076 123 456');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(where()).toContain('/verify-phone'));
     expect(where()).toBe(`/verify-phone?phone=${encodeURIComponent('+23276123456')}`);
@@ -172,6 +190,7 @@ describe('Sign up with a phone number', () => {
     await user.type(screen.getByLabelText('Full name'), 'F');
     await user.type(screen.getByLabelText('Email address / Phone number'), '1234');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
+    await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     expect(await screen.findByText(/Enter a valid phone number/)).toBeTruthy();
     expect(calls.some((c) => c.url === '/auth/register-phone')).toBe(false);

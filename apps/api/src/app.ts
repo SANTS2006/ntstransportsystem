@@ -162,7 +162,11 @@ export function createApp({
       env.MFA_ENCRYPTION_KEY ? deriveSubkey(env.MFA_ENCRYPTION_KEY, 'otp-email') : randomBytes(32),
     );
     const auth = new AuthService(db, mailer, env.APP_URL, mfa, undefined, otp, emailCodes);
-    const features = { fileUploads: false, phoneSignup: otp !== undefined };
+    const features: {
+      fileUploads: boolean;
+      phoneSignup: boolean;
+      googleClientId: string | null;
+    } = { fileUploads: false, phoneSignup: otp !== undefined, googleClientId: null };
     v1.get('/features', (_req, res) => {
       res.setHeader('Cache-Control', 'no-store');
       res.json(features);
@@ -171,6 +175,8 @@ export function createApp({
       googleVerifier ??
       (env.GOOGLE_CLIENT_ID ? new GoogleIdTokenVerifier(env.GOOGLE_CLIENT_ID) : undefined);
     const google = verifier ? new GoogleAuthService(db, auth, verifier) : undefined;
+    // The client ID is public (it is in the page Google shows); the browser needs it to draw the button.
+    if (verifier && env.GOOGLE_CLIENT_ID) features.googleClientId = env.GOOGLE_CLIENT_ID;
     v1.use(sessionLoader(auth, env));
     // Maintenance switch: its own endpoints first, then the gate in front of everything else.
     const maintenance = new MaintenanceModeService(db, logger);

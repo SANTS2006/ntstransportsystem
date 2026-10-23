@@ -1,6 +1,9 @@
 # Render Blueprint: one web service that serves the API and the web app from the same origin.
 # Step-by-step instructions: docs/RENDER.md
 #
+# Variables marked `sync: false` are secrets: Render asks for them the first time the blueprint is
+# applied (or you add them under Environment). Nothing secret is written in this file.
+#
 # `plan: free` is for trying the system out: it sleeps after 15 minutes without traffic (about a
 # minute to wake), and while it sleeps the background jobs (expiring unpaid bookings, sending
 # notifications) do not run. Use a paid plan for anything that must stay awake.
@@ -12,7 +15,9 @@ services:
     # round trips, so keeping them close matters more than being close to the users.
     region: ohio
     plan: free
-    buildCommand: npm ci --include=dev && npm run build
+    # Builds the API and the web app, then applies any new database migrations (needs
+    # DIRECT_DATABASE_URL). If a migration fails, the build fails and the running version stays up.
+    buildCommand: npm ci --include=dev && npm run build && npm run prisma:deploy -w @nts/api
     startCommand: npm run start -w @nts/api
     healthCheckPath: /health/live
     envVars:
@@ -22,19 +27,56 @@ services:
       - key: WEB_DIST_DIR
         value: ../web/dist
       # APP_URL, API_URL and CORS_ORIGINS default to this service's own https URL on Render.
-      # Test deployment: log e-mails instead of sending them (look for the links in the Render
-      # logs). Remove this and set BREVO_API_KEY + MAIL_FROM_EMAIL to send real e-mail.
-      - key: ALLOW_DEV_MAILER
-        value: 'true'
-      # Same idea for sign-up by phone number: the 6-digit codes appear in the Render logs. Remove this
-      # and set the TWILIO_* variables to send real text messages.
-      - key: ALLOW_DEV_SMS
-        value: 'true'
+      # Company sign-in links in e-mails (https://<APP_URL>/<company>/login) are built from APP_URL.
+
+      # ---- Core (required in production) ----------------------------------------------------
       - key: SESSION_SECRET
         generateValue: true
       - key: MFA_ENCRYPTION_KEY
         sync: false # 32 random bytes, base64: see docs/RENDER.md. Keep it; do not change it later.
+      # The app connects as the restricted `nts_app` role (it cannot bypass row-level security).
       - key: DATABASE_URL
         sync: false # the nts_app URL printed by `npm run db:provision`
+      # The owner URL, used only by `prisma migrate deploy` in the build command above.
+      - key: DIRECT_DATABASE_URL
+        sync: false # Neon DIRECT (not pooled) connection string of the owner role
       - key: REDIS_URL
         sync: false # rediss://default:<password>@<host>.upstash.io:6379
+
+      # ---- E-mail (Brevo): account codes, company administrator details, notifications -------
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false # a sender address verified in Brevo
+      - key: MAIL_FROM_NAME
+        value: NTS Transport
+
+      # ---- Google sign-in ------------------------------------------------------------------
+      # The web client ID only. The page gets it from the server, so no build-time variable is
+      # needed. Add this service's URL under "Authorized JavaScript origins" in the Google console.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      # ---- File uploads (Cloudinary): CVs, complaint photos, videos, voice messages --------
+      # One variable: cloudinary://<api_key>:<api_secret>@<cloud_name> (Cloudinary dashboard,
+      # API Keys). It carries the cloud name, API key and API secret together.
+      - key: CLOUDINARY_URL
+        sync: false
+
+      # ---- Text messages (sign-up by phone number) -----------------------------------------
+      # Test deployment: the 6-digit codes appear in the Render logs ("DEV SMS"). For real texts,
+      # delete ALLOW_DEV_SMS and add the TWILIO_* variables listed below.
+      - key: ALLOW_DEV_SMS
+        value: 'true'
+      # - key: TWILIO_ACCOUNT_SID
+      #   sync: false
+      # - key: TWILIO_AUTH_TOKEN
+      #   sync: false
+      # - key: TWILIO_FROM            # or TWILIO_MESSAGING_SERVICE_SID: one sender is required
+      #   sync: false
+      # (Left commented out: an empty value would stop the app from starting. Add them under
+      # Environment on Render when you have a Twilio account.)
+
+      # Monime (online payments): each company enters its own Monime space id, token and webhook
+      # secret under Payments in the app, so nothing is needed here. MONIME_API_BASE only changes
+      # where the app calls (a mock or proxy); leave it unset.

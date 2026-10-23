@@ -116,9 +116,9 @@ Sign-in cookies are same-origin because the API also serves the web app.
 - **Paying with Orange Money, AfriMoney or QMoney:** passengers choose their wallet after booking. Orange Money and AfriMoney go through Monime, and are only offered if Monime lists them for the company (the app never guesses Monime's provider ids). Monime's checkout does not take QMoney, so a company can publish its own QMoney number under **Payments**: the passenger sends the money, types the transaction number, and staff press **Take payment** after checking their QMoney statement. None of this has run against a real Monime or QMoney account.
 - **Payments:** staff can take payment at the desk (**Bookings**, then **Take payment**: cash, mobile money shown at the counter, or bank transfer), which confirms the booking and issues the tickets, so you can test the whole flow without Monime. Online payment by passengers needs a Monime account: a **test** one (token starts `mon_test_`) whose space id, token and webhook secret the company owner enters under **Payments**, with the webhook URL shown there registered in Monime. That online flow has only been tested against a mock, never against real Monime.
 - **No uploads** (CVs, complaint photos, videos and voice messages) until you set `CLOUDINARY_URL`. Create a free Cloudinary account, copy the API environment variable (it looks like `cloudinary://<key>:<secret>@<cloud>`) from Settings, API Keys, and add it to the service's environment on Render. Check in Cloudinary's security settings that delivery of PDF files is allowed, or PDFs may not open. This has not been run against a real Cloudinary account yet.
-- **No Google sign-in** until `GOOGLE_CLIENT_ID` is set on the service and
-  `VITE_GOOGLE_CLIENT_ID` is available at build time (add both as environment variables, then
-  redeploy), and your Render URL is an allowed origin in the Google console.
+- **No Google sign-in** until `GOOGLE_CLIENT_ID` is set on the service (the page reads it from the
+  server, so no build-time variable is needed) and your Render URL is an allowed JavaScript origin in
+  the Google console.
 - **Free plan sleeps** after 15 minutes without visitors; the first request afterwards takes about
   a minute. While asleep, nothing expires unpaid bookings and no notifications are processed;
   they catch up when it wakes. Use a paid plan to keep it running.
@@ -126,9 +126,11 @@ Sign-in cookies are same-origin because the API also serves the web app.
   (`trust proxy` = 1) has not been checked against Render's proxy chain; with it wrong, visitors
   could share one limit. Fine for a test; verify before real use.
 - **Sign-up by phone number works with the codes in the logs.** Choose "Phone number" on Create account, then open the Render logs and search for `DEV SMS`: the line contains the 6-digit code. For real text messages, delete `ALLOW_DEV_SMS` and set the `TWILIO_*` variables (see `ENVIRONMENT.md`); this has not been run against Twilio yet.
-- **E-mail links are in the logs.** Anyone who can read your Render logs can use verification and
-  reset links. Use throwaway accounts. For real mail, delete `ALLOW_DEV_MAILER`, add
-  `BREVO_API_KEY` and `MAIL_FROM_EMAIL`, and redeploy.
+- **E-mail** is sent through Brevo: set `BREVO_API_KEY` and `MAIL_FROM_EMAIL` (a sender verified in
+  Brevo). Without them, add `ALLOW_DEV_MAILER=true` to log e-mails instead (anyone who can read the
+  logs can then use the links and codes, so use throwaway accounts).
+- **Migrations** run during each build (`prisma migrate deploy`), so `DIRECT_DATABASE_URL` (the Neon
+  owner URL, direct not pooled) must be set. The app itself runs as the restricted `nts_app` role.
 
 ## Changing things later
 

@@ -54,6 +54,7 @@ interface AppDetail extends AppRow {
   licenceNumber: string | null;
   allowedNext: string[];
   employeeId: string | null;
+  cv: string | null;
   events: { id: string; from: string | null; to: string | null; note: string | null; at: string }[];
 }
 
@@ -353,7 +354,11 @@ export function RecruitmentPage() {
                 </p>
                 <p className="mt-3 whitespace-pre-wrap text-sm">{d.experience}</p>
                 <div className="mt-3">
-                  <CvControl linkPath={`${base}/applications/${d.id}/cv`} canUpload={false} />
+                  <CvControl
+                    linkPath={`${base}/applications/${d.id}/cv`}
+                    canUpload={false}
+                    current={d.cv}
+                  />
                 </div>
                 <p className="mt-3 text-sm font-medium">
                   Status: {STATUS_LABEL[d.status] ?? d.status}

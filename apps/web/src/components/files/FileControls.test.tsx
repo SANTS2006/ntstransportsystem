@@ -24,14 +24,12 @@ describe('api() file upload', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('sends the file itself with its type and an encoded name, not JSON', async () => {
-    const spy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ id: '1' }), {
-          status: 201,
-          headers: { 'content-type': 'application/json' },
-        }),
-      );
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ id: '1' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
     const f = file(10, 'application/pdf', 'Mon CV (é).pdf');
     await api('/applicant/applications/1/cv', { method: 'POST', file: f });
     const [, init] = spy.mock.calls[0] as unknown as [string, RequestInit];

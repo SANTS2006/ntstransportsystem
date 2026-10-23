@@ -22,6 +22,7 @@ interface BookingSummary {
   origin: { city: string };
   destination: { city: string };
   departureAt: string;
+  tripStatus: string;
 }
 
 /** Renders the signed token as an SVG QR code in the browser; the token never leaves the page. */
@@ -123,9 +124,11 @@ export function MyTicketsPage() {
                   <p className="text-sm">
                     {t.status === 'BOARDED'
                       ? 'Boarded'
-                      : t.status === 'VOID'
+                      : t.status === 'VOID' || b.tripStatus === 'CANCELLED'
                         ? 'Cancelled'
-                        : 'Ready to use'}
+                        : b.tripStatus === 'COMPLETED'
+                          ? 'Trip finished: not used'
+                          : 'Ready to use'}
                   </p>
                 </div>
               </li>

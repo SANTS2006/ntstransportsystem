@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { Alert, ErrorAlert } from '../ui/Alert';
 import { Button } from '../ui/Button';
+import { Spinner } from '../ui/Spinner';
 import { useToast } from '../ui/Toast';
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -97,10 +98,13 @@ export function CvControl({
   uploadPath,
   linkPath,
   canUpload,
+  current,
 }: {
   uploadPath?: string;
   linkPath: string;
   canUpload: boolean;
+  /** File name of the CV already on file, if any. */
+  current: string | null;
 }) {
   const toast = useToast();
   const [problem, setProblem] = useState<string | null>(null);
@@ -125,12 +129,16 @@ export function CvControl({
     },
     onError: (e) => setProblem(e instanceof Error ? e.message : 'Upload failed'),
   });
+  const hasCv = uploaded !== null || current !== null;
   if (!enabled) return null;
+  if (!hasCv && !(canUpload && uploadPath)) {
+    return <span className="text-xs text-slate-500">No CV attached</span>;
+  }
   return (
     <div className="flex flex-wrap items-center gap-3">
       {canUpload && uploadPath && (
         <Picker
-          label={uploaded ? 'Replace CV' : 'Upload CV'}
+          label={hasCv ? 'Replace CV' : 'Upload CV'}
           busy={upload.isPending}
           error={problem}
           onPick={(f) => {
@@ -140,10 +148,16 @@ export function CvControl({
           }}
         />
       )}
-      <Button variant="ghost" loading={open.isPending} onClick={() => open.mutate()}>
-        Open CV
-      </Button>
-      {uploaded && <span className="text-xs text-slate-500">Saved: {uploaded}</span>}
+      {hasCv && (
+        <Button variant="ghost" loading={open.isPending} onClick={() => open.mutate()}>
+          Open CV
+        </Button>
+      )}
+      {(uploaded ?? current) && (
+        <span className="text-xs text-slate-500">
+          {uploaded ? 'Saved' : 'On file'}: {uploaded ?? current}
+        </span>
+      )}
     </div>
   );
 }
@@ -195,6 +209,7 @@ export function Attachments({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">Attachments</p>
+      {list.isPending && <Spinner label="Loading attachments" />}
       {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
       {files.length === 0 && !list.isPending && <p className="text-xs text-slate-500">None.</p>}
       <ul className="space-y-1 text-sm">

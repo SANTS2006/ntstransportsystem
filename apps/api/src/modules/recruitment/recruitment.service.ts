@@ -226,6 +226,12 @@ export class RecruitmentService {
     const user = await withDb(this.db, { platform: true }, (tx) =>
       tx.user.findUnique({ where: { id: app.userId }, select: { email: true } }),
     );
+    const cv = await withDb(this.db, ctxOf(s), (tx) =>
+      tx.storedFile.findFirst({
+        where: { tenantId: s.tenantId, kind: 'APPLICATION_CV', ownerId: id, deletedAt: null },
+        select: { displayName: true },
+      }),
+    );
     const a = { app, email: user?.email ?? null };
     return {
       id: a.app.id,
@@ -239,6 +245,7 @@ export class RecruitmentService {
       licenceNumber: a.app.licenceNumber,
       status: a.app.status,
       employeeId: a.app.employeeId,
+      cv: cv?.displayName ?? null,
       createdAt: a.app.createdAt.toISOString(),
       allowedNext: APPLICATION_TRANSITIONS[a.app.status as ApplicationStatus],
       events: a.app.events.map((e) => ({
@@ -479,15 +486,28 @@ export class RecruitmentService {
   }
 
   async listOwn(userId: string) {
-    const rows = await withDb(this.db, { platform: true }, (tx) =>
-      tx.jobApplication.findMany({
+    const { rows, cvs } = await withDb(this.db, { platform: true }, async (tx) => {
+      const rows = await tx.jobApplication.findMany({
         where: { userId },
         include: { job: { select: { title: true } }, tenant: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
         take: 50,
-      }),
-    );
+      });
+      const cvs = rows.length
+        ? await tx.storedFile.findMany({
+            where: {
+              kind: 'APPLICATION_CV',
+              ownerId: { in: rows.map((r) => r.id) },
+              deletedAt: null,
+            },
+            select: { ownerId: true, displayName: true },
+          })
+        : [];
+      return { rows, cvs };
+    });
+    const cvName = new Map(cvs.map((c) => [c.ownerId, c.displayName]));
     return rows.map((a) => ({
+      cv: cvName.get(a.id) ?? null,
       id: a.id,
       company: a.tenant.name,
       jobTitle: a.job.title,

@@ -235,6 +235,7 @@ interface MyApplication {
   status: string;
   createdAt: string;
   canWithdraw: boolean;
+  cv: string | null;
 }
 
 export function MyApplicationsPage() {
@@ -295,6 +296,7 @@ export function MyApplicationsPage() {
                   uploadPath={`/applicant/applications/${a.id}/cv`}
                   linkPath={`/applicant/applications/${a.id}/cv`}
                   canUpload={a.canWithdraw}
+                  current={a.cv}
                 />
               )}
               {a.canWithdraw && (

@@ -44,6 +44,7 @@ if (!demoKey) {
 process.env.DATABASE_URL = testUrl;
 process.env.MONIME_API_BASE = 'http://localhost:4010/v1';
 process.env.PORT = '4000';
+process.env.STORAGE_DEV_DIR = process.env.STORAGE_DEV_DIR ?? '.dev-storage';
 
 const { hashPassword } = await import('../src/platform/crypto.js');
 const { createDb, withDb } = await import('../src/platform/db.js');
@@ -147,6 +148,121 @@ if (!existing) {
   ) as { webhookSecret: string };
   webhookSecret = saved.webhookSecret;
   console.log('Demo company already seeded; reusing it (see .dev-payments.json).');
+}
+
+// ---- Extras for browsing the newer pages (idempotent) ----------------------------------------
+{
+  const OTPAuth = await import('otpauth');
+  const { issueTicketsInTx } = await import('../src/modules/ticket/ticket-core.js');
+  const saved = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, '../../../.dev-payments.json'), 'utf8'),
+  ) as Record<string, unknown>;
+
+  // A platform operator with MFA, to switch maintenance mode from the admin pages.
+  if (!saved.ops) {
+    const pw = password();
+    const secret = new OTPAuth.Secret({ size: 20 }).base32;
+    const ops = await db.user.create({
+      data: {
+        email: 'demo-ops@example.test',
+        displayName: 'Demo Operator',
+        emailVerifiedAt: new Date(),
+        passwordHash: await hashPassword(pw),
+        mfaEnabled: true,
+      },
+    });
+    await db.mfaCredential.create({
+      data: { userId: ops.id, secretEnc: box.encrypt(secret), confirmedAt: new Date() },
+    });
+    await withDb(db, { platform: true }, (tx) =>
+      tx.platformRoleAssignment.create({ data: { userId: ops.id, role: 'OPERATIONS' } }),
+    );
+    saved.ops = { email: 'demo-ops@example.test', password: pw, totpSecret: secret };
+    writeFileSync(
+      resolve(import.meta.dirname, '../../../.dev-payments.json'),
+      JSON.stringify(saved, null, 2),
+    );
+    console.log('Created a platform operator (see .dev-payments.json).');
+  }
+
+  await withDb(db, { platform: true }, async (tx) => {
+    const pax = await tx.user.findUniqueOrThrow({
+      where: { email: 'demo-passenger@example.test' },
+    });
+    const route = await tx.route.findFirstOrThrow({ where: { tenantId, name: 'Freetown - Bo' } });
+    let bus2 = await tx.vehicle.findFirst({ where: { tenantId, registration: 'SLE-1002' } });
+    bus2 ??= await tx.vehicle.create({
+      data: { tenantId, registration: 'SLE-1002', seatingCapacity: 12, type: 'BUS' },
+    });
+    const now = Date.now();
+    // A trip leaving in about 90 minutes: boarding is open (it opens 3 hours before departure).
+    const soon = await tx.trip.findFirst({
+      where: {
+        tenantId,
+        vehicleId: bus2.id,
+        departureAt: { gt: new Date(now), lt: new Date(now + 6 * 3_600_000) },
+      },
+    });
+    if (!soon) {
+      const dep = new Date(now + 90 * 60_000);
+      await tx.trip.create({
+        data: {
+          tenantId,
+          routeId: route.id,
+          serviceDate: new Date(dep.toISOString().slice(0, 10)),
+          departureAt: dep,
+          arrivalAt: new Date(dep.getTime() + 4 * 3_600_000),
+          vehicleId: bus2.id,
+        },
+      });
+    }
+    // A finished trip with a paid booking by the demo passenger, for ratings and complaints.
+    const done = await tx.booking.findFirst({ where: { tenantId, reference: 'DEMODONE01' } });
+    if (!done) {
+      const dep = new Date(now - 2 * 86_400_000);
+      const trip = await tx.trip.create({
+        data: {
+          tenantId,
+          routeId: route.id,
+          serviceDate: new Date(dep.toISOString().slice(0, 10)),
+          departureAt: dep,
+          arrivalAt: new Date(dep.getTime() + 4 * 3_600_000),
+          vehicleId: bus2.id,
+          status: 'COMPLETED',
+        },
+      });
+      const b = await tx.booking.create({
+        data: {
+          tenantId,
+          tripId: trip.id,
+          reference: 'DEMODONE01',
+          status: 'CONFIRMED',
+          contactName: 'Demo Passenger',
+          contactPhone: '+23276000111',
+          totalMinor: 150_000,
+          currency: 'SLE',
+          createdByUserId: pax.id,
+        },
+      });
+      await tx.bookingPassenger.createMany({
+        data: [
+          {
+            tenantId,
+            bookingId: b.id,
+            tripId: trip.id,
+            seatLabel: '3',
+            fullName: 'Demo Passenger',
+            fareMinor: 150_000,
+          },
+        ],
+      });
+      await tx.bookingStatusHistory.createMany({
+        data: [{ tenantId, bookingId: b.id, fromStatus: null, toStatus: 'CONFIRMED' }],
+      });
+      await issueTicketsInTx(tx, tenantId, b.id);
+      console.log('Seeded a completed trip with a paid booking (DEMODONE01).');
+    }
+  });
 }
 
 // ---- Mock Monime ----------------------------------------------------------------------------

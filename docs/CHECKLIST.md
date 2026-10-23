@@ -165,3 +165,11 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [x] `stored_files` (migration 0016): size/type/hash CHECKs, RLS, no DELETE privilege (rows are retired with deleted_at).
 - [x] Verified: 17 storage/file-type unit tests (including offline R2 presigning), 83 API unit tests, web 29 tests + build; DB tests 4/4 (uploads available flag, CV rules/links/replace/outage, attachment cap and access, database guards).
 - [ ] Not done: Cloudinary (no feature needs public images yet), malware scanning of uploads, orphan clean-up for objects whose delete failed, a real R2 bucket run (presigning tested offline only), browser check of the upload controls.
+
+## Browser check of the newer pages (2026-10-24)
+Run against the real API on the test branch (restricted `nts_app` role) with a mock Monime (`apps/api/scripts/dev-demo.ts`, development only).
+- [x] Passenger: search, seat pick, sign-in with `?next=`, hold, hosted-checkout redirect, signed webhook, booking Confirmed; tickets page renders QR codes; ticket PDFs and receipt return `application/pdf` with `no-store`; rating (4 stars) shows on the staff ratings card; complaint with PNG attachment (signed link works, tampered link is 404); job application with PDF CV.
+- [x] Staff: payment settings, bookings, complaints (attachment visible, reply sent), reports (figures consistent with bookings), recruitment (create and publish a job, HR sees applicant and CV, Shortlist), boarding (QR scan admits the passenger, manifest 1 of 1, re-scan by typed code says already used).
+- [x] Platform operator (MFA sign-in): maintenance mode on (banner, API 503 `MAINTENANCE` with `Retry-After`, public page message) and off again.
+- [x] Fixed after the check: "Open CV" only appears when a CV exists (`cv` on applicant and HR DTOs), finished trips no longer say "Ready to use", attachments show a loading state, singular "1 rating/complaint", outbox worker drains full batches (up to 8 per tick).
+- [ ] Not verified: how the PDFs look (layout was not inspected visually), camera-based QR scanning (typed token/code only), real R2, Monime and email delivery.

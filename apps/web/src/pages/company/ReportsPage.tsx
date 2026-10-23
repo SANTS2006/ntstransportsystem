@@ -115,7 +115,7 @@ export function ReportsPage() {
           <Tile
             label="Rating"
             value={s.averageRating === null ? '—' : `${s.averageRating} / 5`}
-            note={`${s.ratings} ratings, ${s.complaints} complaints`}
+            note={`${s.ratings} rating${s.ratings === 1 ? '' : 's'}, ${s.complaints} complaint${s.complaints === 1 ? '' : 's'}`}
           />
           <Tile
             label="Needs attention"

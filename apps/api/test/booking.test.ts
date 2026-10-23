@@ -572,26 +572,26 @@ describe.skipIf(!TEST_DB_URL)('fares, bookings and seat inventory (database)', (
     const near = await book(
       a.owner,
       a.tenantId,
-      body(fx.trip.id, ['1A', '1B'], { boardingLocationId: o, alightingLocationId: m }),
+      body(fx.trip.id, ['1', '2'], { boardingLocationId: o, alightingLocationId: m }),
     ).expect(201);
     expect(near.body.totalMinor).toBe(40_000);
     expect(near.body.boardingLocationId).toBe(o);
     // No stops named: the route fare, as before.
-    const whole = await book(a.owner, a.tenantId, body(fx.trip.id, ['2A'])).expect(201);
+    const whole = await book(a.owner, a.tenantId, body(fx.trip.id, ['3'])).expect(201);
     expect(whole.body.totalMinor).toBe(50_000);
     // A pair with no price, one stop only, and a wrong order are all refused.
     await book(
       a.owner,
       a.tenantId,
-      body(fx.trip.id, ['3A'], { boardingLocationId: o, alightingLocationId: d }),
+      body(fx.trip.id, ['4'], { boardingLocationId: o, alightingLocationId: d }),
     ).expect(409);
-    await book(a.owner, a.tenantId, body(fx.trip.id, ['3A'], { boardingLocationId: o })).expect(
+    await book(a.owner, a.tenantId, body(fx.trip.id, ['4'], { boardingLocationId: o })).expect(
       400,
     );
     await book(
       a.owner,
       a.tenantId,
-      body(fx.trip.id, ['3A'], { boardingLocationId: d, alightingLocationId: o }),
+      body(fx.trip.id, ['4'], { boardingLocationId: d, alightingLocationId: o }),
     ).expect(400);
   });
 });

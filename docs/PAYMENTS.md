@@ -4,16 +4,16 @@ Checked against the public Monime documentation on 2026-10-21. **Nothing here ha
 
 ## What was verified, and where from
 
-| Fact | Source |
-| --- | --- |
-| Base URL `https://api.monime.io/v1`; `POST /checkout-sessions`, `GET /checkout-sessions/{id}` | docs.monime.io API reference (caph-2025-08-23) |
-| Headers: `Authorization: Bearer`, `Monime-Space-Id` (`spc-…`), `Monime-Version: caph.2025-08-23`, `Idempotency-Key` (required on create; 25-64 chars; replay returns the original result for 24 h; same key + different body = 409 `idempotency_key_in_use`) | API reference + idempotency page |
-| Amounts: integer minor units, currency `SLE` only; 1 SLE = 100 | create-checkout-session reference |
-| Session `status`: `pending`, `completed`, `cancelled`, `expired`; response carries `redirectUrl`, `expireTime`, `reference`, `metadata` | API reference |
-| Test tokens start `mon_test_`, live tokens `mon_` | API basics |
-| Webhook payload `{apiVersion, event{id,name,timestamp}, object{id,type}, data{...}}`; `event.id` is stable across retries | webhook structure page |
-| **Signature**: header `Monime-Signature: t=<unix>,v1=<base64>`; `v1 = base64(HMAC-SHA256(secret, "<t>_<raw body>"))`; reject if `|now - t| > 300 s`; HS256 webhook `secret` is 32-256 chars | **Monime's own WordPress plugin source** (`Wp-Monime/src/Monime/core/webhook.php`) and the create-webhook reference |
-| Events used: `checkout_session.completed`, `checkout_session.expired` (the official plugin handles both) | plugin source |
+| Fact                                                                                                                                                                                                                                                         | Source                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| Base URL `https://api.monime.io/v1`; `POST /checkout-sessions`, `GET /checkout-sessions/{id}`                                                                                                                                                                | docs.monime.io API reference (caph-2025-08-23) |
+| Headers: `Authorization: Bearer`, `Monime-Space-Id` (`spc-…`), `Monime-Version: caph.2025-08-23`, `Idempotency-Key` (required on create; 25-64 chars; replay returns the original result for 24 h; same key + different body = 409 `idempotency_key_in_use`) | API reference + idempotency page               |
+| Amounts: integer minor units, currency `SLE` only; 1 SLE = 100                                                                                                                                                                                               | create-checkout-session reference              |
+| Session `status`: `pending`, `completed`, `cancelled`, `expired`; response carries `redirectUrl`, `expireTime`, `reference`, `metadata`                                                                                                                      | API reference                                  |
+| Test tokens start `mon_test_`, live tokens `mon_`                                                                                                                                                                                                            | API basics                                     |
+| Webhook payload `{apiVersion, event{id,name,timestamp}, object{id,type}, data{...}}`; `event.id` is stable across retries                                                                                                                                    | webhook structure page                         |
+| **Signature**: header `Monime-Signature: t=<unix>,v1=<base64>`; `v1 = base64(HMAC-SHA256(secret, "<t>_<raw body>"))`; reject if `                                                                                                                            | now - t                                        | > 300 s`; HS256 webhook `secret` is 32-256 chars | **Monime's own WordPress plugin source** (`Wp-Monime/src/Monime/core/webhook.php`) and the create-webhook reference |
+| Events used: `checkout_session.completed`, `checkout_session.expired` (the official plugin handles both)                                                                                                                                                     | plugin source                                  |
 
 ## Gaps and risks (be aware)
 

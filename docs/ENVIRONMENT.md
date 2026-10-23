@@ -44,12 +44,12 @@ Initial route JS <= 200 kB gzip. Measured 2026-10-20: entry chunk 81 kB gz, shar
 
 ## Test database and payments
 
-| Variable | Purpose |
-| --- | --- |
-| `TEST_DATABASE_URL` | Restricted `nts_app` role on a separate Neon branch, used by the DB test suites. Never the owner role. |
-| `TEST_OWNER_DATABASE_URL` | Owner role on the same branch, used only to apply migrations to it (`prisma migrate deploy` with `DIRECT_DATABASE_URL` set to this value). Add `connect_timeout=120`; omit `channel_binding`. |
-| `MFA_ENCRYPTION_KEY` | 32-byte base64 key. Also encrypts each company's Monime credentials; without it payment routes are not mounted. |
-| `MONIME_API_BASE` | Defaults to `https://api.monime.io/v1`. Override only for a mock. |
-| `DB_TX_TIMEOUT_MS` | Transaction timeout in ms (1000-120000, default 15000). Raise on a slow or distant database link. The test helpers set 60000. |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 for uploaded documents (CVs, complaint attachments). All four or none; uploads are off without them. |
-| `STORAGE_DEV_DIR` | Development only: keep uploads in this directory instead of R2 (refused in production). Needs `MFA_ENCRYPTION_KEY`. |
+| Variable                                                                 | Purpose                                                                                                                                                                                       |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEST_DATABASE_URL`                                                      | Restricted `nts_app` role on a separate Neon branch, used by the DB test suites. Never the owner role.                                                                                        |
+| `TEST_OWNER_DATABASE_URL`                                                | Owner role on the same branch, used only to apply migrations to it (`prisma migrate deploy` with `DIRECT_DATABASE_URL` set to this value). Add `connect_timeout=120`; omit `channel_binding`. |
+| `MFA_ENCRYPTION_KEY`                                                     | 32-byte base64 key. Also encrypts each company's Monime credentials; without it payment routes are not mounted.                                                                               |
+| `MONIME_API_BASE`                                                        | Defaults to `https://api.monime.io/v1`. Override only for a mock.                                                                                                                             |
+| `DB_TX_TIMEOUT_MS`                                                       | Transaction timeout in ms (1000-120000, default 15000). Raise on a slow or distant database link. The test helpers set 60000.                                                                 |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 for uploaded documents (CVs, complaint attachments). All four or none; uploads are off without them.                                                                            |
+| `STORAGE_DEV_DIR`                                                        | Development only: keep uploads in this directory instead of R2 (refused in production). Needs `MFA_ENCRYPTION_KEY`.                                                                           |

@@ -91,6 +91,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [ ] Still unbuilt overall: bookings/seat inventory (Phase 5), Monime payments, tickets/QR/PDF, recruitment, complaints, boarding validation, reports, maintenance mode, backups/R2, Cloudinary, notifications queue (outbox/BullMQ), real Brevo/Redis/Google verification.
 
 ## Phase 4 slice C: dispatch, calendar, layouts, outbox (2026-10-20)
+
 - [x] Service calendar: company-wide or per-route blackouts; trip generation skips them and reports the skipped dates; adding a blackout reports open trips affected and cancels nothing.
 - [x] Seat layouts (rows x columns grid, accessible seats); a vehicle linked to a layout must have exactly that many seats (also enforced when capacity changes).
 - [x] Route/vehicle compatibility (allowed types, minimum seats) enforced for schedule default vehicle, trip assignment, generation (incompatible default left unassigned) and replacement.
@@ -101,6 +102,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [x] Verified: api typecheck/lint, 52 unit tests, web 26 tests + build. DB suite test/dispatch.test.ts: 13 tests pass, but only when run in groups (a single full run hit 503 transaction timeouts from the slow Neon link; the blackout test needs a 400 s timeout). **Browser check of the new pages not yet done.**
 
 ## Phase 5A: fares, bookings, seat inventory (staff side) (2026-10-21)
+
 - [x] Fares per route and service class (integer minor units, currency check); bookings snapshot the price they were sold at.
 - [x] Atomic seat inventory: seats are claimed by inserting rows that race on a partial unique index (trip, seat) over live rows; the loser gets 409. Tested with 6 parallel buyers for one seat (exactly one wins) and overlapping multi-seat requests.
 - [x] Booking lifecycle PENDING_PAYMENT -> CONFIRMED / CANCELLED / EXPIRED, append-only status history, 15-minute hold, lazy expiry on contention plus a 60 s background sweep (server.ts).
@@ -114,6 +116,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - Test setup note: the test branch needs TEST_OWNER_DATABASE_URL (owner role, same endpoint as TEST_DATABASE_URL, no channel_binding, connect_timeout=120) to apply migrations.
 
 ## Phase 6 (payments, Monime) and Phase 5B (passenger booking) (2026-10-21)
+
 - [x] Monime contract researched from the official docs and the vendor's own WordPress plugin; verified facts, gaps and risks are in docs/PAYMENTS.md. **No call has been made to a real or test Monime account.**
 - [x] Per-company credentials (token, space id, webhook secret) stored AES-256-GCM encrypted, write-only; `payment.manage` permission; webhook secret generated and shown once.
 - [x] Hosted checkout: amount comes from the booking's price snapshot, idempotent provider call, open payment reused, provider failure -> 502 + retry; one open payment per booking (partial unique index).
@@ -129,6 +132,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - Environment notes: payments are only enabled when `MFA_ENCRYPTION_KEY` is set (it encrypts the Monime credentials); the current `.env` has none, so a normal server start has payments disabled. The test database moved to a new Neon branch (`ep-sweet-night`): `TEST_DATABASE_URL` is the restricted `nts_app` role, `TEST_OWNER_DATABASE_URL` is the owner (migrations only).
 
 ## Phase 7 (tickets, receipts, boarding) and Phase 8 (notifications) (2026-10-22)
+
 - [x] Tickets: one per seat, issued in the same transaction that confirms the booking (idempotent; a confirmed booking without tickets heals on first view), voided when the booking is cancelled/expired or the trip is cancelled (a boarded ticket is history and is left alone). Migration 0010 with RLS and CHECK constraints.
 - [x] QR token `t1.<tenant>.<ticket>.<signature>`: HMAC-SHA256 truncated to 16 bytes with a key derived (HKDF) from the application key, so the encryption key itself is never used; the signature and company are checked before any lookup. Human code (10-char Crockford, dash/case/look-alike tolerant) as the manual fallback.
 - [x] Boarding scan (`ticket.validate`): signature, void, booking confirmed, trip running, wrong trip, boarding opens 3 h before departure, trip ended, already boarded; compare-and-set so simultaneous scans board once (tested with 4 parallel scans). Every outcome is audited. Manifest per trip with boarded counts.
@@ -142,6 +146,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [ ] Not done: browser check of the ticket and boarding pages; camera QR scanning (needs getUserMedia + BarcodeDetector, untested); in-app notifications and SMS; emails have only run against the capture mailer (no Brevo key configured); the background worker has not been run against a live server; passenger notices for unpaid (pending) bookings; Cloudinary/R2, BullMQ, reports, recruitment, complaints, maintenance mode, backups.
 
 ## Phase 9 maintenance mode, Phase 10 complaints and ratings, Phase 11 reports (2026-10-23)
+
 - [x] Maintenance mode: one global setting row (migration 0012; readable by all, writable only in platform scope, CHECK that "on" has a message and start time). Gate in front of the API returns 503 `MAINTENANCE` + `Retry-After` for everything except health, auth, platform admin, payment webhooks (so Monime is still acknowledged), docs and the public status endpoint; 5 s cache, fails open if the state cannot be read; only SUPER_ADMIN/OPERATIONS can change it (audited, message required, editing keeps the original start time). Web: banner on every layout, platform admin page with confirmation.
 - [x] Verified: 5 gate unit tests (allow-list incl. lookalike paths, caching, fail-open) and 2 DB tests (permissions, validation, blocking, kept-up paths, audit count, DB guards). **The DB test switches a global flag: run test/maintenance.test.ts alone, not in parallel with other DB suites.**
 - [x] Complaints (migration 0013): passenger complains about a paid/cancelled booking they own (cap of 5 open), threaded conversation (append-only messages enforced by a DB trigger), staff desk with `support.manage` (reply moves OPEN to IN_REVIEW, RESOLVED/CLOSED, a customer reply reopens RESOLVED, CLOSED is final). Emails go to support staff on a new complaint and to the passenger on a reply; the message text is never put in an email.
@@ -152,6 +157,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [ ] Not done: browser check of any of these pages; platform-wide reports; recruitment; in-app notifications; SMS; backups/R2; Cloudinary; BullMQ; real Monime/Brevo runs.
 
 ## Privilege fix found by the complaint tests, and Phase 12 recruitment (2026-10-23)
+
 - [x] **Security finding fixed:** migration 0200 set `ALTER DEFAULT PRIVILEGES ... GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nts_app`, so every table created later inherited DELETE/UPDATE for the application role unless a migration revoked it. Earlier migrations revoked it on audit_logs, trip_events, booking_status_history, payments and payment_webhook_events; tickets, complaints, complaint_messages, trip_ratings, notification_deliveries and platform_settings did not (the complaint test caught `DELETE` succeeding on complaint_messages). Migration 0014 revokes it on those tables and changes the default so new tables get no DELETE unless a migration grants it. Applied to main and the test branch.
 - [x] Recruitment (migration 0015): job postings (DRAFT/OPEN/CLOSED, closing date), public job board (open postings of ACTIVE companies only; a passed closing date or a suspended company hides it at once), applications by signed-in people (one per posting, 20 in progress at most), pipeline SUBMITTED -> SHORTLISTED -> INTERVIEW -> OFFERED -> HIRED/REJECTED with compare-and-set transitions, append-only history and private HR notes, hire creates the employee record (linked to the applicant's account) and marks HIRED in one transaction. Emails: HR on a new application, applicant on each decision, never the private notes. Privileges are minimal from the start (no DELETE anywhere, history insert-only). Web: job board, apply form, my applications, HR desk with tabs for postings and applications.
 - [x] Verified: typecheck/lint, 76 unit tests, web typecheck/lint/26 tests/build.
@@ -159,6 +165,7 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [ ] Not done: CV/document upload (needs the file storage integration: Cloudinary/R2), applicant data retention/erasure, browser check of the new pages (maintenance, complaints, reports, recruitment).
 
 ## Phase 13: file storage, CVs and complaint attachments (2026-10-24)
+
 - [x] Storage layer behind a `FileStorage` interface: Cloudflare R2 (S3-compatible, presigned downloads), a development-only local-disk store (HMAC-signed links; refused in production) and an in-memory fake for tests. Enabled by `R2_*` (all four or none) or `STORAGE_DEV_DIR`; without either the upload endpoints are not mounted and the web hides the controls (`GET /api/v1/features`).
 - [x] Uploads are raw request bodies (no multipart library), PDF/PNG/JPEG only and **identified by their bytes**, never by Content-Type or file name; max 5 MB (413 above that); display name sanitised and given the detected extension; object keys are built from ids (`tenants/<tenant>/<kind>/<owner>/<uuid>.<ext>`) and validated against traversal; downloads are 5-minute signed links served as attachments.
 - [x] CVs: one live CV per application (partial unique index), replacing retires the old row and deletes the old object, closed applications cannot change it, HR opening a CV is audited (`file.cv_accessed`). Complaint attachments: at most 3 per complaint for passenger and staff together, enforced under a row lock (5 parallel uploads yield exactly 3), closed complaints take none. A failed database write deletes the just-stored object; a storage outage returns 503 and leaves no row.
@@ -167,7 +174,9 @@ Legend: [x] done and verified ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„�
 - [ ] Not done: Cloudinary (no feature needs public images yet), malware scanning of uploads, orphan clean-up for objects whose delete failed, a real R2 bucket run (presigning tested offline only), browser check of the upload controls.
 
 ## Browser check of the newer pages (2026-10-24)
+
 Run against the real API on the test branch (restricted `nts_app` role) with a mock Monime (`apps/api/scripts/dev-demo.ts`, development only).
+
 - [x] Passenger: search, seat pick, sign-in with `?next=`, hold, hosted-checkout redirect, signed webhook, booking Confirmed; tickets page renders QR codes; ticket PDFs and receipt return `application/pdf` with `no-store`; rating (4 stars) shows on the staff ratings card; complaint with PNG attachment (signed link works, tampered link is 404); job application with PDF CV.
 - [x] Staff: payment settings, bookings, complaints (attachment visible, reply sent), reports (figures consistent with bookings), recruitment (create and publish a job, HR sees applicant and CV, Shortlist), boarding (QR scan admits the passenger, manifest 1 of 1, re-scan by typed code says already used).
 - [x] Platform operator (MFA sign-in): maintenance mode on (banner, API 503 `MAINTENANCE` with `Retry-After`, public page message) and off again.
@@ -175,6 +184,7 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [ ] Not verified: how the PDFs look (layout was not inspected visually), camera-based QR scanning (typed token/code only), real R2, Monime and email delivery.
 
 ## Phase 14: in-app notifications (2026-10-24)
+
 - [x] `inbox_notifications` (migration 1700): written by the same outbox handlers that send e-mail, for recipients who have an account (booking, trip, refund, complaint and application notices; never account e-mails). Idempotent per event and recipient, so a retry after a failed send adds nothing. RLS; `nts_app` can insert and mark `read_at` only (no delete, no other updates). Stored links are in-app paths only (CHECK constraint and a second check in the web).
 - [x] API: `GET /me/notifications` (30 newest, unread total, `?unread=1`), `GET /me/notifications/unread-count`, `POST /me/notifications/:id/read`, `POST /me/notifications/read-all`; always the caller's own rows; another user's id answers 404.
 - [x] Web: bell with unread badge in the dashboard sidebar (polls every 60 s), panel with mark-read and mark-all, follows in-app links only.
@@ -183,6 +193,7 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [ ] Not built: e-mail/in-app preferences, SMS, push, paging beyond the newest 30, clean-up of old notices.
 
 ## Deployment files and runbook (2026-10-24)
+
 - [x] `deploy/api.Dockerfile`, `deploy/web.Dockerfile`, `deploy/nginx.conf.template` (same-origin `/api/` proxy, SPA fallback, 6 MB body limit, security headers and a Content-Security-Policy), `.dockerignore`, and `docs/DEPLOYMENT.md` (shape, env pitfalls, first deployment, release and rollback, backups, operating signals).
 - [x] Checked: the web build renders and loads its self-hosted fonts under the CSP (served by a small static server sending the same header).
 - [ ] **Not verified:** the images have never been built or run (no Docker here), nginx itself has not loaded the config, the CSP has not been tried with Google sign-in or against a real deployment, and no restore drill has been done.

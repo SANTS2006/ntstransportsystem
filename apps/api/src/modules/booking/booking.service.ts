@@ -28,7 +28,12 @@ export interface BookingInput {
 
 type BookingRow = Awaited<ReturnType<Tx['booking']['findFirstOrThrow']>> & {
   passengers: { seatLabel: string; fullName: string; fareMinor: number; releasedAt: Date | null }[];
+  /** The desk payment, when the booking was paid at the counter. */
+  payments?: { method: string | null; amountMinor: number; refundedAt: Date | null }[];
 };
+
+/** Loads only the desk payment (at most one per booking) next to a booking. */
+const DESK_PAYMENT = { where: { provider: 'DESK' }, take: 1 } as const;
 
 const toDto = (b: BookingRow) => ({
   id: b.id,
@@ -47,6 +52,13 @@ const toDto = (b: BookingRow) => ({
     fullName: p.fullName,
     fareMinor: p.fareMinor,
   })),
+  desk: b.payments?.[0]
+    ? {
+        method: b.payments[0].method,
+        amountMinor: b.payments[0].amountMinor,
+        refundedAt: b.payments[0].refundedAt?.toISOString() ?? null,
+      }
+    : null,
 });
 
 /** Status change + history row, only if the booking is still in `from` (atomic compare-and-set). */
@@ -472,7 +484,7 @@ export class BookingService {
             ? { OR: [{ reference: f.q.toUpperCase() }, { contactPhone: { contains: f.q } }] }
             : {}),
         },
-        include: { passengers: true },
+        include: { passengers: true, payments: DESK_PAYMENT },
         orderBy: { createdAt: 'desc' },
         take: page.limit,
         skip: page.offset,
@@ -485,7 +497,11 @@ export class BookingService {
     const b = await withDb(this.db, ctxOf(s), (tx) =>
       tx.booking.findFirst({
         where: { id, tenantId: s.tenantId },
-        include: { passengers: true, history: { orderBy: { createdAt: 'asc' } } },
+        include: {
+          passengers: true,
+          payments: DESK_PAYMENT,
+          history: { orderBy: { createdAt: 'asc' } },
+        },
       }),
     );
     if (!b) throw AppError.notFound();
@@ -633,6 +649,55 @@ export class BookingService {
         }),
       { unique: 'This booking is already paid' },
     );
+  }
+
+  /**
+   * Records that the money for a cancelled, desk-paid booking was handed back. The whole amount
+   * goes back (no partial refunds), once, and only for a cancelled booking; it is a record of
+   * what the staff did, so it needs the stronger payment.manage permission and is audited.
+   */
+  async refundDesk(
+    s: TenantScope,
+    bookingId: string,
+    input: { reference?: string | undefined },
+    requestId?: string,
+  ) {
+    return withDb(this.db, ctxOf(s), async (tx) => {
+      const b = await tx.booking.findFirst({ where: { id: bookingId, tenantId: s.tenantId } });
+      if (!b) throw AppError.notFound();
+      const pay = await tx.payment.findFirst({
+        where: { tenantId: s.tenantId, bookingId, provider: 'DESK', status: 'PAID' },
+      });
+      if (!pay) throw AppError.conflict('This booking was not paid at the desk');
+      if (b.status !== 'CANCELLED') {
+        throw AppError.conflict('Cancel the booking first; only a cancelled booking is refunded');
+      }
+      const now = new Date();
+      const res = await tx.payment.updateMany({
+        where: { id: pay.id, tenantId: s.tenantId, refundedAt: null },
+        data: { refundedAt: now, refundedBy: s.userId, refundReference: input.reference ?? null },
+      });
+      if (res.count !== 1) throw AppError.conflict('This payment was already refunded');
+      await writeAudit(tx, {
+        action: 'payment.desk_refund_recorded',
+        outcome: 'SUCCESS',
+        tenantId: s.tenantId,
+        actorUserId: s.userId,
+        targetType: 'payment',
+        targetId: pay.id,
+        requestId,
+        summary: { bookingId, amountMinor: pay.amountMinor, method: pay.method },
+      });
+      return {
+        id: pay.id,
+        bookingId,
+        method: pay.method,
+        amountMinor: pay.amountMinor,
+        currency: pay.currency,
+        refundedAt: now.toISOString(),
+        reference: input.reference ?? null,
+      };
+    });
   }
 
   /**

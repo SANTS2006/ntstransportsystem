@@ -929,6 +929,16 @@ export const operations: Record<string, Operation> = {
     body: booking.deskPaymentBody,
     ok: 201,
   },
+  'POST /api/v1/tenants/{tenantId}/bookings/{id}/desk-refund': {
+    summary: 'Record that a cancelled desk-paid booking was refunded',
+    description:
+      'The whole amount, once, only for a cancelled booking that was paid at the desk. It records what staff handed back (it does not move money) and needs payment.manage.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'payment.manage',
+    body: booking.deskRefundBody,
+    ok: 200,
+  },
   'POST /api/v1/tenants/{tenantId}/bookings/{id}/cancel': {
     summary: 'Cancel a booking and release its seats',
     description: 'Reports whether a refund is required; refunds are handled by payments.',
@@ -1345,6 +1355,31 @@ export const operations: Record<string, Operation> = {
   'GET /api/v1/tenants/{tenantId}/reports/occupancy.csv': {
     optional: true,
     summary: 'Occupancy report as CSV',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+    ],
+    ok: 200,
+  },
+
+  'GET /api/v1/tenants/{tenantId}/reports/cashup': {
+    optional: true,
+    summary: 'Desk cash-up by clerk and method, with refunds',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/reports/cashup.csv': {
+    optional: true,
+    summary: 'Desk cash-up as CSV',
     tag: 'Reports',
     access: T,
     permission: 'finance.report.read',

@@ -189,6 +189,105 @@ export class ReportService {
   }
 
   /** Headline figures for a period, in one place. */
+  /**
+   * End-of-day cash-up for payments taken at the desk: what each clerk collected, by method, what
+   * was handed back, and what is still owed to customers whose desk-paid booking was cancelled.
+   * Days are in the company's time zone, like the sales report.
+   */
+  async cashup(s: TenantScope, range: DateRange) {
+    assertRange(range);
+    const tz = await this.timezone(s);
+    const rows = await withDb(this.db, ctxOf(s), async (tx) => {
+      const collected = await tx.$queryRaw<
+        {
+          user_id: string;
+          name: string;
+          method: string;
+          currency: string;
+          n: bigint;
+          amount: bigint;
+        }[]
+      >`
+        SELECT p.collected_by AS user_id, u.display_name AS name, p.method, p.currency,
+               COUNT(*) AS n, COALESCE(SUM(p.amount_minor), 0) AS amount
+        FROM payments p JOIN users u ON u.id = p.collected_by
+        WHERE p.tenant_id = ${s.tenantId}::uuid AND p.provider = 'DESK' AND p.status = 'PAID'
+          AND p.paid_at >= (${range.from}::date)::timestamp AT TIME ZONE ${tz}
+          AND p.paid_at <  ((${range.to}::date + 1))::timestamp AT TIME ZONE ${tz}
+        GROUP BY p.collected_by, u.display_name, p.method, p.currency
+        ORDER BY u.display_name, p.method`;
+      const refunded = await tx.$queryRaw<
+        { method: string; currency: string; n: bigint; amount: bigint }[]
+      >`
+        SELECT p.method, p.currency, COUNT(*) AS n, COALESCE(SUM(p.amount_minor), 0) AS amount
+        FROM payments p
+        WHERE p.tenant_id = ${s.tenantId}::uuid AND p.provider = 'DESK' AND p.refunded_at IS NOT NULL
+          AND p.refunded_at >= (${range.from}::date)::timestamp AT TIME ZONE ${tz}
+          AND p.refunded_at <  ((${range.to}::date + 1))::timestamp AT TIME ZONE ${tz}
+        GROUP BY p.method, p.currency ORDER BY p.method`;
+      const owed = await tx.$queryRaw<{ currency: string; n: bigint; amount: bigint }[]>`
+        SELECT p.currency, COUNT(*) AS n, COALESCE(SUM(p.amount_minor), 0) AS amount
+        FROM payments p JOIN bookings b ON b.id = p.booking_id AND b.tenant_id = p.tenant_id
+        WHERE p.tenant_id = ${s.tenantId}::uuid AND p.provider = 'DESK' AND p.status = 'PAID'
+          AND p.refunded_at IS NULL AND b.status = 'CANCELLED'
+        GROUP BY p.currency`;
+      return { collected, refunded, owed };
+    });
+    const byClerk = rows.collected.map((r) => ({
+      userId: r.user_id,
+      name: r.name,
+      method: r.method,
+      currency: r.currency,
+      payments: num(r.n),
+      amountMinor: num(r.amount),
+    }));
+    const refunds = rows.refunded.map((r) => ({
+      method: r.method,
+      currency: r.currency,
+      refunds: num(r.n),
+      amountMinor: num(r.amount),
+    }));
+    // Net by method and currency: collected minus handed back.
+    const net = new Map<
+      string,
+      { method: string; currency: string; collectedMinor: number; refundedMinor: number }
+    >();
+    for (const r of byClerk) {
+      const k = `${r.method}|${r.currency}`;
+      const e = net.get(k) ?? {
+        method: r.method,
+        currency: r.currency,
+        collectedMinor: 0,
+        refundedMinor: 0,
+      };
+      e.collectedMinor += r.amountMinor;
+      net.set(k, e);
+    }
+    for (const r of refunds) {
+      const k = `${r.method}|${r.currency}`;
+      const e = net.get(k) ?? {
+        method: r.method,
+        currency: r.currency,
+        collectedMinor: 0,
+        refundedMinor: 0,
+      };
+      e.refundedMinor += r.amountMinor;
+      net.set(k, e);
+    }
+    return {
+      range,
+      timezone: tz,
+      byClerk,
+      refunds,
+      net: [...net.values()].map((e) => ({ ...e, netMinor: e.collectedMinor - e.refundedMinor })),
+      refundsStillOwed: rows.owed.map((r) => ({
+        currency: r.currency,
+        count: num(r.n),
+        amountMinor: num(r.amount),
+      })),
+    };
+  }
+
   async summary(s: TenantScope, range: DateRange) {
     const [sales, occ] = await Promise.all([this.sales(s, range, 'day'), this.occupancy(s, range)]);
     const counts = await withDb(this.db, ctxOf(s), async (tx) => {

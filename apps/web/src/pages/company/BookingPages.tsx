@@ -8,7 +8,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { can, useCompany } from './company-context';
-import { DeskPaymentDialog, type DeskPaymentBooking } from './DeskPaymentDialog';
+import { DeskPaymentDialog, DeskRefundDialog, type DeskPaymentBooking } from './DeskPaymentDialog';
 
 const MAX_SEATS = 8;
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -39,6 +39,7 @@ interface BookingRow {
   currency: string;
   holdExpiresAt: string | null;
   passengers: { seatLabel: string; fullName: string }[];
+  desk: { method: string | null; amountMinor: number; refundedAt: string | null } | null;
 }
 
 const STATUS_LABEL: Record<BookingRow['status'], string> = {
@@ -55,6 +56,8 @@ export function BookingsPage() {
   const manage = can(access, 'booking.manage');
   const collect = can(access, 'payment.collect');
   const [desk, setDesk] = useState<DeskPaymentBooking | null>(null);
+  const [refund, setRefund] = useState<DeskPaymentBooking | null>(null);
+  const refundRights = can(access, 'payment.manage');
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
 
   const profile = useQuery({
@@ -363,6 +366,32 @@ export function BookingsPage() {
                     </a>
                   </>
                 )}
+                {b.status === 'CANCELLED' && b.desk && (
+                  <>
+                    {b.desk.refundedAt ? (
+                      <span className="text-xs text-slate-500">Refunded</span>
+                    ) : (
+                      <>
+                        <StatusBadge status="PENDING" label="Refund due" />
+                        {refundRights && (
+                          <Button
+                            variant="secondary"
+                            onClick={() =>
+                              setRefund({
+                                id: b.id,
+                                reference: b.reference,
+                                totalMinor: b.desk?.amountMinor ?? b.totalMinor,
+                                currency: b.currency,
+                              })
+                            }
+                          >
+                            Record refund
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
                 {collect && b.status === 'PENDING_PAYMENT' && (
                   <Button
                     onClick={() =>
@@ -393,6 +422,16 @@ export function BookingsPage() {
           ))}
         </ul>
       </Card>
+      <DeskRefundDialog
+        tenantId={tenantId}
+        booking={refund}
+        onClose={() => setRefund(null)}
+        onDone={() => {
+          setRefund(null);
+          toast('Refund recorded.', 'success');
+          void refresh();
+        }}
+      />
       <DeskPaymentDialog
         tenantId={tenantId}
         booking={desk}

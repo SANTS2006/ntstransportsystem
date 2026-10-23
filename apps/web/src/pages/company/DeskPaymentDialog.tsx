@@ -113,3 +113,73 @@ export function DeskPaymentDialog({
     </Dialog>
   );
 }
+
+/** Records that the money for a cancelled, desk-paid booking was handed back (does not move money). */
+export function DeskRefundDialog({
+  tenantId,
+  booking,
+  onClose,
+  onDone,
+}: {
+  tenantId: string;
+  booking: DeskPaymentBooking | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [reference, setReference] = useState('');
+  const refund = useMutation({
+    mutationFn: (b: DeskPaymentBooking) =>
+      api(`/tenants/${tenantId}/bookings/${b.id}/desk-refund`, {
+        method: 'POST',
+        body: reference.trim() ? { reference: reference.trim() } : {},
+      }),
+    onSuccess: () => {
+      setReference('');
+      onDone();
+    },
+  });
+  const close = () => {
+    refund.reset();
+    onClose();
+  };
+  return (
+    <Dialog open={booking !== null} title="Record a refund" onClose={close}>
+      {booking && (
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            refund.mutate(booking);
+          }}
+        >
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Booking <strong>{booking.reference}</strong> was paid at the desk and then cancelled.
+            Hand the whole amount back to the customer first; this only records that you did. It
+            cannot be undone.
+          </p>
+          <p className="rounded-lg bg-slate-100 p-3 text-center dark:bg-slate-800">
+            <span className="block text-xs text-slate-500">Amount handed back</span>
+            <span className="text-2xl font-semibold">
+              {money(booking.totalMinor, booking.currency)}
+            </span>
+          </p>
+          <Field
+            label="Receipt or transaction number (optional)"
+            value={reference}
+            maxLength={80}
+            onChange={(e) => setReference(e.target.value)}
+          />
+          {refund.error && <ErrorAlert error={refund.error} />}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={close}>
+              Not yet
+            </Button>
+            <Button type="submit" loading={refund.isPending} loadingText="Recording…">
+              Money handed back
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}

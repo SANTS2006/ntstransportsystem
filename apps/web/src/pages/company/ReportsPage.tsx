@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
+import { CashupTab } from './CashupTab';
 import { useCompany } from './company-context';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -58,7 +59,7 @@ export function ReportsPage() {
   const { tenantId } = useCompany();
   const [from, setFrom] = useState(daysAgo(29));
   const [to, setTo] = useState(daysAgo(0));
-  const [tab, setTab] = useState<'sales' | 'occupancy'>('sales');
+  const [tab, setTab] = useState<'sales' | 'occupancy' | 'cashup'>('sales');
   const [by, setBy] = useState<'day' | 'route'>('day');
   const valid = from !== '' && to !== '' && from <= to;
   const qs = `from=${from}&to=${to}`;
@@ -83,7 +84,9 @@ export function ReportsPage() {
   const csvHref =
     tab === 'sales'
       ? `/api/v1${base}/sales.csv?${qs}&by=${by}`
-      : `/api/v1${base}/occupancy.csv?${qs}`;
+      : tab === 'cashup'
+        ? `/api/v1${base}/cashup.csv?${qs}`
+        : `/api/v1${base}/occupancy.csv?${qs}`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -128,7 +131,7 @@ export function ReportsPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div role="tablist" aria-label="Report" className="flex gap-2">
-            {(['sales', 'occupancy'] as const).map((t) => (
+            {(['sales', 'occupancy', 'cashup'] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -141,7 +144,7 @@ export function ReportsPage() {
                     : 'border border-slate-300 dark:border-slate-600'
                 }`}
               >
-                {t === 'sales' ? 'Sales' : 'Occupancy'}
+                {t === 'sales' ? 'Sales' : t === 'occupancy' ? 'Occupancy' : 'Desk cash-up'}
               </button>
             ))}
           </div>
@@ -213,6 +216,8 @@ export function ReportsPage() {
             )}
           </div>
         )}
+
+        {tab === 'cashup' && <CashupTab tenantId={tenantId} from={from} to={to} enabled={valid} />}
 
         {tab === 'occupancy' && (
           <div className="mt-4 overflow-x-auto">

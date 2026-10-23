@@ -72,6 +72,31 @@ export function reportRouter({ db, reports }: ReportRouterDeps): ExpressRouter {
       ),
     );
   });
+  t.get('/reports/cashup', perm('finance.report.read'), async (req, res) => {
+    noStore(res);
+    res.json(await reports.cashup(scope(req), rangeQuery.parse(req.query)));
+  });
+  t.get('/reports/cashup.csv', perm('finance.report.read'), async (req, res) => {
+    const q = rangeQuery.parse(req.query);
+    const r = await reports.cashup(scope(req), q);
+    csv(
+      res,
+      `cashup-${q.from}-${q.to}.csv`,
+      toCsv(
+        ['Clerk', 'Method', 'Currency', 'Payments', 'Collected'],
+        [
+          ...r.byClerk.map((x) => [x.name, x.method, x.currency, x.payments, major(x.amountMinor)]),
+          ...r.refunds.map((x) => [
+            '(refunds)',
+            x.method,
+            x.currency,
+            x.refunds,
+            '-' + major(x.amountMinor),
+          ]),
+        ],
+      ),
+    );
+  });
   t.get('/reports/occupancy', perm('finance.report.read'), async (req, res) => {
     const q = rangeQuery.parse(req.query);
     noStore(res);

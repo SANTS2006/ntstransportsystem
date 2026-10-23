@@ -250,6 +250,123 @@ describe.skipIf(!TEST_DB_URL)('company reports (database)', () => {
     });
   }, 600_000);
 
+  it('adds up desk payments by clerk and method, and tracks what was handed back', async () => {
+    const k = await setup('cashup');
+    const agent = await member(k.tenantId, 'sales_agent');
+    const b1 = await k.book(k.tripA.id, ['1', '2'], false); // 2 x 100.00
+    const b2 = await k.book(k.tripB.id, ['1'], false); // 250.00
+    const b3 = await k.book(k.tripB.id, ['2'], false); // 250.00
+    const unpaid = await k.book(k.tripA.id, ['3'], false);
+    const desk = (c: Client, id: string, method: string) =>
+      c.call('post', `/tenants/${k.tenantId}/bookings/${id}/desk-payment`).send({ method });
+    await desk(agent, b1.id, 'CASH').expect(201);
+    await desk(agent, b2.id, 'MOBILE_MONEY').expect(201);
+    await desk(k.owner, b3.id, 'CASH').expect(201);
+
+    const today = localDay(new Date());
+    const range = q(addDays(today, -1), addDays(today, 1));
+    type Cashup = {
+      byClerk: { userId: string; method: string; payments: number; amountMinor: number }[];
+      refunds: { method: string; refunds: number; amountMinor: number }[];
+      net: { method: string; collectedMinor: number; refundedMinor: number; netMinor: number }[];
+      refundsStillOwed: { count: number; amountMinor: number }[];
+    };
+    const get = async () =>
+      (await k.owner.call('get', `${base(k.tenantId)}/cashup?${range}`).expect(200)).body as Cashup;
+
+    const first = await get();
+    const row = (u: string, m: string) =>
+      first.byClerk.find((r) => r.userId === u && r.method === m);
+    expect(row(agent.userId, 'CASH')).toMatchObject({ payments: 1, amountMinor: 20_000 });
+    expect(row(agent.userId, 'MOBILE_MONEY')).toMatchObject({ payments: 1, amountMinor: 25_000 });
+    expect(row(k.owner.userId, 'CASH')).toMatchObject({ payments: 1, amountMinor: 25_000 });
+    expect(first.byClerk).toHaveLength(3);
+    expect(first.net.find((n) => n.method === 'CASH')).toMatchObject({
+      collectedMinor: 45_000,
+      refundedMinor: 0,
+      netMinor: 45_000,
+    });
+    expect(first.refundsStillOwed).toEqual([]);
+
+    // Cancelling a desk-paid booking leaves money owed to the customer.
+    await k.owner
+      .call('post', `/tenants/${k.tenantId}/bookings/${b2.id}/cancel`)
+      .send({ reason: 'Customer changed plans' })
+      .expect(200);
+    expect((await get()).refundsStillOwed).toEqual([
+      { currency: 'SLE', count: 1, amountMinor: 25_000 },
+    ]);
+    const listed = (await k.owner.call('get', `/tenants/${k.tenantId}/bookings`).expect(200)).body
+      .bookings as { id: string; desk: { method: string; refundedAt: string | null } | null }[];
+    expect(listed.find((b) => b.id === b2.id)?.desk).toMatchObject({
+      method: 'MOBILE_MONEY',
+      refundedAt: null,
+    });
+    expect(listed.find((b) => b.id === unpaid.id)?.desk).toBeNull();
+
+    // Recording the refund: who, when, how often, and only where it makes sense.
+    const refund = (c: Client, id: string) =>
+      c
+        .call('post', `/tenants/${k.tenantId}/bookings/${id}/desk-refund`)
+        .send({ reference: 'R-9' });
+    await refund(agent, b2.id).expect(403); // a clerk takes money in, a manager records it going out
+    await refund(k.owner, unpaid.id).expect(409); // never paid at the desk
+    await refund(k.owner, b1.id).expect(409); // still confirmed: cancel it first
+    await k.owner
+      .call('post', `/tenants/${k.tenantId}/bookings/${b2.id}/desk-refund`)
+      .send({ amountMinor: 1 })
+      .expect(400);
+    const done = await refund(k.owner, b2.id).expect(200);
+    expect(done.body).toMatchObject({
+      amountMinor: 25_000,
+      method: 'MOBILE_MONEY',
+      reference: 'R-9',
+    });
+    await refund(k.owner, b2.id).expect(409); // only once
+
+    const after = await get();
+    expect(after.refunds).toEqual([
+      expect.objectContaining({ method: 'MOBILE_MONEY', refunds: 1, amountMinor: 25_000 }),
+    ]);
+    expect(after.net.find((n) => n.method === 'MOBILE_MONEY')).toMatchObject({
+      collectedMinor: 25_000,
+      refundedMinor: 25_000,
+      netMinor: 0,
+    });
+    expect(after.refundsStillOwed).toEqual([]);
+    const pay = await plat((tx) =>
+      tx.payment.findFirstOrThrow({ where: { bookingId: b2.id, provider: 'DESK' } }),
+    );
+    expect(pay).toMatchObject({ refundedBy: k.owner.userId, refundReference: 'R-9' });
+    expect(
+      await plat((tx) =>
+        tx.auditLog.count({
+          where: { tenantId: k.tenantId, action: 'payment.desk_refund_recorded' },
+        }),
+      ),
+    ).toBe(1);
+
+    // Access and shape.
+    await agent.call('get', `${base(k.tenantId)}/cashup?${range}`).expect(403);
+    await k.owner
+      .call('get', `${base(k.tenantId)}/cashup?from=2026-02-01&to=2026-01-01`)
+      .expect(400);
+    const csv = await k.owner.call('get', `${base(k.tenantId)}/cashup.csv?${range}`).expect(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.text).toContain('(refunds)');
+    expect(csv.text).toContain('MOBILE_MONEY');
+
+    // The database refuses a refund on anything but a paid desk payment.
+    await expect(
+      plat((tx) =>
+        tx.payment.updateMany({
+          where: { id: pay.id },
+          data: { refundedAt: null, refundedBy: k.owner.userId },
+        }),
+      ),
+    ).rejects.toThrow();
+  }, 600_000);
+
   it('exports CSV that spreadsheets cannot turn into formulas', async () => {
     const k = await setup('rp-csv');
     await k.book(k.tripB.id, ['1']); // the route whose name starts with =

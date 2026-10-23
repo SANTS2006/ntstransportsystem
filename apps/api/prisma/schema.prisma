@@ -921,6 +921,9 @@ model Payment {
   method            String? // desk payments: CASH | MOBILE_MONEY | BANK_TRANSFER
   collectedBy       String?       @map("collected_by") @db.Uuid
   reference         String? // desk payments: receipt or transaction number
+  refundedAt        DateTime?     @map("refunded_at") @db.Timestamptz(6)
+  refundedBy        String?       @map("refunded_by") @db.Uuid
+  refundReference   String?       @map("refund_reference")
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 

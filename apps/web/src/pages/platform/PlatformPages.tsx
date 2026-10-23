@@ -47,6 +47,7 @@ export function PlatformLayout() {
       heading="Platform administration"
       nav={[
         { to: '/platform', label: 'Companies', end: true },
+        { to: '/platform/maintenance', label: 'Maintenance' },
         { to: '/app', label: '← Exit admin' },
       ]}
     >
@@ -215,6 +216,115 @@ export function PlatformTenantsPage() {
             </div>
           </form>
         )}
+      </Dialog>
+    </div>
+  );
+}
+
+// ---- Maintenance mode ------------------------------------------------------------------------
+
+interface MaintenanceStatus {
+  enabled: boolean;
+  message: string | null;
+  since: string | null;
+}
+
+export function PlatformMaintenancePage() {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [message, setMessage] = useState('');
+  const status = useQuery({
+    queryKey: ['platform', 'maintenance'],
+    queryFn: ({ signal }) => api<MaintenanceStatus>('/platform/maintenance', { signal }),
+  });
+  const save = useMutation({
+    mutationFn: (v: { enabled: boolean; message?: string }) =>
+      api<MaintenanceStatus>('/platform/maintenance', { method: 'PUT', body: v }),
+    onSuccess: async (r) => {
+      toast(r.enabled ? 'Maintenance mode is ON' : 'Maintenance mode is OFF', 'success');
+      await qc.invalidateQueries({ queryKey: ['platform', 'maintenance'] });
+      await qc.invalidateQueries({ queryKey: ['maintenance-status'] });
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Could not save', 'error'),
+  });
+  const [confirmOn, setConfirmOn] = useState(false);
+  const on = status.data?.enabled === true;
+  return (
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="text-2xl font-semibold">Maintenance mode</h1>
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        While on, passengers and companies get a maintenance message instead of the service.
+        Sign-in, platform administration and payment webhooks keep working, so you can switch it off
+        again and no payment notification is lost.
+      </p>
+      {status.isPending && <Spinner label="Loading" />}
+      {status.error && <ErrorAlert error={status.error} onRetry={() => void status.refetch()} />}
+      {status.data && (
+        <Card title={on ? 'Maintenance is ON' : 'Maintenance is off'}>
+          {on && (
+            <Alert tone="info">
+              Since {status.data.since ? new Date(status.data.since).toLocaleString() : 'unknown'}:{' '}
+              {status.data.message}
+            </Alert>
+          )}
+          <div className="mt-3 space-y-3">
+            <label htmlFor="mt-msg" className="block text-sm font-medium">
+              Message shown to everyone
+            </label>
+            <textarea
+              id="mt-msg"
+              rows={3}
+              maxLength={300}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={
+                on
+                  ? (status.data.message ?? '')
+                  : 'We are upgrading the system and will be back at 14:00 UTC.'
+              }
+              className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                disabled={message.trim().length < 3}
+                loading={save.isPending}
+                onClick={() => setConfirmOn(true)}
+              >
+                {on ? 'Update message' : 'Turn maintenance on'}
+              </Button>
+              {on && (
+                <Button
+                  variant="secondary"
+                  loading={save.isPending}
+                  onClick={() => save.mutate({ enabled: false })}
+                >
+                  Turn maintenance off
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+      <Dialog open={confirmOn} title="Turn maintenance on?" onClose={() => setConfirmOn(false)}>
+        <p className="text-sm">
+          Every passenger and company user will be blocked until you switch it off. Continue?
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmOn(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmOn(false);
+              save.mutate({ enabled: true, message: message.trim() });
+              setMessage('');
+            }}
+          >
+            Turn on
+          </Button>
+        </div>
       </Dialog>
     </div>
   );

@@ -34,6 +34,9 @@ export class NotificationService {
       'trip.delayed': (e) => this.tripDelayed(e),
       'trip.vehicle_replaced': (e) => this.vehicleReplaced(e),
       'payment.refund_required': (e) => this.refundRequired(e),
+      'complaint.created': (e) => this.complaintToStaff(e),
+      'complaint.passenger_replied': (e) => this.complaintToStaff(e),
+      'complaint.replied': (e) => this.complaintToPassenger(e),
       // Cancelling a trip cancels each booking, and each of those sends its own notice.
       'trip.cancelled': async () => undefined,
     };
@@ -202,6 +205,69 @@ export class NotificationService {
         await this.deliver(e, sent, `${b.id}:${to}`, 'trip-vehicle-changed', to, data);
       }
     }
+  }
+
+  private async complaintOf(e: ClaimedEvent) {
+    const id = str(payloadOf(e).complaintId);
+    return withDb(this.db, { tenantId: e.tenantId }, (tx) =>
+      tx.complaint.findFirst({
+        where: { id, tenantId: e.tenantId },
+        select: {
+          id: true,
+          userId: true,
+          category: true,
+          booking: { select: { reference: true } },
+        },
+      }),
+    );
+  }
+
+  /** New complaint or a customer follow-up: tell the support staff (the text itself is not emailed). */
+  private async complaintToStaff(e: ClaimedEvent) {
+    const c = await this.complaintOf(e);
+    if (!c) return;
+    const staff = await withDb(this.db, { platform: true }, (tx) =>
+      tx.membership.findMany({
+        where: {
+          tenantId: e.tenantId,
+          status: 'ACTIVE',
+          role: { permissions: { some: { permission: 'support.manage' } } },
+        },
+        select: { user: { select: { email: true } } },
+        take: 20,
+      }),
+    );
+    const data = {
+      reference: c.booking.reference,
+      category: c.category.toLowerCase().replace('_', ' '),
+      link: `${this.appUrl.replace(/\/$/, '')}/c/${e.tenantId}/complaints`,
+    };
+    const sent = await this.sentKeys(e);
+    for (const m of staff) {
+      await this.deliver(
+        e,
+        sent,
+        `staff:${m.user.email.toLowerCase()}`,
+        'complaint-received',
+        m.user.email,
+        data,
+      );
+    }
+  }
+
+  /** A staff reply: tell the passenger there is something to read. */
+  private async complaintToPassenger(e: ClaimedEvent) {
+    const c = await this.complaintOf(e);
+    if (!c) return;
+    const user = await withDb(this.db, { platform: true }, (tx) =>
+      tx.user.findUnique({ where: { id: c.userId }, select: { email: true } }),
+    );
+    if (!user?.email) return;
+    const sent = await this.sentKeys(e);
+    await this.deliver(e, sent, `user:${c.userId}`, 'complaint-reply', user.email, {
+      reference: c.booking.reference,
+      link: `${this.appUrl.replace(/\/$/, '')}/app/complaints/${c.id}`,
+    });
   }
 
   /** Tells the people who can act on it (roles with payment.manage) that a refund is owed. */

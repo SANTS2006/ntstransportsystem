@@ -19,10 +19,19 @@ import { MonimeGateway, type PaymentGateway } from './modules/payment/gateway.js
 import { deriveTicketKey } from './modules/ticket/ticket-core.js';
 import { ticketRouter } from './modules/ticket/ticket.routes.js';
 import { TicketService } from './modules/ticket/ticket.service.js';
+import { ComplaintService } from './modules/complaint/complaint.service.js';
+import { complaintRouter } from './modules/complaint/complaint.routes.js';
+import { reportRouter } from './modules/report/report.routes.js';
+import { ReportService } from './modules/report/report.service.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
 import { PassengerService } from './modules/passenger/passenger.service.js';
 import { PaymentService } from './modules/payment/payment.service.js';
 import { paymentRouter, webhookRouter } from './modules/payment/payment.routes.js';
+import {
+  MaintenanceModeService,
+  maintenanceGate,
+  maintenanceRouter,
+} from './modules/platform-settings/maintenance.js';
 import { bookingRouter } from './modules/booking/booking.routes.js';
 import { BookingService } from './modules/booking/booking.service.js';
 import { CalendarService } from './modules/catalog/calendar.service.js';
@@ -120,6 +129,10 @@ export function createApp({
       (env.GOOGLE_CLIENT_ID ? new GoogleIdTokenVerifier(env.GOOGLE_CLIENT_ID) : undefined);
     const google = verifier ? new GoogleAuthService(db, auth, verifier) : undefined;
     v1.use(sessionLoader(auth, env));
+    // Maintenance switch: its own endpoints first, then the gate in front of everything else.
+    const maintenance = new MaintenanceModeService(db, logger);
+    v1.use(maintenanceRouter(db, maintenance));
+    v1.use(maintenanceGate(maintenance));
     // Credentials, codes and recovery codes pass through here: never cache.
     v1.use('/auth', (_req, res, next) => {
       res.setHeader('Cache-Control', 'no-store');
@@ -157,6 +170,8 @@ export function createApp({
       );
       const tickets = new TicketService(db, deriveTicketKey(env.MFA_ENCRYPTION_KEY as string));
       v1.use(ticketRouter({ db, tickets }));
+      v1.use(complaintRouter({ db, complaints: new ComplaintService(db), env, rateLimitStores }));
+      v1.use(reportRouter({ db, reports: new ReportService(db) }));
       v1.use(paymentRouter({ db, payments }));
       v1.use(
         passengerRouter({

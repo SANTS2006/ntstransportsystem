@@ -7,6 +7,7 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   | 'SERVICE_UNAVAILABLE'
   | 'PAYMENT_PROVIDER_ERROR'
+  | 'MAINTENANCE'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {

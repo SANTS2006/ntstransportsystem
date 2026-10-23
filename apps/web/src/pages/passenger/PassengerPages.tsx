@@ -9,6 +9,7 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { RateTrip } from './ComplaintPages';
 
 const MAX_SEATS = 8;
 const tomorrow = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
@@ -519,6 +520,13 @@ export function MyBookingsPage() {
               >
                 View tickets
               </Link>
+              <Link
+                className="ml-3 inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-500"
+                to={`/app/complaints/new?booking=${b.id}`}
+              >
+                Report a problem
+              </Link>
+              {b.tripStatus === 'COMPLETED' && <RateTrip bookingId={b.id} />}
             </div>
           )}
           {b.status === 'PENDING_PAYMENT' && (

@@ -9,7 +9,9 @@ export type MailTemplate =
   | 'booking-cancelled'
   | 'trip-delayed'
   | 'trip-vehicle-changed'
-  | 'refund-required';
+  | 'refund-required'
+  | 'complaint-received'
+  | 'complaint-reply';
 
 export interface MailMessage {
   to: string;

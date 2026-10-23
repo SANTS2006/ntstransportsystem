@@ -237,6 +237,7 @@ export function buildOpenApi(
                     'RATE_LIMITED',
                     'SERVICE_UNAVAILABLE',
                     'PAYMENT_PROVIDER_ERROR',
+                    'MAINTENANCE',
                     'INTERNAL_ERROR',
                   ],
                 },

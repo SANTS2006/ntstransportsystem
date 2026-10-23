@@ -174,6 +174,28 @@ export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): Rendere
         text: `A customer paid for booking ${msg.data.reference ?? ''} (${msg.data.amount ?? ''}) but the seats had already been released. Please refund this payment from your Monime dashboard and contact the customer.\n${link}\n`,
       };
     }
+    case 'complaint-received': {
+      const link = safeLink(msg.data.link);
+      return {
+        subject: 'A complaint needs attention',
+        html: layout(
+          'Complaint received',
+          `<p>A customer has sent a complaint about booking <strong>${escapeHtml(msg.data.reference ?? '')}</strong>${msg.data.category ? ` (${escapeHtml(msg.data.category)})` : ''}. Please read and reply.</p>${button(link, 'Open complaints')}`,
+        ),
+        text: `A customer has sent a complaint about booking ${msg.data.reference ?? ''}. Please read and reply.\n${link}\n`,
+      };
+    }
+    case 'complaint-reply': {
+      const link = safeLink(msg.data.link);
+      return {
+        subject: 'You have a reply to your complaint',
+        html: layout(
+          'New reply',
+          `<p>The company has replied to your complaint about booking <strong>${escapeHtml(msg.data.reference ?? '')}</strong>. Sign in to read the reply.</p>${button(link, 'Read the reply')}`,
+        ),
+        text: `The company has replied to your complaint about booking ${msg.data.reference ?? ''}. Sign in to read the reply:\n${link}\n`,
+      };
+    }
     default: {
       const never: never = t;
       throw new Error(`Unknown mail template: ${String(never)}`);

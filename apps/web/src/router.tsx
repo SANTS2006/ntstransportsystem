@@ -89,6 +89,24 @@ const BoardingPage = lazy(() =>
 const MyTicketsPage = lazy(() =>
   import('./pages/passenger/TicketPages').then((m) => ({ default: m.MyTicketsPage })),
 );
+const PlatformMaintenancePage = lazy(() =>
+  import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
+);
+const ComplaintsPage = lazy(() =>
+  import('./pages/company/ComplaintsPage').then((m) => ({ default: m.ComplaintsPage })),
+);
+const MyComplaintsPage = lazy(() =>
+  import('./pages/passenger/ComplaintPages').then((m) => ({ default: m.MyComplaintsPage })),
+);
+const NewComplaintPage = lazy(() =>
+  import('./pages/passenger/ComplaintPages').then((m) => ({ default: m.NewComplaintPage })),
+);
+const ComplaintThreadPage = lazy(() =>
+  import('./pages/passenger/ComplaintPages').then((m) => ({ default: m.ComplaintThreadPage })),
+);
+const ReportsPage = lazy(() =>
+  import('./pages/company/ReportsPage').then((m) => ({ default: m.ReportsPage })),
+);
 const StaffPage = lazy(() =>
   import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
 );
@@ -139,6 +157,9 @@ export const router = createBrowserRouter([
       { index: true, element: s(<MyCompaniesPage />) },
       { path: 'bookings', element: s(<MyBookingsPage />) },
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
+      { path: 'complaints', element: s(<MyComplaintsPage />) },
+      { path: 'complaints/new', element: s(<NewComplaintPage />) },
+      { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
       { path: 'apply', element: s(<ApplyCompanyPage />) },
       { path: 'security', element: s(<SecurityPage />) },
     ],
@@ -158,6 +179,8 @@ export const router = createBrowserRouter([
       { path: 'bookings', element: s(<BookingsPage />) },
       { path: 'payments', element: s(<PaymentSettingsPage />) },
       { path: 'boarding', element: s(<BoardingPage />) },
+      { path: 'complaints', element: s(<ComplaintsPage />) },
+      { path: 'reports', element: s(<ReportsPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },
@@ -168,7 +191,10 @@ export const router = createBrowserRouter([
   {
     path: '/platform',
     element: <RequireAuth>{s(<PlatformLayout />)}</RequireAuth>,
-    children: [{ index: true, element: s(<PlatformTenantsPage />) }],
+    children: [
+      { index: true, element: s(<PlatformTenantsPage />) },
+      { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
+    ],
   },
   { path: '/dashboard', element: <Navigate to="/app" replace /> },
   { path: '*', element: s(<NotFoundPage />) },

@@ -182,6 +182,9 @@ model Tenant {
   payments               Payment[]
   tickets                Ticket[]
   notificationDeliveries NotificationDelivery[]
+  complaints             Complaint[]
+  complaintMessages      ComplaintMessage[]
+  tripRatings            TripRating[]
   paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
@@ -819,6 +822,8 @@ model Booking {
   history    BookingStatusHistory[]
   payments   Payment[]
   tickets    Ticket[]
+  complaints Complaint[]
+  ratings    TripRating[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, idempotencyKey])
@@ -989,4 +994,101 @@ model NotificationDelivery {
   @@unique([outboxEventId, recipientKey])
   @@index([tenantId, sentAt])
   @@map("notification_deliveries")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 9: platform-wide settings (maintenance mode). A single row, id = 'singleton'.
+
+model PlatformSetting {
+  id                 String    @id @default("singleton")
+  maintenanceEnabled Boolean   @default(false) @map("maintenance_enabled")
+  maintenanceMessage String?   @map("maintenance_message")
+  maintenanceSince   DateTime? @map("maintenance_since") @db.Timestamptz(6)
+  updatedBy          String?   @map("updated_by") @db.Uuid
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_settings")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 10: complaints and trip ratings.
+
+enum ComplaintCategory {
+  DELAY
+  VEHICLE
+  STAFF_CONDUCT
+  REFUND
+  SAFETY
+  OTHER
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum ComplaintAuthor {
+  PASSENGER
+  STAFF
+}
+
+/// A passenger's complaint about a booking, handled by the company's support staff.
+model Complaint {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  bookingId  String            @map("booking_id") @db.Uuid
+  userId     String            @map("user_id") @db.Uuid
+  category   ComplaintCategory
+  subject    String
+  status     ComplaintStatus   @default(OPEN)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt DateTime?         @map("resolved_at") @db.Timestamptz(6)
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking  Booking            @relation(fields: [tenantId, bookingId], references: [tenantId, id])
+  messages ComplaintMessage[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("complaints")
+}
+
+/// The conversation on a complaint. Append-only: history is never rewritten.
+model ComplaintMessage {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  complaintId String          @map("complaint_id") @db.Uuid
+  authorId    String          @map("author_id") @db.Uuid
+  authorKind  ComplaintAuthor @map("author_kind")
+  body        String
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  complaint Complaint @relation(fields: [tenantId, complaintId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, complaintId, createdAt])
+  @@map("complaint_messages")
+}
+
+/// One rating per booking, only after the trip has been completed.
+model TripRating {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  bookingId String   @map("booking_id") @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id])
+
+  @@unique([bookingId])
+  @@index([tenantId, tripId])
+  @@map("trip_ratings")
 }

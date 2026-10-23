@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
+import { MaintenanceBanner } from './MaintenanceBanner';
 import { TopProgress } from './TopProgress';
 import type { ReactNode } from 'react';
 
@@ -37,6 +38,7 @@ export function PublicLayout() {
   return (
     <div className="min-h-dvh">
       <TopProgress />
+      <MaintenanceBanner />
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Brand />
@@ -195,6 +197,9 @@ export function DashboardShell({
         </div>
       </aside>
       <main id="main" className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <div className="-mx-4 -mt-4 mb-4 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+          <MaintenanceBanner />
+        </div>
         {children ?? <Outlet />}
         <div className="mt-8 lg:hidden">
           <Button
@@ -213,6 +218,7 @@ export function DashboardShell({
 
 const APP_NAV: NavItem[] = [
   { to: '/app/bookings', label: 'My bookings' },
+  { to: '/app/complaints', label: 'My complaints' },
   { to: '/app', label: 'My companies', end: true },
   { to: '/app/apply', label: 'Register a company' },
   { to: '/app/security', label: 'Security' },

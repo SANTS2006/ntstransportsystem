@@ -10,6 +10,8 @@ import {
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
 import { requestSchemas as booking } from '../modules/booking/booking.routes.js';
+import { requestSchemas as complaint } from '../modules/complaint/complaint.routes.js';
+import { requestSchemas as maintenance } from '../modules/platform-settings/maintenance.js';
 import { requestSchemas as ticket } from '../modules/ticket/ticket.routes.js';
 import { requestSchemas as passenger } from '../modules/passenger/passenger.routes.js';
 import { requestSchemas as payment } from '../modules/payment/payment.routes.js';
@@ -1104,6 +1106,203 @@ export const operations: Record<string, Operation> = {
     summary: 'Download payment receipt for own booking',
     tag: 'Passengers',
     access: 'session',
+    ok: 200,
+  },
+
+  // ---- Platform: maintenance mode -------------------------------------------------------------
+  'GET /api/v1/maintenance-status': {
+    summary: 'Is the platform in maintenance mode? (public)',
+    description:
+      'While maintenance is on, every other endpoint except auth, platform admin and payment webhooks answers 503 with code MAINTENANCE and a Retry-After header.',
+    tag: 'System',
+    access: 'public',
+    ok: 200,
+  },
+  'GET /api/v1/platform/maintenance': {
+    summary: 'Maintenance state (platform staff)',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS | SUPPORT',
+    ok: 200,
+  },
+  'PUT /api/v1/platform/maintenance': {
+    summary: 'Turn maintenance mode on or off',
+    description: 'A message is required to turn it on. Audited.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS',
+    body: maintenance.setBody,
+    ok: 200,
+  },
+
+  // ---- Complaints and ratings -----------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/complaints': {
+    optional: true,
+    summary: 'List complaints',
+    tag: 'Complaints',
+    access: T,
+    permission: 'support.manage',
+    paged: true,
+    query: [
+      {
+        name: 'status',
+        description: 'Filter by status',
+        enum: ['OPEN', 'IN_REVIEW', 'RESOLVED', 'CLOSED'],
+      },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/complaints/{id}': {
+    optional: true,
+    summary: 'A complaint with its conversation',
+    tag: 'Complaints',
+    access: T,
+    permission: 'support.manage',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/complaints/{id}/messages': {
+    optional: true,
+    summary: 'Reply to a complaint',
+    description:
+      'Moves an OPEN complaint to IN_REVIEW and emails the customer that a reply is waiting (the text is not emailed).',
+    tag: 'Complaints',
+    access: T,
+    permission: 'support.manage',
+    body: complaint.messageBody,
+    ok: 201,
+  },
+  'POST /api/v1/tenants/{tenantId}/complaints/{id}/status': {
+    optional: true,
+    summary: 'Change a complaint status',
+    description:
+      'IN_REVIEW, RESOLVED or CLOSED. A customer reply reopens a RESOLVED complaint; CLOSED is final.',
+    tag: 'Complaints',
+    access: T,
+    permission: 'support.manage',
+    body: complaint.statusBody,
+    ok: 204,
+  },
+  'GET /api/v1/tenants/{tenantId}/ratings/summary': {
+    optional: true,
+    summary: 'Trip rating average, distribution and per-route averages',
+    tag: 'Complaints',
+    access: T,
+    permission: 'booking.read',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/complaints': {
+    optional: true,
+    summary: 'Report a problem with a paid booking',
+    description: 'At most 5 open complaints per passenger.',
+    tag: 'Passengers',
+    access: 'session',
+    body: complaint.createBody,
+    ok: 201,
+  },
+  'GET /api/v1/passenger/complaints': {
+    optional: true,
+    summary: "The caller's own complaints",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/complaints/{id}': {
+    optional: true,
+    summary: "One of the caller's complaints with its conversation",
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/complaints/{id}/messages': {
+    optional: true,
+    summary: 'Add a message to own complaint (reopens a resolved one)',
+    tag: 'Passengers',
+    access: 'session',
+    body: complaint.messageBody,
+    ok: 201,
+  },
+  'GET /api/v1/passenger/bookings/{id}/rating': {
+    optional: true,
+    summary: 'The rating given for an own booking, if any',
+    tag: 'Passengers',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/bookings/{id}/rating': {
+    optional: true,
+    summary: 'Rate a completed trip (once per booking)',
+    tag: 'Passengers',
+    access: 'session',
+    body: complaint.ratingBody,
+    ok: 201,
+  },
+
+  // ---- Reports --------------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/reports/summary': {
+    optional: true,
+    summary: 'Headline figures for a period',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/reports/sales': {
+    optional: true,
+    summary: 'Sales by day or by route',
+    description:
+      'Counted on the day a booking was confirmed (paid), in the company time zone. Also reports bookings cancelled after payment and payments received for seats that had been released.',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+      { name: 'by', description: 'Grouping', enum: ['day', 'route'] },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/reports/sales.csv': {
+    optional: true,
+    summary: 'Sales report as CSV',
+    description:
+      'text/csv download. Text cells that could be read as spreadsheet formulas are neutralised.',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+      { name: 'by', description: 'Grouping', enum: ['day', 'route'] },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/reports/occupancy': {
+    optional: true,
+    summary: 'Seats sold, boarded and occupancy per trip',
+    description: 'Up to 500 trips; "truncated" is true when more exist.',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/reports/occupancy.csv': {
+    optional: true,
+    summary: 'Occupancy report as CSV',
+    tag: 'Reports',
+    access: T,
+    permission: 'finance.report.read',
+    query: [
+      { name: 'from', description: 'First day (company local date)', format: 'date' },
+      { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
+    ],
     ok: 200,
   },
 

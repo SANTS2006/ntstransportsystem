@@ -15,7 +15,7 @@ export interface FileStorage {
   /** A link that works for `expiresSec` seconds and downloads the object under `filename`. */
   signedGetUrl(
     key: string,
-    opts: { expiresSec: number; filename: string; contentType: string },
+    opts: { expiresSec: number; filename: string; contentType: string; inline?: boolean },
   ): Promise<string>;
   delete(key: string): Promise<void>;
 }
@@ -58,7 +58,7 @@ export class R2Storage implements FileStorage {
   }
   async signedGetUrl(
     key: string,
-    opts: { expiresSec: number; filename: string; contentType: string },
+    opts: { expiresSec: number; filename: string; contentType: string; inline?: boolean },
   ): Promise<string> {
     assertSafeKey(key);
     return getSignedUrl(
@@ -67,8 +67,8 @@ export class R2Storage implements FileStorage {
         Bucket: this.cfg.bucket,
         Key: key,
         ResponseContentType: opts.contentType,
-        // Always a download, never rendered in our origin.
-        ResponseContentDisposition: `attachment; filename="${opts.filename.replace(/["\\]/g, '')}"`,
+        // A download, unless the caller asked to show an image or play audio/video (never in our origin).
+        ResponseContentDisposition: `${opts.inline ? 'inline' : 'attachment'}; filename="${opts.filename.replace(/["\\]/g, '')}"`,
       }),
       { expiresIn: opts.expiresSec },
     );
@@ -110,20 +110,27 @@ export class LocalDiskStorage implements FileStorage {
   async delete(key: string): Promise<void> {
     await rm(this.pathOf(key), { force: true });
   }
-  sign(key: string, exp: number, filename: string, contentType: string): string {
+  sign(key: string, exp: number, filename: string, contentType: string, inline = false): string {
     return createHmac('sha256', this.secret)
-      .update(`${key}\n${exp}\n${filename}\n${contentType}`)
+      .update(`${key}\n${exp}\n${filename}\n${contentType}\n${inline ? 'inline' : 'attachment'}`)
       .digest('base64url');
   }
-  verify(key: string, exp: number, filename: string, contentType: string, sig: string): boolean {
+  verify(
+    key: string,
+    exp: number,
+    filename: string,
+    contentType: string,
+    sig: string,
+    inline = false,
+  ): boolean {
     if (!Number.isInteger(exp) || exp < Math.floor(Date.now() / 1000)) return false;
-    const a = Buffer.from(this.sign(key, exp, filename, contentType));
+    const a = Buffer.from(this.sign(key, exp, filename, contentType, inline));
     const b = Buffer.from(sig);
     return a.length === b.length && timingSafeEqual(a, b);
   }
   async signedGetUrl(
     key: string,
-    opts: { expiresSec: number; filename: string; contentType: string },
+    opts: { expiresSec: number; filename: string; contentType: string; inline?: boolean },
   ): Promise<string> {
     assertSafeKey(key);
     const exp = Math.floor(Date.now() / 1000) + opts.expiresSec;
@@ -132,7 +139,8 @@ export class LocalDiskStorage implements FileStorage {
       exp: String(exp),
       fn: opts.filename,
       ct: opts.contentType,
-      sig: this.sign(key, exp, opts.filename, opts.contentType),
+      ...(opts.inline ? { in: '1' } : {}),
+      sig: this.sign(key, exp, opts.filename, opts.contentType, opts.inline === true),
     });
     return `${this.apiUrl.replace(/\/$/, '')}/api/v1/dev-files?${q.toString()}`;
   }
@@ -151,9 +159,12 @@ export class MemoryStorage implements FileStorage {
     }
     this.objects.set(key, { body, contentType });
   }
-  async signedGetUrl(key: string, opts: { expiresSec: number; filename: string }): Promise<string> {
+  async signedGetUrl(
+    key: string,
+    opts: { expiresSec: number; filename: string; inline?: boolean },
+  ): Promise<string> {
     assertSafeKey(key);
-    return `https://files.test/${key}?expires=${opts.expiresSec}&filename=${encodeURIComponent(opts.filename)}`;
+    return `https://files.test/${key}?expires=${opts.expiresSec}&filename=${encodeURIComponent(opts.filename)}${opts.inline ? '&inline=1' : ''}`;
   }
   async delete(key: string): Promise<void> {
     this.objects.delete(key);

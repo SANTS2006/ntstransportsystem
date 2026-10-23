@@ -8,7 +8,8 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { Attachments } from '../../components/files/FileControls';
+import { Attachments, useFileUploadsEnabled } from '../../components/files/FileControls';
+import { VoiceRecorder } from '../../components/files/VoiceRecorder';
 
 const CATEGORIES = [
   { value: 'DELAY', label: 'Delay' },
@@ -96,21 +97,49 @@ export function NewComplaintPage() {
   const [category, setCategory] = useState('DELAY');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [voice, setVoice] = useState<File | null>(null);
+  const voiceAvailable = useFileUploadsEnabled();
   const send = useMutation({
-    mutationFn: () =>
-      api<{ id: string }>('/passenger/complaints', {
+    mutationFn: async () => {
+      const made = await api<{ id: string }>('/passenger/complaints', {
         method: 'POST',
-        body: { bookingId, category, subject: subject.trim(), body: body.trim() },
-      }),
+        body: {
+          bookingId,
+          category,
+          subject: subject.trim(),
+          ...(body.trim() ? { body: body.trim() } : {}),
+          ...(voice ? { voice: true } : {}),
+        },
+      });
+      // The complaint exists now; the recording follows. If it cannot be sent, say so and let the
+      // passenger add it from the complaint page instead of losing the complaint.
+      let voiceSent = true;
+      if (voice) {
+        try {
+          await api(`/passenger/complaints/${made.id}/attachments`, {
+            method: 'POST',
+            file: voice,
+          });
+        } catch {
+          voiceSent = false;
+        }
+      }
+      return { id: made.id, voiceSent };
+    },
     onSuccess: async (r) => {
-      toast('Your complaint was sent', 'success');
+      if (r.voiceSent) toast('Your complaint was sent', 'success');
+      else
+        toast(
+          'Your complaint was sent, but the voice message could not be uploaded. Please record it again below.',
+          'error',
+        );
       await qc.invalidateQueries({ queryKey: ['passenger-complaints'] });
       void nav(`/app/complaints/${r.id}`, { replace: true });
     },
   });
   if (!bookingId)
     return <Alert tone="error">Open a booking first, then choose Report a problem.</Alert>;
-  const valid = subject.trim().length >= 3 && body.trim().length >= 5;
+  const valid = subject.trim().length >= 3 && (body.trim().length >= 5 || voice !== null);
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <h1 className="text-2xl font-semibold">Report a problem</h1>
@@ -147,7 +176,9 @@ export function NewComplaintPage() {
           />
           <div>
             <label htmlFor="cp-body" className="mb-1 block text-sm font-medium">
-              What happened?
+              {voiceAvailable
+                ? 'What happened? (type it, or record a voice message below)'
+                : 'What happened?'}
             </label>
             <textarea
               id="cp-body"
@@ -158,6 +189,7 @@ export function NewComplaintPage() {
               className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm dark:border-slate-600 dark:bg-slate-900"
             />
           </div>
+          {voiceAvailable && <VoiceRecorder onChange={setVoice} disabled={send.isPending} />}
           {send.error && <ErrorAlert error={send.error} />}
           <Button type="submit" disabled={!valid} loading={send.isPending} loadingText="Sending…">
             Send complaint

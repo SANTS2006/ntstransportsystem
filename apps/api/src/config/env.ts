@@ -42,6 +42,15 @@ const baseSchema = z.object({
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   // Google Identity Services web client ID. Google sign-in is disabled when unset.
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  // Cloudinary for uploaded files: cloudinary://<api_key>:<api_secret>@<cloud_name> (from the
+  // Cloudinary dashboard, "API Keys"). When set it is used before R2.
+  CLOUDINARY_URL: z
+    .string()
+    .regex(
+      /^cloudinary:\/\/[^:/\s]+:[^@\s]+@[A-Za-z0-9_-]+\/?$/,
+      'must look like cloudinary://<api_key>:<api_secret>@<cloud_name>',
+    )
+    .optional(),
   // Cloudflare R2 (S3-compatible) for uploaded documents. All four or none; uploads are off without them.
   R2_ACCOUNT_ID: z.string().min(1).optional(),
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),

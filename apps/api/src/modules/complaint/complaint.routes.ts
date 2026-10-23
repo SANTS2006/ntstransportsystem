@@ -25,9 +25,15 @@ const createBody = z
     bookingId: z.uuid(),
     category: z.enum(COMPLAINT_CATEGORIES),
     subject: trim.min(3).max(150),
-    body: trim.min(5).max(4000),
+    // Optional when the passenger is sending a voice message instead (`voice: true`).
+    body: trim.min(5).max(4000).optional(),
+    voice: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.body !== undefined || v.voice === true, {
+    message: 'Describe what happened, or record a voice message',
+    path: ['body'],
+  });
 const messageBody = z.object({ body: trim.min(1).max(4000) }).strict();
 const ratingBody = z
   .object({ rating: z.number().int().min(1).max(5), comment: trim.max(1000).optional() })

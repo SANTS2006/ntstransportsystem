@@ -32,6 +32,7 @@ import { reportRouter } from './modules/report/report.routes.js';
 import { ReportService } from './modules/report/report.service.js';
 import { InboxService } from './modules/notifications/inbox.service.js';
 import { inboxRouter } from './modules/notifications/inbox.routes.js';
+import { CloudinaryStorage, parseCloudinaryUrl } from './platform/cloudinary.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
 import { PassengerService } from './modules/passenger/passenger.service.js';
 import { PaymentService } from './modules/payment/payment.service.js';
@@ -192,6 +193,9 @@ export function createApp({
       );
       const fileStorage: FileStorage | undefined =
         storage ??
+        (env.CLOUDINARY_URL
+          ? new CloudinaryStorage(parseCloudinaryUrl(env.CLOUDINARY_URL))
+          : undefined) ??
         (env.R2_BUCKET && env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY
           ? new R2Storage({
               accountId: env.R2_ACCOUNT_ID,

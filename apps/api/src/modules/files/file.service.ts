@@ -2,12 +2,20 @@ import { createHash, randomUUID } from 'node:crypto';
 import { withDb, type Db, type Tx } from '../../platform/db.js';
 import { mapDbErrors } from '../../platform/db-errors.js';
 import { AppError } from '../../platform/errors.js';
-import { MAX_UPLOAD_BYTES, detectFileType, safeFilename } from '../../platform/file-types.js';
+import {
+  MAX_UPLOAD_BYTES,
+  detectFileType,
+  maxBytesFor,
+  mediaOf,
+  safeFilename,
+  type DetectedFile,
+  type MediaClass,
+} from '../../platform/file-types.js';
 import type { FileStorage } from '../../platform/storage.js';
 import { writeAudit } from '../audit/audit.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
 
-export const MAX_ATTACHMENTS_PER_COMPLAINT = 3;
+export const MAX_ATTACHMENTS_PER_COMPLAINT = 4;
 export const LINK_TTL_SECONDS = 300;
 
 type Kind = 'APPLICATION_CV' | 'COMPLAINT_ATTACHMENT';
@@ -17,6 +25,8 @@ export interface FileDto {
   id: string;
   displayName: string;
   contentType: string;
+  /** document, image, audio or video: tells the app how to show it. */
+  media: MediaClass;
   sizeBytes: number;
   createdAt: string;
 }
@@ -30,12 +40,15 @@ const dto = (f: {
   id: f.id,
   displayName: f.displayName,
   contentType: f.contentType,
+  media: mediaOf(f.contentType),
   sizeBytes: f.sizeBytes,
   createdAt: f.createdAt.toISOString(),
 });
 
-const unsupported = () =>
-  new AppError(415, 'VALIDATION_ERROR', 'Only PDF, PNG and JPEG files are accepted');
+const unsupported = (what = 'a PDF, an image (PNG, JPEG, WebP), audio or video') =>
+  new AppError(415, 'VALIDATION_ERROR', `Only ${what} can be uploaded`);
+
+const mb = (n: number) => `${Math.round(n / (1024 * 1024))} MB`;
 
 /**
  * Uploaded documents. The bytes go to object storage under an unguessable key built from ids; the
@@ -57,6 +70,11 @@ export class FileService {
     ownerId: string;
     bytes: Buffer;
     rawName: string | undefined;
+    /** The Content-Type the client sent: only used to tell audio from video. */
+    declared?: string | undefined;
+    /** Which kinds of file this upload may be (default: anything we store). */
+    allow?: (t: DetectedFile) => boolean;
+    allowMessage?: string;
     fallbackName: string;
     /** Runs inside the same transaction, before the row is inserted (limits, retiring an old file). */
     prepare: (tx: Tx) => Promise<string[]>;
@@ -66,9 +84,21 @@ export class FileService {
     const { bytes } = args;
     if (bytes.length === 0) throw AppError.validation('The file is empty');
     if (bytes.length > MAX_UPLOAD_BYTES)
-      throw new AppError(413, 'VALIDATION_ERROR', 'The file is larger than 5 MB');
-    const type = detectFileType(bytes);
+      throw new AppError(
+        413,
+        'VALIDATION_ERROR',
+        `The file is larger than ${mb(MAX_UPLOAD_BYTES)}`,
+      );
+    const type = detectFileType(bytes, args.declared);
     if (!type) throw unsupported();
+    if (args.allow && !args.allow(type)) throw unsupported(args.allowMessage);
+    if (bytes.length > maxBytesFor(type)) {
+      throw new AppError(
+        413,
+        'VALIDATION_ERROR',
+        `A ${type.media === 'document' ? 'document' : type.media} can be at most ${mb(maxBytesFor(type))}`,
+      );
+    }
 
     const key = `tenants/${args.tenantId}/${args.kind.toLowerCase()}/${args.ownerId}/${randomUUID()}.${type.ext}`;
     try {
@@ -122,22 +152,24 @@ export class FileService {
     }
   }
 
-  private async link(f: {
-    objectKey: string;
-    displayName: string;
-    contentType: string;
-    sizeBytes: number;
-  }) {
+  private async link(
+    f: { objectKey: string; displayName: string; contentType: string; sizeBytes: number },
+    inline = false,
+  ) {
+    // Only things a browser can show safely are ever delivered for viewing; documents always download.
+    const show = inline && mediaOf(f.contentType) !== 'document';
     const url = await this.storage.signedGetUrl(f.objectKey, {
       expiresSec: LINK_TTL_SECONDS,
       filename: f.displayName,
       contentType: f.contentType,
+      inline: show,
     });
     return {
       url,
       expiresAt: new Date(Date.now() + LINK_TTL_SECONDS * 1000).toISOString(),
       filename: f.displayName,
       contentType: f.contentType,
+      media: mediaOf(f.contentType),
       sizeBytes: f.sizeBytes,
     };
   }
@@ -161,6 +193,7 @@ export class FileService {
     bytes: Buffer,
     rawName: string | undefined,
     requestId?: string,
+    declared?: string,
   ) {
     const a = await this.ownApplication(userId, applicationId);
     if (['HIRED', 'REJECTED', 'WITHDRAWN'].includes(a.status)) {
@@ -173,6 +206,9 @@ export class FileService {
       ownerId: a.id,
       bytes,
       rawName,
+      declared,
+      allow: (t) => t.media === 'document' || t.media === 'image',
+      allowMessage: 'a PDF or an image (PNG, JPEG, WebP)',
       fallbackName: 'cv',
       auditAction: 'file.cv_uploaded',
       requestId,
@@ -273,6 +309,7 @@ export class FileService {
     bytes: Buffer,
     rawName: string | undefined,
     requestId?: string,
+    declared?: string,
   ) {
     const c = await this.complaintFor(actor, complaintId);
     if (c.status === 'CLOSED') throw AppError.conflict('This complaint is closed');
@@ -283,6 +320,7 @@ export class FileService {
       ownerId: c.id,
       bytes,
       rawName,
+      declared,
       fallbackName: 'attachment',
       auditAction: 'file.attachment_uploaded',
       requestId,
@@ -323,7 +361,7 @@ export class FileService {
     return rows.map(dto);
   }
 
-  async attachmentLink(actor: Actor, complaintId: string, fileId: string) {
+  async attachmentLink(actor: Actor, complaintId: string, fileId: string, inline = false) {
     const c = await this.complaintFor(actor, complaintId);
     const f = await withDb(this.db, { tenantId: c.tenantId, userId: c.userId }, (tx) =>
       tx.storedFile.findFirst({
@@ -337,6 +375,6 @@ export class FileService {
       }),
     );
     if (!f) throw AppError.notFound();
-    return this.link(f);
+    return this.link(f, inline);
   }
 }

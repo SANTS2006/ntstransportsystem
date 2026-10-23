@@ -197,8 +197,9 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
     await upload(k.applicant, url, PDF()).expect(409);
   }, 600_000);
 
-  it('caps complaint attachments at three, even when uploaded at the same moment', async () => {
-    const c = await company('fl-att');
+  /** A paid booking owned by a passenger who has opened a complaint about it. */
+  async function complaintSetup(label: string) {
+    const c = await company(label);
     const pax = await newClient(ctx.app, db, 'fl-pax');
     const trip = await plat(async (tx) => {
       const locs = await tx.location.createManyAndReturn({
@@ -271,27 +272,33 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
     const mine = `/passenger/complaints/${complaint.id}/attachments`;
     const staff = `/tenants/${c.tenantId}/complaints/${complaint.id}/attachments`;
 
+    return { c, pax, complaint, mine, staff };
+  }
+
+  it('caps complaint attachments at four, even when uploaded at the same moment', async () => {
+    const { c, pax, complaint, mine, staff } = await complaintSetup('fl-att');
+
     const burst = await Promise.all(
-      Array.from({ length: 5 }, () => upload(pax, mine, PNG, 'image/png', 'photo')),
+      Array.from({ length: 6 }, () => upload(pax, mine, PNG, 'image/png', 'photo')),
     );
-    expect(burst.filter((r) => r.status === 201)).toHaveLength(3);
+    expect(burst.filter((r) => r.status === 201)).toHaveLength(4);
     expect(burst.filter((r) => r.status === 409)).toHaveLength(2);
     const live = await plat((tx) =>
       tx.storedFile.findMany({ where: { ownerId: complaint.id, deletedAt: null } }),
     );
-    expect(live).toHaveLength(3);
+    expect(live).toHaveLength(4);
     // The refused uploads left no orphaned objects behind.
-    expect([...storage.objects.keys()].filter((key) => key.includes(complaint.id))).toHaveLength(3);
+    expect([...storage.objects.keys()].filter((key) => key.includes(complaint.id))).toHaveLength(4);
 
     await upload(c.owner, staff, JPG, 'image/jpeg').expect(409); // staff share the same limit
     const list = (await pax.call('get', mine).expect(200)).body.files;
-    expect(list).toHaveLength(3);
+    expect(list).toHaveLength(4);
     expect(list[0]).toMatchObject({ contentType: 'image/png', displayName: 'photo.png' });
 
     // Who can see them
     const link = (await pax.call('get', `${mine}/${list[0].id}/link`).expect(200)).body;
     expect(link.url).toContain(live[0]!.objectKey.split('/')[0]);
-    expect((await c.owner.call('get', staff).expect(200)).body.files).toHaveLength(3);
+    expect((await c.owner.call('get', staff).expect(200)).body.files).toHaveLength(4);
     await c.owner.call('get', `${staff}/${list[0].id}/link`).expect(200);
     const other = await newClient(ctx.app, db, 'fl-pax-other');
     await other.call('get', mine).expect(404);
@@ -309,6 +316,125 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
       .send({ status: 'CLOSED' })
       .expect(204);
     await upload(pax, mine, PNG, 'image/png').expect(409);
+  }, 600_000);
+
+  it('takes photos, voice messages and video, shows media only when it may, and refuses the wrong things', async () => {
+    const { pax, complaint, mine, staff, c } = await complaintSetup('fl-media');
+    const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(300, 7)]);
+    const MP4 = Buffer.concat([
+      Buffer.from([0, 0, 0, 0x20]),
+      Buffer.from('ftypisom'),
+      Buffer.alloc(300, 3),
+    ]);
+    const WEBP = Buffer.concat([
+      Buffer.from('RIFF'),
+      Buffer.from([9, 9, 9, 9]),
+      Buffer.from('WEBP'),
+      Buffer.alloc(100, 1),
+    ]);
+
+    // A voice message (audio in a WebM container), a photo and a video.
+    const voice = await upload(pax, mine, WEBM, 'audio/webm;codecs=opus', 'voice message').expect(
+      201,
+    );
+    expect(voice.body).toMatchObject({
+      media: 'audio',
+      contentType: 'audio/webm',
+      displayName: 'voice message.webm',
+    });
+    const photo = await upload(pax, mine, WEBP, 'image/webp', 'seat').expect(201);
+    expect(photo.body).toMatchObject({ media: 'image', contentType: 'image/webp' });
+    const video = await upload(pax, mine, MP4, 'video/mp4', 'clip').expect(201);
+    expect(video.body).toMatchObject({ media: 'video', contentType: 'video/mp4' });
+
+    // The same bytes declared as video are a video, not a voice message: the declared type only
+    // chooses between the two readings of a container.
+    const asVideo = await upload(c.owner, staff, WEBM, 'video/webm', 'screen').expect(201);
+    expect(asVideo.body).toMatchObject({ media: 'video', contentType: 'video/webm' });
+
+    // Wrong things stay out, whatever they claim to be.
+    await upload(pax, mine, Buffer.from('<script>alert(1)</script>'), 'audio/webm').expect(415);
+    await upload(pax, mine, Buffer.from('MZ\x90\x00 program'), 'video/mp4').expect(415);
+    await upload(pax, mine, Buffer.from('GIF89a......'), 'image/gif').expect(415);
+
+    // Size limits depend on what it is: audio 10 MB, video 25 MB, everything else 5 MB.
+    await upload(
+      pax,
+      mine,
+      Buffer.concat([WEBM, Buffer.alloc(10 * 1024 * 1024)]),
+      'audio/webm',
+    ).expect(413);
+    await upload(
+      pax,
+      mine,
+      Buffer.concat([WEBP, Buffer.alloc(5 * 1024 * 1024)]),
+      'image/webp',
+    ).expect(413);
+    await upload(
+      pax,
+      mine,
+      Buffer.concat([MP4, Buffer.alloc(26 * 1024 * 1024)]),
+      'video/mp4',
+    ).expect(413);
+
+    // Links: media can be shown inline; documents never are.
+    const inlineLink = (await pax.call('get', `${mine}/${voice.body.id}/link?inline=1`).expect(200))
+      .body;
+    expect(inlineLink.url).toContain('inline=1');
+    expect(inlineLink.media).toBe('audio');
+    const plainLink = (await pax.call('get', `${mine}/${voice.body.id}/link`).expect(200)).body;
+    expect(plainLink.url).not.toContain('inline=1');
+
+    // Staff can open the same recording.
+    const staffList = (await c.owner.call('get', staff).expect(200)).body.files as {
+      media: string;
+    }[];
+    expect(staffList.map((f) => f.media).sort()).toEqual(['audio', 'image', 'video', 'video']);
+    await c.owner.call('get', `${staff}/${voice.body.id}/link?inline=1`).expect(200);
+
+    // A CV is a document or a picture, never a recording.
+    const k = await applicationSetup('fl-cv-media');
+    await upload(k.applicant, `/applicant/applications/${k.appId}/cv`, WEBM, 'audio/webm').expect(
+      415,
+    );
+    await upload(k.applicant, `/applicant/applications/${k.appId}/cv`, MP4, 'video/mp4').expect(
+      415,
+    );
+    await upload(k.applicant, `/applicant/applications/${k.appId}/cv`, WEBP, 'image/webp').expect(
+      201,
+    );
+    expect(complaint.id).toBeTruthy();
+  }, 600_000);
+
+  it('lets a passenger report a problem with a voice message instead of typing', async () => {
+    const { pax, complaint } = await complaintSetup('fl-voice');
+    // complaintSetup typed a description; here a second passenger-side complaint is voice-only.
+    const booking = await plat((tx) =>
+      tx.complaint.findFirstOrThrow({ where: { id: complaint.id } }),
+    );
+    const another = await pax
+      .call('post', '/passenger/complaints')
+      .send({
+        bookingId: booking.bookingId,
+        category: 'OTHER',
+        subject: 'Driver was rude',
+        voice: true,
+      })
+      .expect(201);
+    const messages = await plat((tx) =>
+      tx.complaintMessage.findMany({ where: { complaintId: another.body.id } }),
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.body).toContain('Voice message');
+    // Neither text nor voice: refused.
+    await pax
+      .call('post', '/passenger/complaints')
+      .send({ bookingId: booking.bookingId, category: 'OTHER', subject: 'Nothing said' })
+      .expect(400);
+    await pax
+      .call('post', '/passenger/complaints')
+      .send({ bookingId: booking.bookingId, category: 'OTHER', subject: 'Too short', body: 'no' })
+      .expect(400);
   }, 600_000);
 
   it('keeps the file index immutable and well-formed at the database level', async () => {
@@ -340,6 +466,9 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
       );
     await expect(bad({ sizeBytes: 0 })).rejects.toThrow();
     await expect(bad({ sizeBytes: 6 * 1024 * 1024 })).rejects.toThrow();
+    await expect(bad({ contentType: 'audio/webm', sizeBytes: 11 * 1024 * 1024 })).rejects.toThrow();
+    await expect(bad({ contentType: 'video/mp4', sizeBytes: 26 * 1024 * 1024 })).rejects.toThrow();
+    await expect(bad({ contentType: 'image/gif' })).rejects.toThrow();
     await expect(bad({ contentType: 'text/html' })).rejects.toThrow();
     await expect(bad({ sha256: 'not-a-hash' })).rejects.toThrow();
     // Only one live CV per application, whatever the application code does.

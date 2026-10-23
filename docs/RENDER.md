@@ -112,9 +112,9 @@ Sign-in cookies are same-origin because the API also serves the web app.
 
 - **Works:** accounts, two-factor, companies and approval, fleet/routes/trips, seat maps, staff and
   roles, booking holds, payment at the desk, tickets and QR codes (after a paid booking), boarding, complaints,
-  recruitment (without file uploads), reports, in-app notifications, maintenance mode.
+  recruitment, voice messages and photos on complaints (with Cloudinary set), reports, in-app notifications, maintenance mode.
 - **Payments:** staff can take payment at the desk (**Bookings**, then **Take payment**: cash, mobile money shown at the counter, or bank transfer), which confirms the booking and issues the tickets, so you can test the whole flow without Monime. Online payment by passengers needs a Monime account: a **test** one (token starts `mon_test_`) whose space id, token and webhook secret the company owner enters under **Payments**, with the webhook URL shown there registered in Monime. That online flow has only been tested against a mock, never against real Monime.
-- **No uploads** (CVs, complaint attachments) until you set the four `R2_*` variables.
+- **No uploads** (CVs, complaint photos, videos and voice messages) until you set `CLOUDINARY_URL`. Create a free Cloudinary account, copy the API environment variable (it looks like `cloudinary://<key>:<secret>@<cloud>`) from Settings, API Keys, and add it to the service's environment on Render. Check in Cloudinary's security settings that delivery of PDF files is allowed, or PDFs may not open. This has not been run against a real Cloudinary account yet.
 - **No Google sign-in** until `GOOGLE_CLIENT_ID` is set on the service and
   `VITE_GOOGLE_CLIENT_ID` is available at build time (add both as environment variables, then
   redeploy), and your Render URL is an allowed origin in the Google console.

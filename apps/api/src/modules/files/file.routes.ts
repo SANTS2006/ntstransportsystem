@@ -5,7 +5,7 @@ import type { Permission } from '@nts/shared';
 import type { Env } from '../../config/env.js';
 import type { Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
-import { MAX_UPLOAD_BYTES } from '../../platform/file-types.js';
+import { MAX_UPLOAD_BYTES, UPLOAD_CONTENT_TYPES } from '../../platform/file-types.js';
 import type { RateLimitStoreFactory } from '../../platform/redis.js';
 import { Router } from '../../platform/router.js';
 import type { LocalDiskStorage } from '../../platform/storage.js';
@@ -21,7 +21,7 @@ import type { FileService } from './file.service.js';
 
 /** The body is the file itself. The type is decided from its bytes later, not from this header. */
 const rawFile = express.raw({
-  type: ['application/pdf', 'image/png', 'image/jpeg'],
+  type: UPLOAD_CONTENT_TYPES,
   limit: MAX_UPLOAD_BYTES,
 });
 
@@ -40,11 +40,16 @@ function bodyOf(req: Request): Buffer {
     throw new AppError(
       415,
       'VALIDATION_ERROR',
-      'Send the file as application/pdf, image/png or image/jpeg',
+      'Send the file as a PDF, an image (PNG, JPEG, WebP), audio or video',
     );
   }
   return req.body;
 }
+
+/** What the client says it sent; only used to tell audio from video in a shared container. */
+const declaredType = (req: Request) => req.header('content-type')?.split(';')[0]?.trim();
+/** Show an image or play audio/video instead of downloading it (the service decides if it may). */
+const wantsInline = (req: Request) => req.query.inline === '1';
 
 export interface FileRouterDeps {
   db: Db;
@@ -107,6 +112,7 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
             bodyOf(req),
             nameHeader(req),
             req.id,
+            declaredType(req),
           ),
         );
     },
@@ -118,6 +124,7 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
         { kind: 'staff', scope: scope(req) },
         uuidParam(req, 'id'),
         uuidParam(req, 'fileId'),
+        wantsInline(req),
       ),
     );
   });
@@ -135,7 +142,16 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
     async (req, res) => {
       res
         .status(201)
-        .json(await files.uploadCv(userId(req), id(req), bodyOf(req), nameHeader(req), req.id));
+        .json(
+          await files.uploadCv(
+            userId(req),
+            id(req),
+            bodyOf(req),
+            nameHeader(req),
+            req.id,
+            declaredType(req),
+          ),
+        );
     },
   );
   r.get('/applicant/applications/:id/cv', requireAuth, async (req, res) => {
@@ -163,6 +179,7 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
             bodyOf(req),
             nameHeader(req),
             req.id,
+            declaredType(req),
           ),
         );
     },
@@ -174,6 +191,7 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
         { kind: 'passenger', userId: userId(req) },
         id(req),
         id(req, 'fileId'),
+        wantsInline(req),
       ),
     );
   });
@@ -195,9 +213,14 @@ export function devFilesRouter(storage: LocalDiskStorage): ExpressRouter {
         fn: z.string().max(200),
         ct: z.string().max(60),
         sig: z.string().max(100),
+        in: z.literal('1').optional(),
       })
       .safeParse(req.query);
-    if (!q.success || !storage.verify(q.data.key, q.data.exp, q.data.fn, q.data.ct, q.data.sig)) {
+    const inline = q.success && q.data.in === '1';
+    if (
+      !q.success ||
+      !storage.verify(q.data.key, q.data.exp, q.data.fn, q.data.ct, q.data.sig, inline)
+    ) {
       throw AppError.notFound();
     }
     let bytes: Buffer;
@@ -209,7 +232,7 @@ export function devFilesRouter(storage: LocalDiskStorage): ExpressRouter {
     res.setHeader('Content-Type', q.data.ct);
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${q.data.fn.replace(/["\\\r\n]/g, '')}"`,
+      `${inline ? 'inline' : 'attachment'}; filename="${q.data.fn.replace(/["\\\r\n]/g, '')}"`,
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");

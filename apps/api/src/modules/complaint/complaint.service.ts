@@ -18,6 +18,9 @@ export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
 export type ComplaintStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'CLOSED';
 
 /** Stops one account flooding a company with open complaints. */
+/** Shown as the message when a passenger sends a voice message instead of typing. */
+export const VOICE_ONLY_TEXT = 'Voice message (listen to the attached recording)';
+
 export const MAX_OPEN_COMPLAINTS_PER_PASSENGER = 5;
 
 const ctxOf = (s: TenantScope) => ({ tenantId: s.tenantId, userId: s.userId });
@@ -41,7 +44,13 @@ export class ComplaintService {
 
   async create(
     userId: string,
-    input: { bookingId: string; category: ComplaintCategory; subject: string; body: string },
+    input: {
+      bookingId: string;
+      category: ComplaintCategory;
+      subject: string;
+      body?: string | undefined;
+      voice?: boolean | undefined;
+    },
     requestId?: string,
   ) {
     const booking = await withDb(this.db, { platform: true }, (tx) =>
@@ -79,7 +88,8 @@ export class ComplaintService {
             complaintId: c.id,
             authorId: userId,
             authorKind: 'PASSENGER',
-            body: input.body,
+            // A voice-only complaint says so; the recording follows as an attachment.
+            body: input.body ?? VOICE_ONLY_TEXT,
           },
         ],
       });

@@ -211,4 +211,18 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 - [x] Web: a "Take payment" button (only for people with the permission) on awaiting-payment bookings opens a dialog that shows the amount, asks how it was paid and for an optional receipt number. 3 dialog tests; web 40 tests pass.
 - [x] Database test on the main database passed: permissions per role, validation, tickets/history/audit/outbox, once-only, cancelled booking refused, two clerks racing (one 201, one 409), database constraints.
 - [ ] Not yet run: the payment test "flags an online payment that completes after the booking was paid at the desk" (in the main-database sweep).
-- [ ] Not built: a cash-up / end-of-day report by method and clerk, desk refunds (cancelling a desk-paid booking flags a refund but money is returned by hand), receipts for desk payments from the passenger side.
+
+## Desk cash-up and refunds (2026-10-24)
+
+- [x] Cash-up report (Reports, "Desk cash-up"; `GET /reports/cashup` and `.csv`, `finance.report.read`): collected per clerk and method, handed back per method, net per method, and refunds still owed, in the company's time zone.
+- [x] Refunds for desk-paid bookings: a cancelled desk-paid booking shows "Refund due"; people with `payment.manage` record that the whole amount was handed back (once, audited, database-constrained). It records what staff did; it does not move money. Migration 1900.
+- [x] Verified on the main database: cash-up/refund test (clerks, methods, 403 for a clerk, refund rules, constraints, CSV). Web: 45 tests at the time.
+
+## Photos, video, voice messages and Cloudinary (2026-10-24)
+
+- [x] Accepted by their bytes, never by name or header: PDF; PNG, JPEG, WebP; WebM, Ogg, MP4/M4A, MP3, WAV audio; MP4, WebM, MOV, Ogg video. Limits: documents and images 5 MB, audio 10 MB, video 25 MB (database-enforced too, migration 2000). A CV stays a document or image. Up to 4 attachments per complaint.
+- [x] Cloudinary storage (`CLOUDINARY_URL`): files stored private, uploads and deletes signed with the API secret, opened through download links that expire after 5 minutes; used before R2 when set. The request signature matches Cloudinary's published examples (unit test), and the client is tested against a fake Cloudinary.
+- [x] "Report a problem" accepts a voice message instead of typing (record, listen, re-record, remove; 2 minute limit; the complaint is created first and the recording uploaded after, and a failed upload keeps the complaint and says so). Attachments can also be recorded and sent later from the complaint page. Photos, voice and video play inside the page; documents always download.
+- [x] Verified: 116 API unit tests, web 58 tests; main-database tests for the file rules (6/6): real types accepted, wrong types and oversize refused per kind, inline links only for media, CVs never audio or video, voice-only complaints.
+- [ ] **Not verified:** nothing has run against a real Cloudinary account (upload, private download link signing, the PDF-delivery setting, the file name on download, which is Cloudinary's rather than the uploader's); recording was tested with a fake recorder, not with a real microphone in a browser on a phone; the page's content-security-policy for media hosts has not been tried against real links.
+- [ ] Not built: direct browser-to-Cloudinary uploads (large videos pass through the API), malware scanning, vehicle photos or company logos, clean-up of removed files.

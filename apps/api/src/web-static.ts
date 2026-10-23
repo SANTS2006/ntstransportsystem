@@ -2,16 +2,21 @@ import express, { type Express } from 'express';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+/** Where private files are delivered from; images, audio and video shown in the app come from here. */
+const FILE_HOSTS =
+  'https://api.cloudinary.com https://res.cloudinary.com https://*.r2.cloudflarestorage.com';
+
 /**
  * Policy for the single-page app. Fonts are bundled, so nothing is loaded from other sites except
- * Google's sign-in script and frame.
+ * Google's sign-in script and frame, and files shown in the app from the file hosts above.
  */
 export const WEB_CSP = [
   "default-src 'self'",
   "script-src 'self' https://accounts.google.com",
   "style-src 'self' 'unsafe-inline' https://accounts.google.com",
   "font-src 'self'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${FILE_HOSTS}`,
+  `media-src 'self' blob: ${FILE_HOSTS}`,
   "connect-src 'self'",
   'frame-src https://accounts.google.com',
   "frame-ancestors 'none'",

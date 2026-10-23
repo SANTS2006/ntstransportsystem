@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -98,6 +99,7 @@ export function SecurityPage() {
     queryKey: ['sessions'],
     queryFn: ({ signal }) => api<{ sessions: SessionRow[] }>('/auth/sessions', { signal }),
   });
+  const ask = useConfirm();
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/auth/sessions/${id}`, { method: 'DELETE' }),
     onSuccess: async () => {
@@ -178,7 +180,17 @@ export function SecurityPage() {
                   variant="secondary"
                   loading={revoke.isPending && revoke.variables === s.id}
                   loadingText="Signing out…"
-                  onClick={() => revoke.mutate(s.id)}
+                  onClick={async () => {
+                    if (
+                      await ask({
+                        title: 'Sign out this device?',
+                        message: 'That session is signed out straight away.',
+                        confirmLabel: 'Sign out device',
+                        danger: true,
+                      })
+                    )
+                      revoke.mutate(s.id);
+                  }}
                 >
                   Sign out
                 </Button>

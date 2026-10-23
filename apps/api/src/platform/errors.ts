@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'MAINTENANCE'
   | 'PHONE_NOT_VERIFIED'
   | 'EMAIL_NOT_VERIFIED'
+  | 'PASSWORD_CHANGE_REQUIRED'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {

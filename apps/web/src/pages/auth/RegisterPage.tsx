@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { ArrowRight, Mail, User } from 'lucide-react';
 import { normalizePhone } from '@nts/shared';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
 import { AuthCard } from '../../components/layout/Layouts';
@@ -23,6 +23,7 @@ interface Values {
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { slug } = useParams();
   const { refresh } = useAuth();
   const { phoneSignup } = useFeatures();
   const [v, setV] = useState<Values>({ displayName: '', identifier: '', password: '' });
@@ -86,17 +87,6 @@ export default function RegisterPage() {
       subtitle="Book trips, or join the company that invited you."
     >
       {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
-      <GoogleButton
-        text="signup_with"
-        onCredential={(c) => {
-          if (!agreed) {
-            setAgreeError('Tick the box to agree before creating an account.');
-            return;
-          }
-          google.mutate(c);
-        }}
-      />
-      <OrDivider />
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
           label="Full name"
@@ -158,10 +148,21 @@ export default function RegisterPage() {
       </form>
       <p className="text-center text-sm text-slate-600 dark:text-slate-400">
         Already registered?{' '}
-        <Link className="font-semibold text-brand-600" to="/login">
+        <Link className="font-semibold text-brand-600" to={slug ? `/${slug}/login` : '/login'}>
           Sign in
         </Link>
       </p>
+      <OrDivider />
+      <GoogleButton
+        text="signup_with"
+        onCredential={(c) => {
+          if (!agreed) {
+            setAgreeError('Tick the box to agree before creating an account.');
+            return;
+          }
+          google.mutate(c);
+        }}
+      />
     </AuthCard>
   );
 }

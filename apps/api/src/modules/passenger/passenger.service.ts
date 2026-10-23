@@ -138,8 +138,12 @@ export class PassengerService {
           route: {
             select: {
               name: true,
-              origin: { select: { name: true, city: true } },
-              destination: { select: { name: true, city: true } },
+              origin: { select: { id: true, name: true, city: true } },
+              destination: { select: { id: true, name: true, city: true } },
+              stops: {
+                orderBy: { sequence: 'asc' },
+                select: { location: { select: { id: true, name: true, city: true } } },
+              },
               fares: {
                 where: { active: true },
                 select: { serviceClass: true, amountMinor: true, currency: true },
@@ -150,6 +154,12 @@ export class PassengerService {
       }),
     );
     if (!t) throw AppError.notFound();
+    const stopFares = await withDb(this.db, { platform: true }, (tx) =>
+      tx.stopFare.findMany({
+        where: { tenantId, routeId: t.routeId },
+        select: { fromLocationId: true, toLocationId: true, amountMinor: true, currency: true },
+      }),
+    );
     const fare = t.route.fares.find((f) => f.serviceClass === 'STANDARD') ?? t.route.fares[0]!;
     const map = await this.bookings.seatMap(this.scopeFor(tenantId, ''), tripId);
     return {
@@ -165,6 +175,10 @@ export class PassengerService {
       delayMinutes: t.delayMinutes,
       fareMinor: fare.amountMinor,
       currency: fare.currency,
+      stops: [t.route.origin, ...t.route.stops.map((x) => x.location), t.route.destination].map(
+        (l) => ({ locationId: l.id, name: l.name, city: l.city }),
+      ),
+      stopFares,
       sellable: map.sellable,
       seats: map.seats,
     };

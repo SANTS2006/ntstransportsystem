@@ -58,6 +58,8 @@ import { ScheduleService } from './modules/catalog/schedule.service.js';
 import { MembershipService } from './modules/tenants/membership.service.js';
 import { PlatformReportService } from './modules/report/platform-report.service.js';
 import { PlatformAuditService } from './modules/audit/platform-audit.service.js';
+import { BrandingService } from './modules/branding/branding.service.js';
+import { brandingRouter } from './modules/branding/branding.routes.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
 import { RoleService } from './modules/tenants/role.service.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
@@ -195,6 +197,7 @@ export function createApp({
     const tenants = new TenantService(db);
     const members = new MembershipService(db, mailer, env.APP_URL);
     v1.use(tenantRouter({ db, tenants, members, roles: new RoleService(db) }));
+    v1.use(brandingRouter(db, new BrandingService(db)));
     v1.use(
       '/platform',
       platformRouter(

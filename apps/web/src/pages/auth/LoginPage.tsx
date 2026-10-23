@@ -4,7 +4,7 @@ import { ArrowRight, LockKeyhole, Mail } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { normalizePhone } from '@nts/shared';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
 import { AuthCard } from '../../components/layout/Layouts';
@@ -31,6 +31,7 @@ export function OrDivider() {
 
 export default function LoginPage() {
   const [params] = useSearchParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const [challenge, setChallenge] = useState<string | null>(null);
@@ -125,8 +126,6 @@ export default function LoginPage() {
         <Alert tone="success">Your account is confirmed. Please sign in.</Alert>
       )}
       {(login.error ?? google.error) && <ErrorAlert error={login.error ?? google.error} />}
-      <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
-      <OrDivider />
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
           label="Email address / Phone number"
@@ -164,10 +163,15 @@ export default function LoginPage() {
       </form>
       <p className="text-center text-sm text-slate-600 dark:text-slate-400">
         Don&apos;t have an account?{' '}
-        <Link className="font-semibold text-brand-600" to="/register">
+        <Link
+          className="font-semibold text-brand-600"
+          to={slug ? `/${slug}/register` : '/register'}
+        >
           Create an account
         </Link>
       </p>
+      <OrDivider />
+      <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
     </AuthCard>
   );
 }

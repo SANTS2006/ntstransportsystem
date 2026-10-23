@@ -1,8 +1,9 @@
-import { generateToken, hashToken } from '../../platform/crypto.js';
+import { generateToken, hashPassword, hashToken } from '../../platform/crypto.js';
 import { withDb, type Db, type Tx } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { Mailer } from '../notifications/mailer.js';
+import { defaultAdminPassword } from './admin-password.js';
 import { assertCanGrant } from './delegation.js';
 import type { TenantScope } from './tenant.guards.js';
 
@@ -123,43 +124,76 @@ export class MembershipService {
   }
 
   /**
-   * Invites the first owner of a company a platform administrator has just registered. The
-   * invitation is the only way into a new company: the person signs up (or signs in) with this
-   * email and accepts, which makes them owner.
+   * Makes the first administrator of a company a platform administrator has just registered. A new
+   * person gets an account with a generated first password that must be changed at first sign-in; an
+   * existing account is simply made owner and keeps its own password. Either way the person is
+   * e-mailed the company's sign-in address.
    */
-  async inviteOwner(actorUserId: string, tenantId: string, email: string, requestId?: string) {
-    const token = generateToken();
+  async provisionAdmin(
+    actorUserId: string,
+    input: {
+      tenantId: string;
+      companyName: string;
+      slug: string;
+      name: string;
+      email: string;
+      ownerRoleId: string;
+    },
+    requestId?: string,
+  ) {
+    const year = this.now().getFullYear();
+    const generated = defaultAdminPassword(input.companyName, year);
     const result = await withDb(this.db, { platform: true, userId: actorUserId }, async (tx) => {
-      const role = await tx.role.findFirstOrThrow({ where: { tenantId, key: 'owner' } });
-      const invitation = await tx.invitation.create({
+      const existing = await tx.user.findUnique({ where: { email: input.email } });
+      let userId: string;
+      if (existing) {
+        userId = existing.id;
+      } else {
+        userId = (
+          await tx.user.create({
+            data: {
+              email: input.email,
+              displayName: input.name,
+              // The platform vouches for this address, so no confirmation step is needed.
+              emailVerifiedAt: this.now(),
+              passwordHash: await hashPassword(generated),
+              mustChangePassword: true,
+            },
+          })
+        ).id;
+      }
+      await tx.membership.create({
         data: {
-          tenantId,
-          email,
-          roleId: role.id,
-          tokenHash: hashToken(token),
-          invitedBy: actorUserId,
-          expiresAt: new Date(this.now().getTime() + INVITE_TTL_MS),
+          tenantId: input.tenantId,
+          userId,
+          roleId: input.ownerRoleId,
+          status: 'ACTIVE',
         },
       });
-      const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId } });
       await writeAudit(tx, {
-        action: 'membership.invited',
+        action: 'platform.admin_provisioned',
         outcome: 'SUCCESS',
-        tenantId,
+        tenantId: input.tenantId,
         actorUserId,
-        targetType: 'invitation',
-        targetId: invitation.id,
+        targetType: 'user',
+        targetId: userId,
         requestId,
-        summary: { role: 'owner', byPlatform: true },
+        summary: { newAccount: !existing },
       });
-      return { id: invitation.id, tenantName: tenant.name };
+      return { isNew: !existing };
     });
     await this.mailer.send({
-      to: email,
-      template: 'tenant-invitation',
-      data: { company: result.tenantName, link: `${this.appUrl}/accept-invitation?token=${token}` },
+      to: input.email,
+      template: 'company-admin-created',
+      data: {
+        company: input.companyName,
+        name: input.name,
+        link: `${this.appUrl.replace(/\/$/, '')}/${input.slug}/login`,
+        email: input.email,
+        password: result.isNew ? generated : '',
+      },
     });
-    return { id: result.id, email };
+    return { email: input.email, newAccount: result.isNew };
   }
 
   async listInvitations(s: TenantScope) {

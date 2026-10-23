@@ -10,6 +10,10 @@ export interface Me {
   displayName: string;
   emailVerifiedAt: string | null;
   mfaEnabled: boolean;
+  /** A first password made by someone else: it has to be replaced before anything else works. */
+  mustChangePassword?: boolean;
+  /** Changes whenever the profile picture does (null: no picture). */
+  avatarVersion?: number | null;
   identities: { provider: string }[];
   platformRoles: string[];
 }

@@ -1,4 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ModalCard } from '../../components/ui/ModalCard';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -361,6 +363,7 @@ const blackoutSchema = z
 type BlackoutValues = z.infer<typeof blackoutSchema>;
 
 export function CalendarPage() {
+  const [adding376, setAdding376] = useState(false);
   const { tenantId, access } = useCompany();
   const toast = useToast();
   const qc = useQueryClient();
@@ -393,9 +396,11 @@ export function CalendarPage() {
           : null,
       );
       form.reset();
+      setAdding376(false);
       await refresh();
     },
   });
+  const ask = useConfirm();
   const remove = useMutation({
     mutationFn: (id: string) =>
       api(`/tenants/${tenantId}/calendar/blackouts/${id}`, { method: 'DELETE' }),
@@ -414,7 +419,7 @@ export function CalendarPage() {
         works.
       </p>
       {manage && (
-        <Card title="Add a blackout">
+        <ModalCard title="Add a blackout" open={adding376} onOpenChange={setAdding376}>
           {notice && <Alert tone="info">{notice}</Alert>}
           <form
             noValidate
@@ -458,7 +463,7 @@ export function CalendarPage() {
               Add blackout
             </Button>
           </form>
-        </Card>
+        </ModalCard>
       )}
       <Card title="Upcoming blackouts">
         {list.isPending && <PageLoader label="Loading blackouts" />}
@@ -481,7 +486,17 @@ export function CalendarPage() {
                 <Button
                   variant="ghost"
                   loading={remove.isPending && remove.variables === b.id}
-                  onClick={() => remove.mutate(b.id)}
+                  onClick={async () => {
+                    if (
+                      await ask({
+                        title: 'Remove this blackout?',
+                        message: 'Trips can be scheduled on those days again.',
+                        confirmLabel: 'Remove',
+                        danger: true,
+                      })
+                    )
+                      remove.mutate(b.id);
+                  }}
                 >
                   Remove
                 </Button>
@@ -535,6 +550,7 @@ export function SeatLayoutsPage() {
       await refresh();
     },
   });
+  const ask = useConfirm();
   const remove = useMutation({
     mutationFn: (id: string) =>
       api(`/tenants/${tenantId}/seat-layouts/${id}`, { method: 'DELETE' }),
@@ -622,7 +638,17 @@ export function SeatLayoutsPage() {
                     <Button
                       variant="danger"
                       loading={remove.isPending && remove.variables === l.id}
-                      onClick={() => remove.mutate(l.id)}
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: `Delete ${l.name}?`,
+                            message: 'A layout in use by a vehicle cannot be deleted.',
+                            confirmLabel: 'Delete layout',
+                            danger: true,
+                          })
+                        )
+                          remove.mutate(l.id);
+                      }}
                     >
                       Delete
                     </Button>

@@ -107,6 +107,13 @@ const PlatformOverviewPage = lazy(() =>
 const PlatformMaintenancePage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
 );
+const BrandingPage = lazy(() =>
+  import('./pages/company/BrandingPage').then((m) => ({ default: m.BrandingPage })),
+);
+const ProfilePage = lazy(() =>
+  import('./pages/app/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 const PlatformAuditPage = lazy(() =>
   import('./pages/platform/PlatformAuditPage').then((m) => ({ default: m.PlatformAuditPage })),
 );
@@ -169,6 +176,9 @@ export const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       { path: '/login', element: s(<LoginPage />) },
+      { path: '/change-password', element: s(<ChangePasswordPage />) },
+      { path: '/:slug/login', element: s(<LoginPage />) },
+      { path: '/:slug/register', element: s(<RegisterPage />) },
       { path: '/register', element: s(<RegisterPage />) },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
       { path: '/verify-email-code', element: s(<VerifyEmailCodePage />) },
@@ -199,6 +209,7 @@ export const router = createBrowserRouter([
       { path: 'complaints/new', element: s(<NewComplaintPage />) },
       { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
       { path: 'security', element: s(<SecurityPage />) },
+      { path: 'profile', element: s(<ProfilePage />) },
     ],
   },
   {
@@ -206,6 +217,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth>{s(<CompanyLayout />)}</RequireAuth>,
     children: [
       { index: true, element: s(<CompanyOverview />) },
+      { path: 'branding', element: s(<BrandingPage />) },
       { path: 'members', element: s(<TeamPage />) },
       { path: 'roles', element: s(<RolesPage />) },
       { path: 'audit', element: s(<ActivityPage />) },

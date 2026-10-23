@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -79,6 +80,7 @@ export function ComplaintsPage() {
     },
     onError: (e) => toast(errMsg(e), 'error'),
   });
+  const ask = useConfirm();
   const setState = useMutation({
     mutationFn: (s: string) =>
       api(`${base}/complaints/${openId}/status`, { method: 'POST', body: { status: s } }),
@@ -240,8 +242,15 @@ export function ComplaintsPage() {
                     )}
                     <Button
                       variant="ghost"
-                      onClick={() => {
-                        if (window.confirm('Close this complaint? It cannot be reopened.'))
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: 'Close this complaint?',
+                            message: 'It cannot be reopened.',
+                            confirmLabel: 'Close complaint',
+                            danger: true,
+                          })
+                        )
                           setState.mutate('CLOSED');
                       }}
                     >

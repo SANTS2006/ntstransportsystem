@@ -57,19 +57,20 @@ enum AuditOutcome {
 }
 
 model User {
-  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email            String?    @unique // stored lower-cased and trimmed; absent for phone-only accounts
-  phone            String?    @unique // E.164, e.g. +23276123456
-  phoneVerifiedAt  DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
-  emailVerifiedAt  DateTime?  @map("email_verified_at") @db.Timestamptz(6)
-  passwordHash     String?    @map("password_hash")
-  displayName      String     @map("display_name")
-  status           UserStatus @default(ACTIVE)
-  failedLoginCount Int        @default(0) @map("failed_login_count")
-  lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(6)
-  mfaEnabled       Boolean    @default(false) @map("mfa_enabled")
-  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String?    @unique // stored lower-cased and trimmed; absent for phone-only accounts
+  phone              String?    @unique // E.164, e.g. +23276123456
+  phoneVerifiedAt    DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
+  emailVerifiedAt    DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash       String?    @map("password_hash")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  displayName        String     @map("display_name")
+  status             UserStatus @default(ACTIVE)
+  failedLoginCount   Int        @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?  @map("locked_until") @db.Timestamptz(6)
+  mfaEnabled         Boolean    @default(false) @map("mfa_enabled")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   identities    AuthIdentity[]
   sessions      Session[]
@@ -80,6 +81,7 @@ model User {
   recoveryCodes RecoveryCode[]
   inbox         InboxNotification[]
   phoneOtps     PhoneOtp[]
+  avatar        UserAvatar?
 
   @@map("users")
 }
@@ -157,6 +159,7 @@ model Tenant {
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  branding    TenantBranding?
   roles       Role[]
   memberships Membership[]
   invitations Invitation[]
@@ -820,6 +823,8 @@ model Booking {
   contactEmail    String?       @map("contact_email")
   totalMinor      Int           @map("total_minor")
   currency        String
+  boardingLocationId  String?   @map("boarding_location_id") @db.Uuid
+  alightingLocationId String?   @map("alighting_location_id") @db.Uuid
   holdExpiresAt   DateTime?     @map("hold_expires_at") @db.Timestamptz(6)
   idempotencyKey  String?       @map("idempotency_key")
   requestHash     String?       @map("request_hash")
@@ -1312,4 +1317,47 @@ model PaymentClaim {
 
   @@index([tenantId, bookingId, status])
   @@map("payment_claims")
+}
+
+/// A company's logo (a small PNG, JPEG or WebP kept in the database) and its two brand colours.
+model TenantBranding {
+  tenantId     String   @id @map("tenant_id") @db.Uuid
+  primaryColor String?  @map("primary_color") // #rrggbb, lower case
+  accentColor  String?  @map("accent_color")
+  logoData     Bytes?   @map("logo_data")
+  logoType     String?  @map("logo_type")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_branding")
+}
+
+/// A person's profile picture.
+model UserAvatar {
+  userId      String   @id @map("user_id") @db.Uuid
+  data        Bytes
+  contentType String   @map("content_type")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_avatars")
+}
+
+/// The price from one stop of a route to a later one. A booking that names its stops pays this;
+/// otherwise the route's own fare applies.
+model StopFare {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  routeId        String   @map("route_id") @db.Uuid
+  fromLocationId String   @map("from_location_id") @db.Uuid
+  toLocationId   String   @map("to_location_id") @db.Uuid
+  amountMinor    Int      @map("amount_minor")
+  currency       String   @default("SLE")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([routeId, fromLocationId, toLocationId])
+  @@index([tenantId, routeId])
+  @@map("stop_fares")
 }

@@ -4,16 +4,18 @@ import {
   Building2,
   LogOut,
   Menu,
+  UserRound,
   MessageSquareWarning,
   ShieldCheck,
   Ticket,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { api } from '../../lib/api';
+import { brandStyle } from '../../lib/theme';
 import { BlockingOverlay, Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button, linkButton } from '../ui/Button';
@@ -24,19 +26,70 @@ import { TopProgress } from './TopProgress';
 
 const linkClass = 'text-sm font-medium text-slate-700 hover:text-brand-700 dark:text-slate-300';
 
-function Brand() {
+/** A company's name and logo, shown in its workspace instead of the system's. */
+export interface CompanyBrand {
+  name: string;
+  logoUrl: string | null;
+  primary: string | null;
+  accent: string | null;
+}
+
+function Brand({
+  company,
+  onDark = false,
+}: {
+  company?: CompanyBrand | undefined;
+  onDark?: boolean;
+}) {
+  const name = company?.name ?? 'NTS Transport';
   return (
-    <Link to="/" aria-label="NTS Transport home" className="flex items-center gap-2.5">
-      <Logo size="md" />
-      <span className="hidden text-base font-bold tracking-tight text-brand-800 md:block dark:text-slate-100">
-        NTS Transport
+    <Link
+      to={company ? '.' : '/'}
+      aria-label={`${name} home`}
+      className="flex min-w-0 items-center gap-2.5"
+    >
+      {company ? (
+        company.logoUrl ? (
+          <img
+            src={company.logoUrl}
+            alt=""
+            className="h-10 w-auto max-w-24 shrink-0 rounded-md bg-white object-contain p-0.5"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="grid size-10 shrink-0 place-items-center rounded-md bg-white text-base font-bold text-brand-700"
+          >
+            {name.slice(0, 1).toUpperCase()}
+          </span>
+        )
+      ) : (
+        <Logo size="md" />
+      )}
+      <span
+        className={`${company ? 'block' : 'hidden md:block'} min-w-0 truncate text-base font-bold tracking-tight ${
+          onDark ? 'text-white' : 'text-brand-800 dark:text-slate-100'
+        }`}
+      >
+        {name}
       </span>
     </Link>
   );
 }
 
-/** Round initials, the stand-in for a profile picture. */
-function Avatar({ name, accent = false }: { name: string | undefined; accent?: boolean }) {
+/** The person's picture, or round initials when they have none. */
+export function Avatar({
+  name,
+  version,
+  accent = false,
+  size = 'md',
+}: {
+  name: string | undefined;
+  version?: number | null | undefined;
+  accent?: boolean;
+  size?: 'md' | 'lg';
+}) {
+  const [broken, setBroken] = useState(false);
   const initials =
     (name ?? '?')
       .split(/\s+/)
@@ -44,10 +97,22 @@ function Avatar({ name, accent = false }: { name: string | undefined; accent?: b
       .slice(0, 2)
       .map((w) => w[0]!.toUpperCase())
       .join('') || '?';
+  const box = size === 'lg' ? 'size-20 text-2xl' : 'size-9 text-sm';
+  if (version && !broken) {
+    return (
+      <img
+        src={`/api/v1/auth/me/avatar?v=${version}`}
+        alt=""
+        aria-hidden="true"
+        onError={() => setBroken(true)}
+        className={`${box} shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"
-      className={`grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold ${
+      className={`grid ${box} shrink-0 place-items-center rounded-full font-semibold ${
         accent ? 'bg-accent-500 text-brand-900' : 'bg-brand-600 text-white'
       }`}
     >
@@ -143,7 +208,7 @@ export function PublicLayout() {
                   </Link>
                 </span>
                 <Link to="/app" aria-label="My account" className="sm:hidden">
-                  <Avatar name={user.displayName} />
+                  <Avatar name={user.displayName} version={user.avatarVersion} />
                 </Link>
               </>
             ) : (
@@ -239,6 +304,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
       </div>
     );
   }
+  if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
   if (!user) {
     const dest = location.pathname + location.search;
     // /app is the default landing page, so a `next` for it would be redundant noise.
@@ -272,6 +338,104 @@ function groupNav(nav: NavItem[]): { name: string | null; items: NavItem[] }[] {
   return out;
 }
 
+/** The round picture at the top right: opens a small menu with the profile, security and sign out. */
+function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) {
+        if (e.key === 'Escape') setOpen(false);
+      } else if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  const item =
+    'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
+  return (
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        aria-label="Your account"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-full ring-2 ring-transparent hover:ring-brand-200"
+      >
+        <Avatar name={user?.displayName} version={user?.avatarVersion} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-12 z-40 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-level3 dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="flex items-center gap-3 px-3 py-2">
+            <Avatar name={user?.displayName} version={user?.avatarVersion} />
+            <div className="min-w-0 text-xs">
+              <p className="truncate text-sm font-semibold">{user?.displayName}</p>
+              <p className="truncate text-slate-500">{user?.email ?? user?.phone}</p>
+            </div>
+          </div>
+          <div className="my-1 h-px bg-slate-100 dark:bg-slate-800" />
+          <Link role="menuitem" to="/app/profile" className={item} onClick={() => setOpen(false)}>
+            <UserRound aria-hidden="true" className="size-4" strokeWidth={1.8} />
+            Profile and settings
+          </Link>
+          <Link role="menuitem" to="/app/security" className={item} onClick={() => setOpen(false)}>
+            <ShieldCheck aria-hidden="true" className="size-4" strokeWidth={1.8} />
+            Security
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+          >
+            <LogOut aria-hidden="true" className="size-4" strokeWidth={1.8} />
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Foot of every signed-in page: whose workspace this is, and the way back to the public site. */
+function AppFooter({ company }: { company?: CompanyBrand | undefined }) {
+  return (
+    <footer className="border-t border-slate-200 px-4 py-5 text-xs text-slate-500 sm:px-6 lg:px-8 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <p>
+          © {new Date().getFullYear()} {company?.name ?? 'NTS Transport'}
+          {company ? ' · powered by NTS Transport' : ''}. Prices are shown in Sierra Leonean leone
+          (SLE) unless a company sets another currency.
+        </p>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-1">
+          <Link to="/trips" className="hover:text-brand-700">
+            Find a trip
+          </Link>
+          <Link to="/app" className="hover:text-brand-700">
+            My account
+          </Link>
+          <Link to="/app/security" className="hover:text-brand-700">
+            Security
+          </Link>
+        </nav>
+      </div>
+    </footer>
+  );
+}
+
 const sideLink = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
     isActive
@@ -287,11 +451,14 @@ export function DashboardShell({
   nav,
   heading,
   theme,
+  company,
   children,
 }: {
   nav: NavItem[];
   heading?: string;
   theme?: 'platform';
+  /** Set inside a company's workspace: its name, logo and colours replace the system's. */
+  company?: CompanyBrand | undefined;
   children?: ReactNode;
 }) {
   const { user, clear } = useAuth();
@@ -314,7 +481,7 @@ export function DashboardShell({
   const sidebar = (
     <>
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <Brand />
+        <Brand company={company} onDark />
         <button
           type="button"
           aria-label="Close menu"
@@ -387,7 +554,10 @@ export function DashboardShell({
     </>
   );
   return (
-    <div className={`min-h-dvh lg:flex ${theme === 'platform' ? 'theme-platform' : ''}`}>
+    <div
+      className={`min-h-dvh lg:flex ${theme === 'platform' ? 'theme-platform' : ''}`}
+      style={company ? brandStyle(company.primary, company.accent) : undefined}
+    >
       <TopProgress />
       {signOut.isPending && (
         <BlockingOverlay title="Signing you out…" note="Closing your session safely." />
@@ -429,13 +599,14 @@ export function DashboardShell({
           <span className="hidden text-sm font-medium text-slate-500 lg:block">{heading}</span>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <Avatar name={user?.displayName} />
+            <ProfileMenu onSignOut={() => signOut.mutate()} />
           </div>
         </header>
         <MaintenanceBanner />
         <main id="main" className="min-w-0 p-4 sm:p-6 lg:p-8">
           {children ?? <Outlet />}
         </main>
+        <AppFooter company={company} />
       </div>
     </div>
   );

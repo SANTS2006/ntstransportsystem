@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -120,6 +121,7 @@ export function RecruitmentPage() {
   });
   const [note, setNote] = useState('');
   const [empNo, setEmpNo] = useState('');
+  const ask = useConfirm();
   const move = useMutation({
     mutationFn: (status: string) =>
       api(`${base}/applications/${openId}/status`, { method: 'POST', body: { status } }),
@@ -370,10 +372,15 @@ export function RecruitmentPage() {
                         key={s}
                         variant={s === 'REJECTED' ? 'danger' : 'secondary'}
                         loading={move.isPending && move.variables === s}
-                        onClick={() => {
+                        onClick={async () => {
                           if (
                             s !== 'REJECTED' ||
-                            window.confirm('Reject this applicant? They will be emailed.')
+                            (await ask({
+                              title: 'Reject this applicant?',
+                              message: 'They will be told by email.',
+                              confirmLabel: 'Reject applicant',
+                              danger: true,
+                            }))
                           )
                             move.mutate(s);
                         }}

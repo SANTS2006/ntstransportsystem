@@ -113,6 +113,24 @@ export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): Rendere
         text: `You have been invited to join ${company}. Sign in with this email address to accept (expires in 7 days):\n${link}\n`,
       };
     }
+    case 'company-admin-created': {
+      const link = safeLink(msg.data.link);
+      const company = msg.data.company ?? 'your company';
+      const name = msg.data.name ?? '';
+      const email = msg.data.email ?? '';
+      const password = msg.data.password ?? '';
+      const details = password
+        ? `<p>Sign in with:</p><p>Email: <strong>${escapeHtml(email)}</strong><br>Temporary password: <strong>${escapeHtml(password)}</strong></p><p>You will be asked to choose your own password the first time you sign in.</p>`
+        : `<p>You already have an NTS account, so sign in with your usual email (<strong>${escapeHtml(email)}</strong>) and password.</p>`;
+      return {
+        subject: `${company} is ready on NTS Transport`,
+        html: layout(
+          'Your company is ready',
+          `<p>Hello ${escapeHtml(name)}, <strong>${escapeHtml(company)}</strong> has been registered on NTS Transport and you are its administrator.</p>${details}${button(link, 'Open your company sign-in page')}`,
+        ),
+        text: `${company} has been registered on NTS Transport and you are its administrator.\nSign-in page: ${link}\nEmail: ${email}\n${password ? `Temporary password: ${password}\nYou will be asked to choose your own password at first sign-in.\n` : 'Use your usual password.\n'}`,
+      };
+    }
     case 'booking-confirmed': {
       const link = safeLink(msg.data.link);
       const d = trip(msg.data);

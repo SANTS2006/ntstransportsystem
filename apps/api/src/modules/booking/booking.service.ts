@@ -24,6 +24,9 @@ export interface BookingInput {
   serviceClass?: string | undefined;
   contact: { name: string; phone: string; email?: string | undefined };
   passengers: { fullName: string; seatLabel: string }[];
+  /** Where the passengers get on and off. Both or neither; with them the price is set by stop. */
+  boardingLocationId?: string | undefined;
+  alightingLocationId?: string | undefined;
 }
 
 type BookingRow = Awaited<ReturnType<Tx['booking']['findFirstOrThrow']>> & {
@@ -52,6 +55,8 @@ const toDto = (b: BookingRow) => ({
   contactEmail: b.contactEmail,
   totalMinor: b.totalMinor,
   currency: b.currency,
+  boardingLocationId: b.boardingLocationId,
+  alightingLocationId: b.alightingLocationId,
   holdExpiresAt: b.holdExpiresAt?.toISOString() ?? null,
   createdAt: b.createdAt.toISOString(),
   passengers: b.passengers.map((p) => ({
@@ -309,6 +314,103 @@ export class BookingService {
     );
   }
 
+  // ---- Fares by stop ---------------------------------------------------------------------------
+
+  /** The places along a route in the order the vehicle visits them: origin, stops, destination. */
+  private async orderedStops(tx: Tx, tenantId: string, routeId: string) {
+    const route = await tx.route.findFirst({
+      where: { id: routeId, tenantId },
+      include: {
+        origin: { select: { id: true, name: true, city: true } },
+        destination: { select: { id: true, name: true, city: true } },
+        stops: {
+          orderBy: { sequence: 'asc' },
+          include: { location: { select: { id: true, name: true, city: true } } },
+        },
+      },
+    });
+    if (!route) throw AppError.notFound();
+    return [route.origin, ...route.stops.map((x) => x.location), route.destination].map(
+      (l, position) => ({ locationId: l.id, name: l.name, city: l.city, position }),
+    );
+  }
+
+  /** The stops of a route and the price set for each pair of them. */
+  async listStopFares(s: TenantScope, routeId: string) {
+    return withDb(this.db, ctxOf(s), async (tx) => {
+      const stops = await this.orderedStops(tx, s.tenantId, routeId);
+      const fares = await tx.stopFare.findMany({ where: { tenantId: s.tenantId, routeId } });
+      return {
+        stops,
+        fares: fares.map((f) => ({
+          fromLocationId: f.fromLocationId,
+          toLocationId: f.toLocationId,
+          amountMinor: f.amountMinor,
+          currency: f.currency,
+        })),
+      };
+    });
+  }
+
+  /** Replaces the whole price list of a route. Each price is from an earlier stop to a later one. */
+  async setStopFares(
+    s: TenantScope,
+    routeId: string,
+    fares: { fromLocationId: string; toLocationId: string; amountMinor: number }[],
+    requestId?: string,
+  ) {
+    return mapDbErrors(
+      () =>
+        withDb(this.db, ctxOf(s), async (tx) => {
+          const stops = await this.orderedStops(tx, s.tenantId, routeId);
+          const at = new Map(stops.map((x) => [x.locationId, x.position]));
+          const seen = new Set<string>();
+          for (const f of fares) {
+            const a = at.get(f.fromLocationId);
+            const b = at.get(f.toLocationId);
+            if (a === undefined || b === undefined) {
+              throw AppError.validation('Every price must be between two stops of this route');
+            }
+            if (a >= b) {
+              throw AppError.validation('A price goes from an earlier stop to a later one');
+            }
+            const key = `${f.fromLocationId}>${f.toLocationId}`;
+            if (seen.has(key)) throw AppError.validation('Each pair of stops can be priced once');
+            seen.add(key);
+          }
+          const tenant = await tx.tenant.findUniqueOrThrow({
+            where: { id: s.tenantId },
+            select: { defaultCurrency: true },
+          });
+          await tx.stopFare.deleteMany({ where: { tenantId: s.tenantId, routeId } });
+          if (fares.length > 0) {
+            await tx.stopFare.createMany({
+              data: fares.map((f) => ({
+                tenantId: s.tenantId,
+                routeId,
+                fromLocationId: f.fromLocationId,
+                toLocationId: f.toLocationId,
+                amountMinor: f.amountMinor,
+                currency: tenant.defaultCurrency,
+              })),
+            });
+          }
+          // Existing bookings keep the price they were sold at.
+          await writeAudit(tx, {
+            action: 'booking.stop_fares_set',
+            outcome: 'SUCCESS',
+            tenantId: s.tenantId,
+            actorUserId: s.userId,
+            targetType: 'route',
+            targetId: routeId,
+            requestId,
+            summary: { prices: fares.length },
+          });
+        }),
+      { check: 'Amounts must be zero or more' },
+    );
+  }
+
   // ---- Availability --------------------------------------------------------------------------
 
   async seatMap(s: TenantScope, tripId: string) {
@@ -401,10 +503,38 @@ export class BookingService {
             if (!trip.vehicleId)
               throw AppError.conflict('This trip has no vehicle yet, so seats cannot be sold');
             const serviceClass = input.serviceClass ?? 'STANDARD';
-            const fare = await tx.fare.findFirst({
-              where: { tenantId: s.tenantId, routeId: trip.routeId, serviceClass, active: true },
-            });
-            if (!fare) throw AppError.conflict('No fare is set for this route and class');
+            const boarding = input.boardingLocationId;
+            const alighting = input.alightingLocationId;
+            if (Boolean(boarding) !== Boolean(alighting)) {
+              throw AppError.validation(
+                'Choose both the stop to get on at and the stop to get off at',
+              );
+            }
+            let fare: { amountMinor: number; currency: string } | null = null;
+            if (boarding && alighting) {
+              const stops = await this.orderedStops(tx, s.tenantId, trip.routeId);
+              const a = stops.find((x) => x.locationId === boarding)?.position;
+              const b = stops.find((x) => x.locationId === alighting)?.position;
+              if (a === undefined || b === undefined || a >= b) {
+                throw AppError.validation(
+                  'Choose a stop to get on at and a later stop to get off at',
+                );
+              }
+              fare = await tx.stopFare.findFirst({
+                where: {
+                  tenantId: s.tenantId,
+                  routeId: trip.routeId,
+                  fromLocationId: boarding,
+                  toLocationId: alighting,
+                },
+              });
+              if (!fare) throw AppError.conflict('No price is set between these two stops');
+            } else {
+              fare = await tx.fare.findFirst({
+                where: { tenantId: s.tenantId, routeId: trip.routeId, serviceClass, active: true },
+              });
+              if (!fare) throw AppError.conflict('No fare is set for this route and class');
+            }
             const valid = new Set(
               (await sellableSeats(tx, s.tenantId, trip.vehicleId)).map((x) => x.label),
             );
@@ -424,6 +554,8 @@ export class BookingService {
                 contactEmail: input.contact.email ?? null,
                 totalMinor: fare.amountMinor * seats.length,
                 currency: fare.currency,
+                boardingLocationId: boarding ?? null,
+                alightingLocationId: alighting ?? null,
                 holdExpiresAt,
                 idempotencyKey: idempotencyKey ?? null,
                 requestHash,

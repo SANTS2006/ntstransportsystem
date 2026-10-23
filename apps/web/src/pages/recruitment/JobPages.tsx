@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -246,6 +247,7 @@ export function MyApplicationsPage() {
     queryFn: ({ signal }) =>
       api<{ applications: MyApplication[] }>('/applicant/applications', { signal }),
   });
+  const ask = useConfirm();
   const withdraw = useMutation({
     mutationFn: (id: string) =>
       api(`/applicant/applications/${id}/withdraw`, { method: 'POST', body: {} }),
@@ -303,8 +305,16 @@ export function MyApplicationsPage() {
                 <Button
                   variant="ghost"
                   loading={withdraw.isPending && withdraw.variables === a.id}
-                  onClick={() => {
-                    if (window.confirm('Withdraw this application?')) withdraw.mutate(a.id);
+                  onClick={async () => {
+                    if (
+                      await ask({
+                        title: 'Withdraw this application?',
+                        message: 'The company will no longer consider it.',
+                        confirmLabel: 'Withdraw',
+                        danger: true,
+                      })
+                    )
+                      withdraw.mutate(a.id);
                   }}
                 >
                   Withdraw

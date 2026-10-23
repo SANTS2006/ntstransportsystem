@@ -1,3 +1,4 @@
+import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withDb, type Db, type Tx } from '../src/platform/db.js';
@@ -69,38 +70,120 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       await u.call('post', '/tenants').send({ name: 'Sierra Coaches Ltd' }).expect(404);
       await u
         .call('post', '/platform/tenants')
-        .send({ name: 'Sierra Coaches Ltd', ownerEmail: 'someone@example.test' })
+        .send({
+          name: 'Sierra Coaches Ltd',
+          slug: 'sierra-coaches',
+          adminName: 'Some One',
+          adminEmail: 'someone@example.test',
+        })
         .expect(404);
       const mine = await u.call('get', '/tenants/mine').expect(200);
       expect(mine.body.tenants).toEqual([]);
     });
 
-    it('lets platform staff register a company, ACTIVE, and invites its first owner', async () => {
+    const PNG = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.alloc(64),
+    ]);
+
+    it('registers a company with its own address, colours and logo, and makes its administrator', async () => {
       const ops = await platformUser('OPERATIONS');
-      const ownerEmail = `${uniq('first-owner')}@example.test`;
+      const adminEmail = `${uniq('first-admin')}@example.test`;
+      const slug = uniq('sierra').toLowerCase();
       const res = await ops
         .call('post', '/platform/tenants')
-        .send({ name: 'Sierra Coaches Ltd', ownerEmail })
+        .send({
+          name: 'Sierra Coaches Ltd',
+          slug,
+          adminName: 'Ada Kamara',
+          adminEmail,
+          primaryColor: '#0b6e4f',
+          accentColor: '#f4a300',
+        })
         .expect(201);
-      expect(res.body).toMatchObject({ status: 'ACTIVE', ownerInvitedEmail: ownerEmail });
+      expect(res.body).toMatchObject({ status: 'ACTIVE', slug, adminAccountCreated: true });
       const id = res.body.id as string;
-      const mail = ctx.mailer.sent.find(
-        (m) => m.to === ownerEmail && m.template === 'tenant-invitation',
-      );
-      expect(mail).toBeDefined();
 
-      // Unknown keys are rejected, including a client-chosen status.
+      // The e-mail carries the company sign-in link, the address and the generated password.
+      const mail = ctx.mailer.sent.find(
+        (m) => m.to === adminEmail && m.template === 'company-admin-created',
+      );
+      expect(mail?.data).toMatchObject({
+        email: adminEmail,
+        password: `SCL@${new Date().getFullYear()}`,
+      });
+      expect(mail?.data.link).toMatch(new RegExp(`/${slug}/login$`));
+
+      // Unknown keys, a bad or reserved or taken address name are refused.
+      const base = { name: 'Other Co', adminName: 'Bo Bangura', adminEmail: 'bo@example.test' };
       await ops
         .call('post', '/platform/tenants')
-        .send({ name: 'Mass Assign Co', ownerEmail, status: 'ACTIVE' })
+        .send({ ...base, slug: uniq('x'), status: 'ACTIVE' })
         .expect(400);
+      await ops
+        .call('post', '/platform/tenants')
+        .send({ ...base, slug: 'Bad Name' })
+        .expect(400);
+      await ops
+        .call('post', '/platform/tenants')
+        .send({ ...base, slug: 'login' })
+        .expect(409);
+      await ops
+        .call('post', '/platform/tenants')
+        .send({ ...base, slug })
+        .expect(409);
 
-      // The invited person signs up with that email and accepts: they become the owner.
-      const owner = await newClient(ctx.app, db, 'first-owner');
-      await db.user.update({ where: { id: owner.userId }, data: { email: ownerEmail } });
-      const token = tokenFrom(String((mail?.data as { link?: string } | undefined)?.link));
-      await owner.call('post', '/invitations/accept').send({ token }).expect(200);
-      const mine = await owner.call('get', '/tenants/mine').expect(200);
+      // Logo: a real picture is stored, a script pretending to be one is refused.
+      await ops
+        .call('put', `/platform/tenants/${id}/logo`)
+        .set('Content-Type', 'image/png')
+        .send(Buffer.from('<script>alert(1)</script>'))
+        .expect(400);
+      await ops
+        .call('put', `/platform/tenants/${id}/logo`)
+        .set('Content-Type', 'image/png')
+        .send(PNG)
+        .expect(204);
+
+      // Anyone can see the company's sign-in branding, and only that.
+      const pub = await request(ctx.app).get(`/api/v1/public/companies/${slug}`).expect(200);
+      expect(pub.body).toMatchObject({
+        name: 'Sierra Coaches Ltd',
+        slug,
+        primaryColor: '#0b6e4f',
+        accentColor: '#f4a300',
+      });
+      expect(pub.body.logoUrl).toContain(`/public/companies/${slug}/logo`);
+      const logo = await request(ctx.app).get(`/api/v1/public/companies/${slug}/logo`).expect(200);
+      expect(logo.headers['content-type']).toBe('image/png');
+      expect(logo.headers['x-content-type-options']).toBe('nosniff');
+      await request(ctx.app).get('/api/v1/public/companies/no-such-company').expect(404);
+
+      // The new administrator signs in with the generated password and must change it first.
+      const login = await request(ctx.app)
+        .post('/api/v1/auth/login')
+        .send({ email: adminEmail, password: mail?.data.password })
+        .expect(200);
+      const sid = (login.headers['set-cookie'] as unknown as string[])
+        .find((c) => c.startsWith('sid='))!
+        .split(';')[0]!;
+      const csrf = (login.headers['set-cookie'] as unknown as string[])
+        .find((c) => c.startsWith('csrf='))!
+        .split(';')[0]!
+        .slice(5);
+      const as = (path: string) =>
+        request(ctx.app).get(`/api/v1${path}`).set('Cookie', `${sid}; csrf=${csrf}`);
+      const me = await as('/auth/me').expect(200);
+      expect(me.body.mustChangePassword).toBe(true);
+      const blocked = await as('/tenants/mine').expect(403);
+      expect(blocked.body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
+      await request(ctx.app)
+        .post('/api/v1/auth/change-password')
+        .set('Cookie', `${sid}; csrf=${csrf}`)
+        .set('x-csrf-token', csrf)
+        .send({ currentPassword: mail?.data.password, newPassword: 'a-brand-new-password-1' })
+        .expect(200);
+      const mine = await as('/tenants/mine').expect(200);
       expect(mine.body.tenants).toEqual([
         expect.objectContaining({
           tenantId: id,
@@ -108,11 +191,76 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
           role: expect.objectContaining({ key: 'owner' }),
         }),
       ]);
+      expect((await as('/auth/me').expect(200)).body.mustChangePassword).toBe(false);
+
+      // The company's own owner can change colours and logo, a plain member cannot.
+      const owner = await loginClient(ctx.app, db, adminEmail, 'a-brand-new-password-1');
+      await owner
+        .call('patch', `/tenants/${id}/branding`)
+        .send({ primaryColor: '#123456', accentColor: null })
+        .expect(200);
+      await owner
+        .call('patch', `/tenants/${id}/branding`)
+        .send({ primaryColor: 'red', accentColor: null })
+        .expect(400);
+      const other = await activeCompany('brand-other');
+      await other.owner
+        .call('patch', `/tenants/${id}/branding`)
+        .send({ primaryColor: '#111111', accentColor: null })
+        .expect(404);
 
       const audit = await withDb(db, { platform: true }, (tx) =>
-        tx.auditLog.findMany({ where: { tenantId: id, action: 'platform.tenant_created' } }),
+        tx.auditLog.findMany({
+          where: {
+            tenantId: id,
+            action: { in: ['platform.tenant_created', 'platform.admin_provisioned'] },
+          },
+        }),
       );
-      expect(audit).toHaveLength(1);
+      expect(audit.map((e) => e.action).sort()).toEqual([
+        'platform.admin_provisioned',
+        'platform.tenant_created',
+      ]);
+    });
+
+    it('makes an existing account the administrator without changing its password', async () => {
+      const ops = await platformUser('OPERATIONS');
+      const person = await newClient(ctx.app, db, 'existing-admin');
+      const res = await ops
+        .call('post', '/platform/tenants')
+        .send({
+          name: 'Existing Admin Co',
+          slug: uniq('existing').toLowerCase(),
+          adminName: 'Whoever',
+          adminEmail: person.email,
+        })
+        .expect(201);
+      expect(res.body.adminAccountCreated).toBe(false);
+      const mail = ctx.mailer.sent.find(
+        (m) => m.to === person.email && m.template === 'company-admin-created',
+      );
+      expect(mail?.data.password).toBe('');
+      const mine = await person.call('get', '/tenants/mine').expect(200);
+      expect(mine.body.tenants).toHaveLength(1);
+    });
+
+    it('lets anyone signed in change their name and picture', async () => {
+      const u = await newClient(ctx.app, db, 'profile');
+      await u.call('patch', '/auth/me').send({ displayName: 'Fanta Jalloh' }).expect(204);
+      await u.call('patch', '/auth/me').send({ displayName: '' }).expect(400);
+      await u
+        .call('put', '/auth/me/avatar')
+        .set('Content-Type', 'image/png')
+        .send(Buffer.from('not a picture'))
+        .expect(400);
+      await u.call('put', '/auth/me/avatar').set('Content-Type', 'image/png').send(PNG).expect(204);
+      const me = await u.call('get', '/auth/me').expect(200);
+      expect(me.body.displayName).toBe('Fanta Jalloh');
+      expect(me.body.avatarVersion).toEqual(expect.any(Number));
+      const pic = await u.call('get', '/auth/me/avatar').expect(200);
+      expect(pic.headers['content-type']).toBe('image/png');
+      await u.call('delete', '/auth/me/avatar').expect(204);
+      await u.call('get', '/auth/me/avatar').expect(404);
     });
 
     it('rejects client-supplied tenant status/slug on profile update', async () => {

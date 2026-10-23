@@ -1,4 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { StopFaresDialog } from './StopFaresDialog';
+import { ModalCard } from '../../components/ui/ModalCard';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -51,6 +54,7 @@ export function useLocations() {
 }
 
 export function LocationsPage() {
+  const [adding400, setAdding400] = useState(false);
   const { tenantId, access } = useCompany();
   const toast = useToast();
   const refresh = useRefresh('locations');
@@ -66,6 +70,7 @@ export function LocationsPage() {
     onSuccess: async () => {
       toast('Location added', 'success');
       form.reset();
+      setAdding400(false);
       await refresh();
     },
   });
@@ -78,6 +83,7 @@ export function LocationsPage() {
     onSuccess: refresh,
     onError: (e) => toast(errMsg(e), 'error'),
   });
+  const ask = useConfirm();
   const remove = useMutation({
     mutationFn: (id: string) => api(`/tenants/${tenantId}/locations/${id}`, { method: 'DELETE' }),
     onSuccess: async () => {
@@ -91,7 +97,7 @@ export function LocationsPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <Title>Locations</Title>
       {manage && (
-        <Card title="Add a location">
+        <ModalCard title="Add a location" open={adding400} onOpenChange={setAdding400}>
           {create.error && <ErrorAlert error={create.error} />}
           <form
             noValidate
@@ -119,7 +125,7 @@ export function LocationsPage() {
               Add
             </Button>
           </form>
-        </Card>
+        </ModalCard>
       )}
       <Card>
         {q.isPending && <PageLoader label="Loading locations" />}
@@ -153,7 +159,18 @@ export function LocationsPage() {
                     <Button
                       variant="danger"
                       loading={remove.isPending && remove.variables === l.id}
-                      onClick={() => remove.mutate(l.id)}
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: `Delete ${l.name}?`,
+                            message:
+                              'This location is removed. It cannot be deleted while a route uses it.',
+                            confirmLabel: 'Delete location',
+                            danger: true,
+                          })
+                        )
+                          remove.mutate(l.id);
+                      }}
                     >
                       Delete
                     </Button>
@@ -222,6 +239,7 @@ export function useVehicles() {
 }
 
 export function VehiclesPage() {
+  const [adding112, setAdding112] = useState(false);
   const { tenantId, access } = useCompany();
   const toast = useToast();
   const refresh = useRefresh('vehicles');
@@ -241,6 +259,7 @@ export function VehiclesPage() {
     onSuccess: async () => {
       toast('Vehicle added', 'success');
       form.reset();
+      setAdding112(false);
       await refresh();
     },
   });
@@ -258,7 +277,7 @@ export function VehiclesPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <Title>Vehicles</Title>
       {manage && (
-        <Card title="Add a vehicle">
+        <ModalCard title="Add a vehicle" open={adding112} onOpenChange={setAdding112}>
           {create.error && <ErrorAlert error={create.error} />}
           <form
             noValidate
@@ -313,7 +332,7 @@ export function VehiclesPage() {
               Add
             </Button>
           </form>
-        </Card>
+        </ModalCard>
       )}
       <Card>
         {q.isPending && <PageLoader label="Loading vehicles" />}
@@ -430,8 +449,18 @@ function FareEditor({ routeId, canEdit }: { routeId: string; canEdit: boolean })
     onError: (e) => toast(errMsg(e), 'error'),
   });
   const current = q.data?.fares.find((f) => f.serviceClass === 'STANDARD');
+  const [stopsOpen, setStopsOpen] = useState(false);
   return (
     <div className="flex w-full flex-wrap items-end gap-3 pt-2 text-xs">
+      <StopFaresDialog
+        routeId={routeId}
+        open={stopsOpen}
+        canEdit={canEdit}
+        onClose={() => setStopsOpen(false)}
+      />
+      <Button variant="ghost" onClick={() => setStopsOpen(true)}>
+        Prices by stop
+      </Button>
       <span>
         Fare:{' '}
         {current
@@ -508,6 +537,7 @@ export function RoutesPage() {
       await refresh();
     },
   });
+  const ask = useConfirm();
   const act = useMutation({
     mutationFn: (v: { id: string; action: 'publish' | 'archive' | 'delete' }) =>
       v.action === 'delete'
@@ -692,7 +722,17 @@ export function RoutesPage() {
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={() => act.mutate({ id: r.id, action: 'delete' })}
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: 'Delete this draft route?',
+                            message: 'The draft and its stops are removed for good.',
+                            confirmLabel: 'Delete route',
+                            danger: true,
+                          })
+                        )
+                          act.mutate({ id: r.id, action: 'delete' });
+                      }}
                     >
                       Delete
                     </Button>
@@ -701,7 +741,16 @@ export function RoutesPage() {
                 {manage && r.status === 'PUBLISHED' && (
                   <Button
                     variant="secondary"
-                    onClick={() => act.mutate({ id: r.id, action: 'archive' })}
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: 'Archive this route?',
+                          message: 'It stops being offered for new trips.',
+                          confirmLabel: 'Archive route',
+                        })
+                      )
+                        act.mutate({ id: r.id, action: 'archive' });
+                    }}
                   >
                     Archive
                   </Button>

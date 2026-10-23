@@ -28,6 +28,8 @@ const searchQuery = z.object({
 });
 const bookingCreate = z
   .object({
+    boardingLocationId: z.uuid().optional(),
+    alightingLocationId: z.uuid().optional(),
     tenantId: z.uuid(),
     tripId: z.uuid(),
     serviceClass: trim.min(1).max(40).optional(),

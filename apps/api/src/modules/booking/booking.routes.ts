@@ -29,10 +29,28 @@ const fareBody = z
   })
   .strict();
 
+const stopFaresBody = z
+  .object({
+    fares: z
+      .array(
+        z
+          .object({
+            fromLocationId: uuid,
+            toLocationId: uuid,
+            amountMinor: z.number().int().min(0).max(1_000_000_000),
+          })
+          .strict(),
+      )
+      .max(200),
+  })
+  .strict();
+
 const bookingCreate = z
   .object({
     tripId: uuid,
     serviceClass: trim.min(1).max(40).optional(),
+    boardingLocationId: uuid.optional(),
+    alightingLocationId: uuid.optional(),
     contact: z
       .object({
         name: trim.min(2).max(120),
@@ -87,6 +105,14 @@ export function bookingRouter({ db, bookings }: BookingRouterDeps): ExpressRoute
 
   t.get('/routes/:id/fares', perm('route.read'), async (req, res) => {
     res.json({ fares: await bookings.listFares(scope(req), uuidParam(req, 'id')) });
+  });
+  t.get('/routes/:id/stop-fares', perm('route.read'), async (req, res) => {
+    res.json(await bookings.listStopFares(scope(req), uuidParam(req, 'id')));
+  });
+  t.put('/routes/:id/stop-fares', perm('route.manage'), async (req, res) => {
+    const b = stopFaresBody.parse(req.body);
+    await bookings.setStopFares(scope(req), uuidParam(req, 'id'), b.fares, req.id);
+    res.status(204).end();
   });
   t.put('/routes/:id/fares/:serviceClass', perm('route.manage'), async (req, res) => {
     const b = fareBody.parse(req.body);
@@ -153,6 +179,7 @@ export function bookingRouter({ db, bookings }: BookingRouterDeps): ExpressRoute
 export const requestSchemas = {
   fareBody,
   bookingCreate,
+  stopFaresBody,
   cancelBody,
   deskPaymentBody,
   deskRefundBody,

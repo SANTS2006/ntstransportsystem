@@ -5,6 +5,7 @@ export type MailTemplate =
   | 'password-reset'
   | 'password-changed'
   | 'tenant-invitation'
+  | 'company-admin-created'
   | 'booking-confirmed'
   | 'booking-cancelled'
   | 'trip-delayed'
@@ -32,6 +33,8 @@ export interface Mailer {
 export class DevLogMailer implements Mailer {
   constructor(private readonly logger: Logger) {}
   async send(msg: MailMessage) {
-    this.logger.warn({ template: msg.template, to: msg.to, data: msg.data }, 'DEV mail (not sent)');
+    // Passwords and codes are left out of the log even here.
+    const { password: _p, code: _c, ...safe } = msg.data;
+    this.logger.warn({ template: msg.template, to: msg.to, data: safe }, 'DEV mail (not sent)');
   }
 }

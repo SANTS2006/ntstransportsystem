@@ -4,14 +4,19 @@ import type { TenantStatus } from '../../generated/prisma/enums.js';
 import { withDb, type Db, type Tx } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
+import { checkSlug } from '../branding/branding.service.js';
 import type { TenantScope } from './tenant.guards.js';
 
 export interface RegisterInput {
   name: string;
+  /** The company's web address name: <site>/<slug>/login. */
+  slug: string;
   timezone: string;
   defaultCurrency: string;
-  /** Who is invited to be the first owner; recorded in the audit trail. */
-  ownerEmail: string;
+  /** The first administrator, who gets the company's owner role. Recorded in the audit trail. */
+  adminEmail: string;
+  primaryColor?: string | null | undefined;
+  accentColor?: string | null | undefined;
 }
 
 export interface ProfileUpdate {
@@ -78,7 +83,11 @@ export class TenantService {
    */
   async register(actorUserId: string, input: RegisterInput, requestId?: string) {
     return withDb(this.db, { platform: true, userId: actorUserId }, async (tx) => {
-      const slug = `${slugify(input.name)}-${randomBytes(3).toString('hex')}`;
+      checkSlug(input.slug);
+      if (await tx.tenant.findUnique({ where: { slug: input.slug }, select: { id: true } })) {
+        throw AppError.conflict('That web address name is already taken');
+      }
+      const slug = input.slug;
       const tenant = await tx.tenant.create({
         data: {
           name: input.name,
@@ -89,6 +98,15 @@ export class TenantService {
         },
       });
       const ownerRoleId = await TenantService.seedRoles(tx, tenant.id);
+      if (input.primaryColor || input.accentColor) {
+        await tx.tenantBranding.create({
+          data: {
+            tenantId: tenant.id,
+            primaryColor: input.primaryColor ?? null,
+            accentColor: input.accentColor ?? null,
+          },
+        });
+      }
       await writeAudit(tx, {
         action: 'platform.tenant_created',
         outcome: 'SUCCESS',
@@ -97,7 +115,7 @@ export class TenantService {
         targetType: 'tenant',
         targetId: tenant.id,
         requestId,
-        summary: { ownerEmail: input.ownerEmail },
+        summary: { adminEmail: input.adminEmail, slug },
       });
       return {
         id: tenant.id,

@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import type { Router as ExpressRouter } from 'express';
 import { Router } from '../../platform/router.js';
 import rateLimit from 'express-rate-limit';
@@ -7,6 +7,7 @@ import type { Env } from '../../config/env.js';
 import type { Db } from '../../platform/db.js';
 import type { RateLimitStoreFactory } from '../../platform/redis.js';
 import { AppError } from '../../platform/errors.js';
+import { IMAGE_TYPES, MAX_AVATAR_BYTES } from '../branding/branding.service.js';
 import {
   changePasswordSchema,
   forgotSchema,
@@ -15,6 +16,7 @@ import {
   phoneOnlySchema,
   emailCodeSchema,
   emailOnlySchema,
+  profileSchema,
   registerPhoneSchema,
   registerSchema,
   resetPhoneSchema,
@@ -219,6 +221,35 @@ export function authRouter({
     res.json({ message: 'Password changed' });
   });
 
+  r.patch('/me', requireAuth, limiter('profile', 30), async (req, res) => {
+    await auth.updateProfile(me(req).userId, profileSchema.parse(req.body).displayName, meta(req));
+    res.status(204).end();
+  });
+  r.put(
+    '/me/avatar',
+    requireAuth,
+    limiter('avatar', 20),
+    express.raw({ type: [...IMAGE_TYPES], limit: MAX_AVATAR_BYTES + 1000 }),
+    async (req, res) => {
+      if (!Buffer.isBuffer(req.body)) throw AppError.validation('Send a PNG, JPEG or WebP picture');
+      await auth.setAvatar(me(req).userId, req.body, meta(req));
+      res.status(204).end();
+    },
+  );
+  r.delete('/me/avatar', requireAuth, async (req, res) => {
+    await auth.clearAvatar(me(req).userId);
+    res.status(204).end();
+  });
+  r.get('/me/avatar', requireAuth, async (req, res) => {
+    const a = await auth.getAvatar(me(req).userId);
+    if (!a) throw AppError.notFound('No profile picture');
+    res.setHeader('Content-Type', a.type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(a.data);
+  });
+
   r.get('/me', requireAuth, async (req, res) => {
     const user = await db.user.findUniqueOrThrow({
       where: { id: me(req).userId },
@@ -230,12 +261,18 @@ export function authRouter({
         emailVerifiedAt: true,
         phoneVerifiedAt: true,
         mfaEnabled: true,
+        mustChangePassword: true,
+        avatar: { select: { updatedAt: true } },
         identities: { select: { provider: true } },
         platformRoles: { select: { role: true } },
       },
     });
-    const { platformRoles, ...rest } = user;
-    res.json({ ...rest, platformRoles: platformRoles.map((r) => r.role) });
+    const { platformRoles, avatar, ...rest } = user;
+    res.json({
+      ...rest,
+      avatarVersion: avatar ? avatar.updatedAt.getTime() : null,
+      platformRoles: platformRoles.map((r) => r.role),
+    });
   });
 
   r.get('/sessions', requireAuth, async (req, res) => {
@@ -284,6 +321,7 @@ export function authRouter({
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
+  profileSchema,
   emailCodeSchema,
   emailOnlySchema,
   registerPhoneSchema,

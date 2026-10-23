@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ModalCard } from '../../components/ui/ModalCard';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -46,6 +47,7 @@ const licenceSchema = z.object({
 type LicenceValues = z.infer<typeof licenceSchema>;
 
 export function StaffPage() {
+  const [adding816, setAdding816] = useState(false);
   const { tenantId, access } = useCompany();
   const toast = useToast();
   const qc = useQueryClient();
@@ -67,6 +69,7 @@ export function StaffPage() {
     onSuccess: async () => {
       toast('Employee added', 'success');
       form.reset();
+      setAdding816(false);
       await refresh();
     },
   });
@@ -100,7 +103,7 @@ export function StaffPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <Title>Staff</Title>
       {manage && (
-        <Card title="Add an employee">
+        <ModalCard title="Add an employee" open={adding816} onOpenChange={setAdding816}>
           <form
             noValidate
             onSubmit={form.handleSubmit((v) => create.mutate(v))}
@@ -139,7 +142,7 @@ export function StaffPage() {
             </div>
             <div className="w-full">{create.error && <ErrorAlert error={create.error} />}</div>
           </form>
-        </Card>
+        </ModalCard>
       )}
       <Card>
         {q.isPending && <PageLoader label="Loading staff" />}
@@ -308,6 +311,8 @@ const dueText = (daysLeft: number, past: boolean) =>
       : `in ${daysLeft} day(s)`;
 
 export function MaintenancePage() {
+  const [adding472, setAdding472] = useState(false);
+  const [adding824, setAdding824] = useState(false);
   const { tenantId, access } = useCompany();
   const toast = useToast();
   const qc = useQueryClient();
@@ -337,6 +342,7 @@ export function MaintenancePage() {
     onSuccess: async () => {
       toast('Job scheduled', 'success');
       jobForm.reset();
+      setAdding824(false);
       await refreshAll();
     },
   });
@@ -346,6 +352,7 @@ export function MaintenancePage() {
     onSuccess: async () => {
       toast('Document recorded', 'success');
       docForm.reset();
+      setAdding472(false);
       await refreshAll();
     },
   });
@@ -446,7 +453,7 @@ export function MaintenancePage() {
 
       {manage && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card title="Schedule a job">
+          <ModalCard title="Schedule a job" open={adding824} onOpenChange={setAdding824}>
             <form
               noValidate
               onSubmit={jobForm.handleSubmit((v) => createJob.mutate(v))}
@@ -485,8 +492,8 @@ export function MaintenancePage() {
                 Schedule
               </Button>
             </form>
-          </Card>
-          <Card title="Record a vehicle document">
+          </ModalCard>
+          <ModalCard title="Record a vehicle document" open={adding472} onOpenChange={setAdding472}>
             <form
               noValidate
               onSubmit={docForm.handleSubmit((v) => addDoc.mutate(v))}
@@ -526,7 +533,7 @@ export function MaintenancePage() {
                 Save document
               </Button>
             </form>
-          </Card>
+          </ModalCard>
         </div>
       )}
 

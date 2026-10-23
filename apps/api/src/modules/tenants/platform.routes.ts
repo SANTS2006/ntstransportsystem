@@ -47,12 +47,21 @@ const timezone = z
       return false;
     }
   }, 'Unknown timezone');
+const colour = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^#[0-9a-f]{6}$/, 'Use a colour like #0075df');
 const registerSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
+    slug: z.string().trim().toLowerCase().min(3).max(40),
     timezone: timezone.default('UTC'),
     defaultCurrency: currency.default('SLE'),
-    ownerEmail: z.string().trim().toLowerCase().pipe(z.email().max(254)),
+    adminName: z.string().trim().min(2).max(100),
+    adminEmail: z.string().trim().toLowerCase().pipe(z.email().max(254)),
+    primaryColor: colour.optional(),
+    accentColor: colour.optional(),
   })
   .strict();
 const auditQuery = z.object({
@@ -89,13 +98,25 @@ export function platformRouter(
     r.post('/tenants', requireAuth, writeGuard, async (req, res) => {
       const body = registerSchema.parse(req.body);
       const created = await tenants.register(actor(req), body, req.id);
-      const invitation = await members.inviteOwner(actor(req), created.id, body.ownerEmail, req.id);
+      const admin = await members.provisionAdmin(
+        actor(req),
+        {
+          tenantId: created.id,
+          companyName: created.name,
+          slug: created.slug,
+          name: body.adminName,
+          email: body.adminEmail,
+          ownerRoleId: created.ownerRoleId,
+        },
+        req.id,
+      );
       res.status(201).json({
         id: created.id,
         name: created.name,
         slug: created.slug,
         status: created.status,
-        ownerInvitedEmail: invitation.email,
+        adminEmail: admin.email,
+        adminAccountCreated: admin.newAccount,
       });
     });
   }

@@ -19,6 +19,7 @@ import { requestSchemas as payment } from '../modules/payment/payment.routes.js'
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
+import { requestSchemas as branding } from '../modules/branding/branding.routes.js';
 import { requestSchemas as tenant } from '../modules/tenants/tenant.routes.js';
 
 export type Access = 'public' | 'session' | 'tenant' | 'platform';
@@ -166,6 +167,33 @@ export const operations: Record<string, Operation> = {
     access: 'public',
     body: tokenSchema,
     ok: 200,
+  },
+  'PATCH /api/v1/auth/me': {
+    summary: 'Change my name',
+    tag: 'Auth',
+    access: 'session',
+    body: authBodies.profileSchema,
+    ok: 204,
+  },
+  'PUT /api/v1/auth/me/avatar': {
+    summary: 'Upload my profile picture',
+    description:
+      'The body is the picture itself (image/png, image/jpeg or image/webp, at most 400 KB). The type is checked from the bytes.',
+    tag: 'Auth',
+    access: 'session',
+    ok: 204,
+  },
+  'GET /api/v1/auth/me/avatar': {
+    summary: 'My profile picture',
+    tag: 'Auth',
+    access: 'session',
+    ok: 200,
+  },
+  'DELETE /api/v1/auth/me/avatar': {
+    summary: 'Remove my profile picture',
+    tag: 'Auth',
+    access: 'session',
+    ok: 204,
   },
   'POST /api/v1/auth/verify-email-code': {
     summary: 'Confirm an email address with a code',
@@ -315,6 +343,58 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Companies ------------------------------------------------------------------------------
+  'GET /api/v1/public/companies/{slug}': {
+    summary: "A company's name, colours and logo address",
+    description: "For the company's own sign-in and sign-up pages. 404 unless the company is live.",
+    tag: 'Companies',
+    access: 'public',
+    ok: 200,
+  },
+  'GET /api/v1/public/companies/{slug}/logo': {
+    summary: "A company's logo",
+    description: 'The picture itself (PNG, JPEG or WebP).',
+    tag: 'Companies',
+    access: 'public',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/branding': {
+    summary: "The company's colours and logo",
+    tag: 'Companies',
+    access: T,
+    ok: 200,
+  },
+  'PATCH /api/v1/tenants/{tenantId}/branding': {
+    summary: "Set the company's two colours",
+    tag: 'Companies',
+    access: T,
+    permission: 'tenant.profile.update',
+    body: branding.colorsSchema,
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/branding/logo': {
+    summary: "Upload the company's logo",
+    description:
+      'The body is the picture itself (Content-Type image/png, image/jpeg or image/webp, at most 600 KB). The type is checked from the bytes; SVG is refused.',
+    tag: 'Companies',
+    access: T,
+    permission: 'tenant.profile.update',
+    ok: 204,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/branding/logo': {
+    summary: "Remove the company's logo",
+    tag: 'Companies',
+    access: T,
+    permission: 'tenant.profile.update',
+    ok: 204,
+  },
+  'PUT /api/v1/platform/tenants/{id}/logo': {
+    summary: "Upload a company's logo (platform)",
+    description: "Same body rules as the company's own upload.",
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS',
+    ok: 204,
+  },
   'GET /api/v1/tenants/mine': {
     summary: 'My companies',
     tag: 'Companies',
@@ -945,6 +1025,23 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Bookings -------------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/routes/{id}/stop-fares': {
+    summary: 'The stops of a route and the price between each pair',
+    tag: 'Bookings',
+    access: T,
+    permission: 'route.read',
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/routes/{id}/stop-fares': {
+    summary: 'Replace the prices set by stop for a route',
+    description:
+      'Each price is from an earlier stop to a later one (origin, stops and destination count). A booking that names its boarding and alighting stops pays this price; otherwise the route fare applies. Existing bookings keep their price.',
+    tag: 'Bookings',
+    access: T,
+    permission: 'route.manage',
+    body: booking.stopFaresBody,
+    ok: 204,
+  },
   'GET /api/v1/tenants/{tenantId}/routes/{id}/fares': {
     summary: 'List fares for a route',
     tag: 'Bookings',

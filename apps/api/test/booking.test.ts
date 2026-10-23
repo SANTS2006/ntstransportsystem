@@ -502,4 +502,96 @@ describe.skipIf(!TEST_DB_URL)('fares, bookings and seat inventory (database)', (
       ),
     ).rejects.toThrow(); // online payments carry no desk fields
   }, 600_000);
+
+  it('prices seats by stop: the stop-to-stop price when stops are named, the route fare otherwise', async () => {
+    const a = await company('stopfares');
+    const fx = await kit(a.tenantId, { fare: 50_000 });
+    const mid = await plat((tx) =>
+      tx.location.create({ data: { tenantId: a.tenantId, name: uniq('M'), city: 'Mid' } }),
+    );
+    await plat((tx) =>
+      tx.routeStop.create({
+        data: {
+          tenantId: a.tenantId,
+          routeId: fx.route.id,
+          locationId: mid.id,
+          sequence: 1,
+          offsetMin: 60,
+        },
+      }),
+    );
+    const url = `/tenants/${a.tenantId}/routes/${fx.route.id}/stop-fares`;
+    const listed = await a.owner.call('get', url).expect(200);
+    const [o, m, d] = listed.body.stops.map((x: { locationId: string }) => x.locationId);
+    expect(listed.body.stops).toHaveLength(3);
+    expect(listed.body.fares).toEqual([]);
+
+    // Backwards, repeated and foreign pairs are refused.
+    await a.owner
+      .call('put', url)
+      .send({ fares: [{ fromLocationId: d, toLocationId: o, amountMinor: 1 }] })
+      .expect(400);
+    await a.owner
+      .call('put', url)
+      .send({
+        fares: [
+          { fromLocationId: o, toLocationId: m, amountMinor: 1 },
+          { fromLocationId: o, toLocationId: m, amountMinor: 2 },
+        ],
+      })
+      .expect(400);
+    await a.owner
+      .call('put', url)
+      .send({
+        fares: [
+          {
+            fromLocationId: o,
+            toLocationId: '00000000-0000-4000-8000-000000000000',
+            amountMinor: 1,
+          },
+        ],
+      })
+      .expect(400);
+    await a.owner
+      .call('put', url)
+      .send({ fares: [{ fromLocationId: o, toLocationId: m, amountMinor: -5 }] })
+      .expect(400);
+
+    await a.owner
+      .call('put', url)
+      .send({
+        fares: [
+          { fromLocationId: o, toLocationId: m, amountMinor: 20_000 },
+          { fromLocationId: m, toLocationId: d, amountMinor: 25_000 },
+        ],
+      })
+      .expect(204);
+    expect((await a.owner.call('get', url).expect(200)).body.fares).toHaveLength(2);
+
+    // Named stops pay the stop price; the booking remembers them.
+    const near = await book(
+      a.owner,
+      a.tenantId,
+      body(fx.trip.id, ['1A', '1B'], { boardingLocationId: o, alightingLocationId: m }),
+    ).expect(201);
+    expect(near.body.totalMinor).toBe(40_000);
+    expect(near.body.boardingLocationId).toBe(o);
+    // No stops named: the route fare, as before.
+    const whole = await book(a.owner, a.tenantId, body(fx.trip.id, ['2A'])).expect(201);
+    expect(whole.body.totalMinor).toBe(50_000);
+    // A pair with no price, one stop only, and a wrong order are all refused.
+    await book(
+      a.owner,
+      a.tenantId,
+      body(fx.trip.id, ['3A'], { boardingLocationId: o, alightingLocationId: d }),
+    ).expect(409);
+    await book(a.owner, a.tenantId, body(fx.trip.id, ['3A'], { boardingLocationId: o })).expect(
+      400,
+    );
+    await book(
+      a.owner,
+      a.tenantId,
+      body(fx.trip.id, ['3A'], { boardingLocationId: d, alightingLocationId: o }),
+    ).expect(400);
+  });
 });

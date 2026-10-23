@@ -1,4 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ModalCard } from '../../components/ui/ModalCard';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Armchair,
@@ -12,6 +14,7 @@ import {
   LayoutDashboard,
   MapPin,
   MessageSquareWarning,
+  Palette,
   Radio,
   Route,
   ScanLine,
@@ -23,6 +26,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, Outlet, useParams } from 'react-router';
 import { z } from 'zod';
@@ -38,6 +42,7 @@ import { api } from '../../lib/api';
 import { email } from '../../lib/schemas';
 import { AccessContext, can, useCompany, type CompanyAccess } from './company-context';
 import { CompanyPulse } from './CompanyPulse';
+import type { Branding } from './BrandingPage';
 
 interface Profile {
   id: string;
@@ -49,6 +54,16 @@ interface Profile {
 /** Loads the caller's role in this company. Navigation is hidden by permission; the API enforces it. */
 export function CompanyLayout() {
   const { tenantId = '' } = useParams();
+  const profile = useQuery({
+    queryKey: ['company', tenantId, 'profile'],
+    queryFn: ({ signal }) => api<Profile>(`/tenants/${tenantId}/profile`, { signal }),
+    retry: false,
+  });
+  const brand = useQuery({
+    queryKey: ['company', tenantId, 'branding'],
+    queryFn: ({ signal }) => api<Branding>(`/tenants/${tenantId}/branding`, { signal }),
+    retry: false,
+  });
   const q = useQuery({
     queryKey: ['company', tenantId, 'access'],
     queryFn: ({ signal }) => api<CompanyAccess>(`/tenants/${tenantId}/me`, { signal }),
@@ -68,6 +83,7 @@ export function CompanyLayout() {
     );
   }
   const a = q.data;
+  const name = profile.data?.name ?? '';
   const nav: NavItem[] = [
     { to: `/c/${tenantId}`, label: 'Overview', end: true, icon: LayoutDashboard },
   ];
@@ -93,12 +109,22 @@ export function CompanyLayout() {
     add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
     add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
     add(can(a, 'audit.read'), 'Insight', 'audit', 'Activity', History);
+    add(can(a, 'tenant.profile.update'), 'Company', 'branding', 'Branding', Palette);
     add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
   }
   nav.push({ to: '/app', label: 'My companies', icon: ArrowLeft, group: 'Account' });
   return (
     <AccessContext.Provider value={{ tenantId, access: a }}>
-      <DashboardShell nav={nav} heading="Company workspace">
+      <DashboardShell
+        nav={nav}
+        heading="Company workspace"
+        company={{
+          name: name || 'Company workspace',
+          logoUrl: brand.data?.logoUrl ?? null,
+          primary: brand.data?.primaryColor ?? null,
+          accent: brand.data?.accentColor ?? null,
+        }}
+      >
         <Outlet />
       </DashboardShell>
     </AccessContext.Provider>
@@ -242,6 +268,7 @@ export function TeamPage() {
       ),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
+  const ask = useConfirm();
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/tenants/${tenantId}/memberships/${id}`, { method: 'DELETE' }),
     onSuccess: async () => {
@@ -315,8 +342,15 @@ export function TeamPage() {
                       variant="danger"
                       loading={revoke.isPending && revoke.variables === m.id}
                       loadingText="Removing…"
-                      onClick={() => {
-                        if (window.confirm(`Remove ${m.displayName} from this company?`))
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: `Remove ${m.displayName}?`,
+                            message: 'They lose access to this company straight away.',
+                            confirmLabel: 'Remove',
+                            danger: true,
+                          })
+                        )
                           revoke.mutate(m.id);
                       }}
                     >
@@ -340,7 +374,17 @@ export function TeamPage() {
                   <Button
                     variant="ghost"
                     loading={cancelInvite.isPending && cancelInvite.variables === i.id}
-                    onClick={() => cancelInvite.mutate(i.id)}
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: 'Cancel this invitation?',
+                          message: `${i.email} will not be able to use it.`,
+                          confirmLabel: 'Cancel invitation',
+                          danger: true,
+                        })
+                      )
+                        cancelInvite.mutate(i.id);
+                    }}
                   >
                     Cancel
                   </Button>
@@ -358,6 +402,7 @@ const inviteSchema = z.object({ email, roleKey: z.string().min(1, 'Choose a role
 type InviteValues = z.infer<typeof inviteSchema>;
 
 function InviteForm({ roles, onInvited }: { roles: RoleRow[]; onInvited: () => Promise<void> }) {
+  const [adding640, setAdding640] = useState(false);
   const { tenantId } = useCompany();
   const toast = useToast();
   const form = useForm<InviteValues>({
@@ -369,13 +414,14 @@ function InviteForm({ roles, onInvited }: { roles: RoleRow[]; onInvited: () => P
       api(`/tenants/${tenantId}/invitations`, { method: 'POST', body: v }),
     onSuccess: async () => {
       toast('Invitation sent', 'success');
+      setAdding640(false);
       form.reset({ email: '', roleKey: form.getValues('roleKey') });
       await onInvited();
     },
   });
   const { errors } = form.formState;
   return (
-    <Card title="Invite someone">
+    <ModalCard title="Invite someone" open={adding640} onOpenChange={setAdding640}>
       {invite.error && <ErrorAlert error={invite.error} />}
       <form
         noValidate
@@ -416,7 +462,7 @@ function InviteForm({ roles, onInvited }: { roles: RoleRow[]; onInvited: () => P
           Send invitation
         </Button>
       </form>
-    </Card>
+    </ModalCard>
   );
 }
 

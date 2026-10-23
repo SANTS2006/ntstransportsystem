@@ -48,6 +48,14 @@ export function originGuard(env: Pick<Env, 'CORS_ORIGINS'>): RequestHandler {
   };
 }
 
+/** The only calls open to a person who still has to choose a new password. */
+const PASSWORD_CHANGE_OK = new Set([
+  '/api/v1/auth/me',
+  '/api/v1/auth/logout',
+  '/api/v1/auth/change-password',
+  '/api/v1/features',
+]);
+
 /** Loads the session (if any) and enforces CSRF for unsafe methods on authenticated requests. */
 export function sessionLoader(auth: AuthService, env: Pick<Env, 'NODE_ENV'>): RequestHandler {
   return async (req, res, next) => {
@@ -74,6 +82,12 @@ export function sessionLoader(auth: AuthService, env: Pick<Env, 'NODE_ENV'>): Re
       effective = result.rotatedToken;
     }
     req.auth = { userId: result.userId, sessionToken: effective };
+    // A first password made for someone else must be replaced before anything else works.
+    if (result.mustChangePassword && !PASSWORD_CHANGE_OK.has(req.originalUrl.split('?')[0] ?? '')) {
+      return next(
+        new AppError(403, 'PASSWORD_CHANGE_REQUIRED', 'Choose a new password to continue'),
+      );
+    }
     next();
   };
 }

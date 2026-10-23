@@ -8,10 +8,10 @@ import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
-import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { ApiError, api } from '../../lib/api';
+import { RegisterCompanyDialog } from './RegisterCompanyDialog';
 
 interface TenantRow {
   id: string;
@@ -68,23 +68,6 @@ export function PlatformTenantsPage() {
   const [pending, setPending] = useState<{ tenant: TenantRow; action: Action } | null>(null);
   const [reason, setReason] = useState('');
   const [registering, setRegistering] = useState(false);
-  const [reg, setReg] = useState({
-    name: '',
-    ownerEmail: '',
-    timezone: 'Africa/Freetown',
-    defaultCurrency: 'SLE',
-  });
-  const register = useMutation({
-    mutationFn: () =>
-      api<{ ownerInvitedEmail: string }>('/platform/tenants', { method: 'POST', body: reg }),
-    onSuccess: async (r) => {
-      toast(`Company registered; invitation sent to ${r.ownerInvitedEmail}`, 'success');
-      setRegistering(false);
-      setReg({ name: '', ownerEmail: '', timezone: 'Africa/Freetown', defaultCurrency: 'SLE' });
-      setStatus('ACTIVE');
-      await qc.invalidateQueries({ queryKey: ['platform', 'tenants'] });
-    },
-  });
 
   const q = useQuery({
     queryKey: ['platform', 'tenants', status],
@@ -120,7 +103,8 @@ export function PlatformTenantsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Companies</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Only platform staff can register a company. Its first owner is invited by email.
+            Only platform staff can register a company. Its administrator is emailed the sign-in
+            link and a temporary password.
           </p>
         </div>
         <Button variant="accent" onClick={() => setRegistering(true)}>
@@ -188,65 +172,16 @@ export function PlatformTenantsPage() {
         </ul>
       </Card>
 
-      <Dialog
+      <RegisterCompanyDialog
         open={registering}
-        title="Register a company"
-        onClose={() => {
+        onClose={() => setRegistering(false)}
+        onDone={async (message) => {
+          toast(message, 'success');
           setRegistering(false);
-          register.reset();
+          setStatus('ACTIVE');
+          await qc.invalidateQueries({ queryKey: ['platform', 'tenants'] });
         }}
-      >
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            register.mutate();
-          }}
-        >
-          {register.error && <ErrorAlert error={register.error} />}
-          <Field
-            label="Company name"
-            required
-            value={reg.name}
-            onChange={(e) => setReg({ ...reg, name: e.target.value })}
-          />
-          <Field
-            label="Owner's email"
-            type="email"
-            required
-            hint="They receive an invitation to create their account and become the company owner."
-            value={reg.ownerEmail}
-            onChange={(e) => setReg({ ...reg, ownerEmail: e.target.value })}
-          />
-          <Field
-            label="Timezone"
-            hint="IANA name, e.g. Africa/Freetown"
-            value={reg.timezone}
-            onChange={(e) => setReg({ ...reg, timezone: e.target.value })}
-          />
-          <Field
-            label="Currency"
-            maxLength={3}
-            hint="3-letter code, e.g. SLE"
-            value={reg.defaultCurrency}
-            onChange={(e) => setReg({ ...reg, defaultCurrency: e.target.value.toUpperCase() })}
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setRegistering(false);
-                register.reset();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={register.isPending} loadingText="Registering…">
-              Register and invite owner
-            </Button>
-          </div>
-        </form>
-      </Dialog>
+      />
 
       <Dialog
         open={pending !== null}

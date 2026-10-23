@@ -3,6 +3,7 @@ import { generateToken, hashPassword, hashToken, verifyPassword } from '../../pl
 import type { Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
+import { checkImage, MAX_AVATAR_BYTES } from '../branding/branding.service.js';
 import type { Mailer } from '../notifications/mailer.js';
 import type { MfaService } from './mfa.service.js';
 import type { OtpService } from './otp.service.js';
@@ -377,7 +378,7 @@ export class AuthService {
   async authenticate(
     sessionToken: string,
     meta: ReqMeta,
-  ): Promise<{ userId: string; rotatedToken?: string } | null> {
+  ): Promise<{ userId: string; mustChangePassword: boolean; rotatedToken?: string } | null> {
     const row = await this.db.session.findUnique({
       where: { refreshTokenHash: hashToken(sessionToken) },
     });
@@ -408,10 +409,14 @@ export class AuthService {
       });
       if (claimed.count === 1) {
         const next = await this.createSession(row.userId, meta, row.familyId);
-        return { userId: row.userId, rotatedToken: next.sessionToken };
+        return {
+          userId: row.userId,
+          mustChangePassword: user.mustChangePassword,
+          rotatedToken: next.sessionToken,
+        };
       }
     }
-    return { userId: row.userId };
+    return { userId: row.userId, mustChangePassword: user.mustChangePassword };
   }
 
   async logout(sessionToken: string) {
@@ -610,6 +615,42 @@ export class AuthService {
     });
   }
 
+  /** The person's own name. Nothing else about the account changes here. */
+  async updateProfile(userId: string, displayName: string, meta: ReqMeta) {
+    await this.db.user.update({ where: { id: userId }, data: { displayName } });
+    await writeAudit(this.db, {
+      action: 'auth.profile_updated',
+      outcome: 'SUCCESS',
+      actorUserId: userId,
+      requestId: meta.requestId,
+    });
+  }
+
+  async setAvatar(userId: string, bytes: Buffer, meta: ReqMeta) {
+    const type = checkImage(bytes, MAX_AVATAR_BYTES);
+    const data = new Uint8Array(bytes);
+    await this.db.userAvatar.upsert({
+      where: { userId },
+      create: { userId, data, contentType: type },
+      update: { data, contentType: type },
+    });
+    await writeAudit(this.db, {
+      action: 'auth.avatar_changed',
+      outcome: 'SUCCESS',
+      actorUserId: userId,
+      requestId: meta.requestId,
+    });
+  }
+
+  async clearAvatar(userId: string) {
+    await this.db.userAvatar.deleteMany({ where: { userId } });
+  }
+
+  async getAvatar(userId: string) {
+    const a = await this.db.userAvatar.findUnique({ where: { userId } });
+    return a ? { data: Buffer.from(a.data), type: a.contentType } : null;
+  }
+
   async changePassword(
     userId: string,
     current: string,
@@ -629,7 +670,7 @@ export class AuthService {
     }
     await this.db.user.update({
       where: { id: userId },
-      data: { passwordHash: await hashPassword(next) },
+      data: { passwordHash: await hashPassword(next), mustChangePassword: false },
     });
     // Revoke every other session; keep the caller signed in.
     await this.db.session.updateMany({

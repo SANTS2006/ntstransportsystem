@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -61,6 +62,7 @@ export function CrewPanel({
       await refresh();
     },
   });
+  const ask = useConfirm();
   const release = useMutation({
     mutationFn: (id: string) =>
       api(`/tenants/${tenantId}/trips/${tripId}/crew/${id}`, { method: 'DELETE' }),
@@ -83,7 +85,17 @@ export function CrewPanel({
               <Button
                 variant="ghost"
                 loading={release.isPending && release.variables === c.employeeId}
-                onClick={() => release.mutate(c.employeeId)}
+                onClick={async () => {
+                  if (
+                    await ask({
+                      title: 'Release this crew member?',
+                      message: 'They are taken off this trip.',
+                      confirmLabel: 'Release',
+                      danger: true,
+                    })
+                  )
+                    release.mutate(c.employeeId);
+                }}
               >
                 Remove
               </Button>

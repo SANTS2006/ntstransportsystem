@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { useRef, useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -147,6 +148,7 @@ export function BookingsPage() {
         { signal },
       ),
   });
+  const ask = useConfirm();
   const cancel = useMutation({
     mutationFn: (id: string) =>
       api<{ refundRequired: boolean }>(`/tenants/${tenantId}/bookings/${id}/cancel`, {
@@ -415,8 +417,17 @@ export function BookingsPage() {
                   <Button
                     variant="dangerQuiet"
                     loading={cancel.isPending && cancel.variables === b.id}
-                    onClick={() => {
-                      if (window.confirm(`Cancel booking ${b.reference}?`)) cancel.mutate(b.id);
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: `Cancel booking ${b.reference}?`,
+                          message:
+                            'The seats are released. If it was paid, a refund is recorded as owed.',
+                          confirmLabel: 'Cancel booking',
+                          danger: true,
+                        })
+                      )
+                        cancel.mutate(b.id);
                     }}
                   >
                     Cancel

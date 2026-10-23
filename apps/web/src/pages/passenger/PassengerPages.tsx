@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '../../components/ui/Confirm';
 import { Accessibility, Bus, Clock, Lock } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -43,6 +44,15 @@ interface TripSummary {
   currency: string;
 }
 interface TripDetail extends TripSummary {
+  /** Origin, every stop and the destination, in order. */
+  stops?: { locationId: string; name: string; city: string }[];
+  /** The price between pairs of stops (empty when the company prices the whole route only). */
+  stopFares?: {
+    fromLocationId: string;
+    toLocationId: string;
+    amountMinor: number;
+    currency: string;
+  }[];
   sellable: boolean;
   seats: { label: string; accessible: boolean; status: 'AVAILABLE' | 'TAKEN' }[];
 }
@@ -85,6 +95,8 @@ export function TripBookPage() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [contact, setContact] = useState({ name: user?.displayName ?? '', phone: '' });
   const [error, setError] = useState<string | null>(null);
+  const [boardAt, setBoardAt] = useState<string | null>(null);
+  const [alightAt, setAlightAt] = useState<string | null>(null);
   const attempt = useRef(crypto.randomUUID());
 
   const q = useQuery({
@@ -92,6 +104,24 @@ export function TripBookPage() {
     queryFn: ({ signal }) => api<TripDetail>(`/public/trips/${tenantId}/${tripId}`, { signal }),
     retry: false,
   });
+
+  /** Which stops the passenger rides between, and what a seat costs for that part of the route. */
+  const stopPick = (() => {
+    const d = q.data;
+    const stops = d?.stops ?? [];
+    const fares = d?.stopFares ?? [];
+    const priced = stops.length > 2 && fares.length > 0;
+    const first = stops[0]?.locationId;
+    const last = stops[stops.length - 1]?.locationId;
+    const from = boardAt ?? first;
+    const to = alightAt ?? last;
+    const pair = priced
+      ? fares.find((f) => f.fromLocationId === from && f.toLocationId === to)
+      : undefined;
+    const whole = from === first && to === last;
+    const unit = pair ? pair.amountMinor : whole && d ? d.fareMinor : null;
+    return { stops, priced, from, to, pair, unit };
+  })();
 
   const book = useMutation({
     mutationFn: async () => {
@@ -102,6 +132,12 @@ export function TripBookPage() {
           tenantId,
           tripId,
           contact: { name: contact.name.trim(), phone: contact.phone.trim() },
+          ...(stopPick.pair
+            ? {
+                boardingLocationId: stopPick.pair.fromLocationId,
+                alightingLocationId: stopPick.pair.toLocationId,
+              }
+            : {}),
           passengers: picked.map((s) => ({
             seatLabel: s,
             fullName: (names[s] ?? '').trim() || contact.name.trim(),
@@ -144,9 +180,13 @@ export function TripBookPage() {
           : [...cur, label],
     );
   };
-  const total = picked.length * t.fareMinor;
+  const unitFare = stopPick.unit;
+  const total = picked.length * (unitFare ?? 0);
   const valid =
-    picked.length > 0 && contact.name.trim().length >= 2 && contact.phone.trim().length >= 6;
+    unitFare !== null &&
+    picked.length > 0 &&
+    contact.name.trim().length >= 2 &&
+    contact.phone.trim().length >= 6;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -158,12 +198,65 @@ export function TripBookPage() {
             <h1 className="text-2xl font-semibold tracking-tight">{t.route}</h1>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500">Fare per seat</p>
+            <p className="text-xs text-slate-500">
+              {stopPick.priced ? 'Whole route, per seat' : 'Fare per seat'}
+            </p>
             <p className="tabular text-xl font-bold text-brand-700 dark:text-brand-500">
               {money(t.fareMinor, t.currency)}
             </p>
           </div>
         </div>
+        {stopPick.priced && (
+          <div className="mt-4 grid gap-3 rounded-xl bg-brand-50 p-3 sm:grid-cols-2 dark:bg-slate-800">
+            <div>
+              <label htmlFor="board-at" className="mb-1 block text-xs font-medium">
+                Get on at
+              </label>
+              <select
+                id="board-at"
+                value={stopPick.from}
+                onChange={(e) => {
+                  const idx = stopPick.stops.findIndex((x) => x.locationId === e.target.value);
+                  const toIdx = stopPick.stops.findIndex((x) => x.locationId === stopPick.to);
+                  setBoardAt(e.target.value);
+                  if (toIdx <= idx)
+                    setAlightAt(stopPick.stops[stopPick.stops.length - 1]!.locationId);
+                }}
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+              >
+                {stopPick.stops.slice(0, -1).map((x) => (
+                  <option key={x.locationId} value={x.locationId}>
+                    {x.name}, {x.city}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="alight-at" className="mb-1 block text-xs font-medium">
+                Get off at
+              </label>
+              <select
+                id="alight-at"
+                value={stopPick.to}
+                onChange={(e) => setAlightAt(e.target.value)}
+                className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900"
+              >
+                {stopPick.stops
+                  .slice(stopPick.stops.findIndex((x) => x.locationId === stopPick.from) + 1)
+                  .map((x) => (
+                    <option key={x.locationId} value={x.locationId}>
+                      {x.name}, {x.city}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <p className="text-sm font-medium sm:col-span-2">
+              {unitFare !== null
+                ? `This part of the trip: ${money(unitFare, t.currency)} per seat`
+                : 'There is no price for this part of the trip. Choose different stops.'}
+            </p>
+          </div>
+        )}
         <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div>
             <p className="tabular text-2xl font-bold leading-none">
@@ -305,7 +398,7 @@ export function TripBookPage() {
                 <dl className="space-y-1 text-sm">
                   <div className="flex justify-between gap-3">
                     <dt className="text-slate-600 dark:text-slate-400">
-                      {picked.length} × {money(t.fareMinor, t.currency)}
+                      {picked.length} × {money(unitFare ?? 0, t.currency)}
                     </dt>
                     <dd className="tabular">{money(total, t.currency)}</dd>
                   </div>
@@ -509,6 +602,7 @@ export function MyBookingsPage() {
     queryKey: ['passenger-bookings'],
     queryFn: ({ signal }) => api<{ bookings: MyBooking[] }>('/passenger/bookings', { signal }),
   });
+  const ask = useConfirm();
   const cancel = useMutation({
     mutationFn: (id: string) =>
       api(`/passenger/bookings/${id}/cancel`, { method: 'POST', body: {} }),
@@ -562,8 +656,15 @@ export function MyBookingsPage() {
               <Button
                 variant="ghost"
                 loading={cancel.isPending && cancel.variables === b.id}
-                onClick={() => {
-                  if (window.confirm('Cancel this booking and release the seats?'))
+                onClick={async () => {
+                  if (
+                    await ask({
+                      title: 'Cancel this booking?',
+                      message: 'Your seats are released.',
+                      confirmLabel: 'Cancel booking',
+                      danger: true,
+                    })
+                  )
                     cancel.mutate(b.id);
                 }}
               >

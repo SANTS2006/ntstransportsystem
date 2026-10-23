@@ -51,8 +51,21 @@ const baseSchema = z.object({
   TWILIO_MESSAGING_SERVICE_SID: z.string().min(10).optional(),
   // TEST DEPLOYMENTS ONLY: in production mode, log each text (with its code) instead of sending it.
   ALLOW_DEV_SMS: bool,
-  // Cloudinary for uploaded files: cloudinary://<api_key>:<api_secret>@<cloud_name> (from the
-  // Cloudinary dashboard, "API Keys"). When set it is used before R2.
+  // Cloudinary for uploaded files, as three separate settings from the Cloudinary dashboard
+  // ("API Keys"): the cloud name, the API key and the API secret. All three or none.
+  // When set, Cloudinary is used before R2.
+  CLOUDINARY_NAME: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]+$/, 'must be the cloud name only, e.g. my-cloud')
+    .optional(),
+  CLOUDINARY_API_KEY: z
+    .string()
+    .trim()
+    .regex(/^[0-9]+$/, 'must be the numeric API key')
+    .optional(),
+  CLOUDINARY_API_SECRET: z.string().trim().min(8).optional(),
+  // Alternative to the three above: cloudinary://<api_key>:<api_secret>@<cloud_name>.
   CLOUDINARY_URL: z
     .string()
     .regex(
@@ -88,6 +101,15 @@ export const envSchema = baseSchema.superRefine((env, ctx) => {
       path: ['R2_BUCKET'],
       message:
         'R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET must all be set together',
+    });
+  }
+  const cloudinary = [env.CLOUDINARY_NAME, env.CLOUDINARY_API_KEY, env.CLOUDINARY_API_SECRET];
+  if (cloudinary.some(Boolean) && !cloudinary.every(Boolean)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['CLOUDINARY_API_SECRET'],
+      message:
+        'CLOUDINARY_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must all be set together',
     });
   }
   const twilio = [env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN];

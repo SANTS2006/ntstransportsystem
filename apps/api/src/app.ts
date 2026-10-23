@@ -242,6 +242,13 @@ export function createApp({
       );
       const fileStorage: FileStorage | undefined =
         storage ??
+        (env.CLOUDINARY_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
+          ? new CloudinaryStorage({
+              cloudName: env.CLOUDINARY_NAME,
+              apiKey: env.CLOUDINARY_API_KEY,
+              apiSecret: env.CLOUDINARY_API_SECRET,
+            })
+          : undefined) ??
         (env.CLOUDINARY_URL
           ? new CloudinaryStorage(parseCloudinaryUrl(env.CLOUDINARY_URL))
           : undefined) ??

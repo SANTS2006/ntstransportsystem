@@ -57,10 +57,13 @@ services:
       - key: GOOGLE_CLIENT_ID
         sync: false
 
-      # ---- File uploads (Cloudinary): CVs, complaint photos, videos, voice messages --------
-      # One variable: cloudinary://<api_key>:<api_secret>@<cloud_name> (Cloudinary dashboard,
-      # API Keys). It carries the cloud name, API key and API secret together.
-      - key: CLOUDINARY_URL
+      # ---- File uploads (Cloudinary): CVs, complaint photos, videos, voice messages ---------
+      # From the Cloudinary dashboard (Settings, API Keys). All three or none.
+      - key: CLOUDINARY_NAME
+        sync: false # the cloud name only, e.g. my-cloud
+      - key: CLOUDINARY_API_KEY
+        sync: false # the numeric API key
+      - key: CLOUDINARY_API_SECRET
         sync: false
 
       # ---- Text messages (sign-up by phone number) -----------------------------------------

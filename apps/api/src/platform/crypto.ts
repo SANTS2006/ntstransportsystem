@@ -1,3 +1,4 @@
+import { hkdfSync } from 'node:crypto';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import argon2 from 'argon2';
 
@@ -27,4 +28,11 @@ export function safeEqual(a: string, b: string): boolean {
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);
   return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+/** A purpose-specific key derived from the application secret, so no purpose reuses another's key. */
+export function deriveSubkey(appKeyBase64: string, purpose: string): Buffer {
+  return Buffer.from(
+    hkdfSync('sha256', Buffer.from(appKeyBase64, 'base64'), '', `nts:${purpose}`, 32),
+  );
 }

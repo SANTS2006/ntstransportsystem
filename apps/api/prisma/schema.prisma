@@ -188,6 +188,7 @@ model Tenant {
   jobPostings            JobPosting[]
   jobApplications        JobApplication[]
   applicationEvents      ApplicationEvent[]
+  storedFiles            StoredFile[]
   paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
@@ -1178,4 +1179,33 @@ model ApplicationEvent {
 
   @@index([tenantId, applicationId, createdAt])
   @@map("application_events")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 13: uploaded documents (CVs, complaint attachments). The bytes live in object storage;
+// this table is the index and the access-control record.
+
+enum FileKind {
+  APPLICATION_CV
+  COMPLAINT_ATTACHMENT
+}
+
+model StoredFile {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  kind        FileKind
+  ownerId     String    @map("owner_id") @db.Uuid // the application or complaint it belongs to
+  objectKey   String    @unique @map("object_key")
+  contentType String    @map("content_type")
+  sizeBytes   Int       @map("size_bytes")
+  sha256      String
+  displayName String    @map("display_name")
+  uploadedBy  String    @map("uploaded_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, kind, ownerId])
+  @@map("stored_files")
 }

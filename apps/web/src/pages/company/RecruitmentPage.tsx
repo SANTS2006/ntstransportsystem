@@ -7,6 +7,7 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { CvControl } from '../../components/files/FileControls';
 import { useCompany } from './company-context';
 
 const ROLES = ['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER'];
@@ -351,6 +352,9 @@ export function RecruitmentPage() {
                   {d.licenceNumber ? ` · licence ${d.licenceNumber}` : ''}
                 </p>
                 <p className="mt-3 whitespace-pre-wrap text-sm">{d.experience}</p>
+                <div className="mt-3">
+                  <CvControl linkPath={`${base}/applications/${d.id}/cv`} canUpload={false} />
+                </div>
                 <p className="mt-3 text-sm font-medium">
                   Status: {STATUS_LABEL[d.status] ?? d.status}
                 </p>

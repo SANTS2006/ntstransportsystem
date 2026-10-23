@@ -45,7 +45,8 @@ const table = (a: ReturnType<typeof app>) => a.locals.routeTable as RouteInfo[];
 
 describe('OpenAPI document', () => {
   it('covers every registered route and nothing else (no drift)', () => {
-    const a = app();
+    // Every optional feature on, including file storage (a development directory).
+    const a = app({ STORAGE_DEV_DIR: '.tmp-dev-storage' });
     expect(table(a).length).toBeGreaterThan(80);
     expect(() => buildOpenApi(table(a))).not.toThrow();
     expect(Object.keys(operations)).toHaveLength(table(a).length);
@@ -140,6 +141,9 @@ describe('feature-gated operations', () => {
     expect(spec.paths['/auth/mfa/enroll']).toBeUndefined();
     expect(spec.paths['/auth/mfa/disable']).toBeUndefined();
     expect(spec.paths['/auth/mfa/verify']).toBeDefined(); // always registered
+    // No file storage configured: the upload endpoints are not mounted, and not documented.
+    expect(spec.paths['/applicant/applications/{id}/cv']).toBeUndefined();
+    expect(spec.paths['/dev-files']).toBeUndefined();
     const served = await request(a).get('/api/v1/openapi.json').expect(200);
     expect(served.body.paths['/auth/login']).toBeDefined();
     expect(served.body.paths['/auth/google']).toBeUndefined();

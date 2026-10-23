@@ -30,6 +30,8 @@ export interface RequestOptions {
   signal?: AbortSignal | undefined;
   /** Extra request headers, e.g. Idempotency-Key. */
   headers?: Record<string, string>;
+  /** Upload a file as the raw request body instead of JSON. */
+  file?: File;
 }
 
 /**
@@ -40,7 +42,10 @@ export interface RequestOptions {
 export async function api<T = void>(path: string, opts: RequestOptions = {}): Promise<T> {
   const method = opts.method ?? 'GET';
   const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
-  if (opts.body !== undefined) headers['content-type'] = 'application/json';
+  if (opts.file) {
+    headers['content-type'] = opts.file.type;
+    headers['x-file-name'] = encodeURIComponent(opts.file.name);
+  } else if (opts.body !== undefined) headers['content-type'] = 'application/json';
   if (method !== 'GET') {
     const csrf = readCookie('csrf');
     if (csrf) headers['x-csrf-token'] = csrf;
@@ -55,7 +60,11 @@ export async function api<T = void>(path: string, opts: RequestOptions = {}): Pr
       headers,
       credentials: 'same-origin',
       signal,
-      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+      ...(opts.file
+        ? { body: opts.file }
+        : opts.body !== undefined
+          ? { body: JSON.stringify(opts.body) }
+          : {}),
     });
   } catch (err) {
     if (opts.signal?.aborted) throw err; // caller cancelled: not an error to display

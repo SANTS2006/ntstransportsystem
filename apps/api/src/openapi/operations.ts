@@ -1463,6 +1463,93 @@ export const operations: Record<string, Operation> = {
     ok: 204,
   },
 
+  // ---- Files ----------------------------------------------------------------------------------
+  'GET /api/v1/features': {
+    optional: true,
+    summary: 'Which optional features are available (file uploads)',
+    tag: 'System',
+    access: 'public',
+    ok: 200,
+  },
+  'POST /api/v1/applicant/applications/{id}/cv': {
+    optional: true,
+    summary: 'Upload or replace the CV of an own application',
+    description:
+      'The request body is the file itself (Content-Type application/pdf, image/png or image/jpeg, at most 5 MB; the real type is read from the bytes). Optional X-File-Name header (URL-encoded) for the download name. Replacing retires the previous CV.',
+    tag: 'Files',
+    access: 'session',
+    ok: 201,
+  },
+  'GET /api/v1/applicant/applications/{id}/cv': {
+    optional: true,
+    summary: 'A 5-minute download link for the CV of an own application',
+    tag: 'Files',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/applications/{id}/cv': {
+    optional: true,
+    summary: "A 5-minute download link for an applicant's CV (audited)",
+    tag: 'Files',
+    access: T,
+    permission: 'recruitment.manage',
+    ok: 200,
+  },
+  'GET /api/v1/passenger/complaints/{id}/attachments': {
+    optional: true,
+    summary: 'Attachments of an own complaint',
+    tag: 'Files',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/passenger/complaints/{id}/attachments': {
+    optional: true,
+    summary: 'Attach a file to an own complaint (at most 3)',
+    description: 'Body is the file itself; see the CV upload for the rules.',
+    tag: 'Files',
+    access: 'session',
+    ok: 201,
+  },
+  'GET /api/v1/passenger/complaints/{id}/attachments/{fileId}/link': {
+    optional: true,
+    summary: 'A 5-minute download link for an attachment of an own complaint',
+    tag: 'Files',
+    access: 'session',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/complaints/{id}/attachments': {
+    optional: true,
+    summary: 'Attachments of a complaint',
+    tag: 'Files',
+    access: T,
+    permission: 'support.manage',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/complaints/{id}/attachments': {
+    optional: true,
+    summary: 'Attach a file to a complaint as staff (at most 3 in total)',
+    tag: 'Files',
+    access: T,
+    permission: 'support.manage',
+    ok: 201,
+  },
+  'GET /api/v1/tenants/{tenantId}/complaints/{id}/attachments/{fileId}/link': {
+    optional: true,
+    summary: 'A 5-minute download link for a complaint attachment',
+    tag: 'Files',
+    access: T,
+    permission: 'support.manage',
+    ok: 200,
+  },
+  'GET /api/v1/dev-files': {
+    optional: true,
+    summary: 'Development-only signed file download (local disk storage)',
+    description: 'Only mounted when STORAGE_DEV_DIR is used outside production.',
+    tag: 'Files',
+    access: 'public',
+    ok: 200,
+  },
+
   // ---- Crew and HR ----------------------------------------------------------------------------
   'GET /api/v1/tenants/{tenantId}/employees': {
     summary: 'List employees (HR)',

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { PaymentGateway } from '../src/modules/payment/gateway.js';
+import type { FileStorage } from '../src/platform/storage.js';
 import type { Express } from 'express';
 import * as OTPAuth from 'otpauth';
 import request from 'supertest';
@@ -50,7 +51,7 @@ export class FakeGoogleVerifier implements GoogleVerifier {
 
 export function makeApp(
   db: Db,
-  opts: { rateLimitScale?: number; paymentGateway?: PaymentGateway } = {},
+  opts: { rateLimitScale?: number; paymentGateway?: PaymentGateway; storage?: FileStorage } = {},
 ) {
   const env = loadEnv({
     NODE_ENV: 'test',
@@ -67,6 +68,7 @@ export function makeApp(
       mailer,
       googleVerifier: google,
       ...(opts.paymentGateway ? { paymentGateway: opts.paymentGateway } : {}),
+      ...(opts.storage ? { storage: opts.storage } : {}),
     }),
     mailer,
     google,

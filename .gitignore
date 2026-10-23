@@ -8,3 +8,5 @@ coverage
 apps/api/src/generated
 .dev-seed.json
 .dev-payments.json
+.dev-storage
+.tmp-dev-storage

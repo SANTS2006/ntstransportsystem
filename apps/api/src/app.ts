@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
@@ -23,6 +24,10 @@ import { ComplaintService } from './modules/complaint/complaint.service.js';
 import { complaintRouter } from './modules/complaint/complaint.routes.js';
 import { RecruitmentService } from './modules/recruitment/recruitment.service.js';
 import { recruitmentRouter } from './modules/recruitment/recruitment.routes.js';
+import { FileService } from './modules/files/file.service.js';
+import { devFilesRouter, fileRouter } from './modules/files/file.routes.js';
+import { deriveSubkey } from './platform/crypto.js';
+import { LocalDiskStorage, R2Storage, type FileStorage } from './platform/storage.js';
 import { reportRouter } from './modules/report/report.routes.js';
 import { ReportService } from './modules/report/report.service.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
@@ -72,6 +77,8 @@ export interface AppDeps {
   rateLimitStores?: RateLimitStoreFactory;
   /** Override for tests; otherwise Monime over HTTPS. */
   paymentGateway?: PaymentGateway;
+  /** Override for tests; otherwise R2 or a development directory, or uploads are off. */
+  storage?: FileStorage;
 }
 
 export function createApp({
@@ -83,6 +90,7 @@ export function createApp({
   googleVerifier,
   rateLimitStores,
   paymentGateway,
+  storage,
 }: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -177,6 +185,30 @@ export function createApp({
       v1.use(
         recruitmentRouter({ db, recruitment: new RecruitmentService(db), env, rateLimitStores }),
       );
+      const fileStorage: FileStorage | undefined =
+        storage ??
+        (env.R2_BUCKET && env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY
+          ? new R2Storage({
+              accountId: env.R2_ACCOUNT_ID,
+              accessKeyId: env.R2_ACCESS_KEY_ID,
+              secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+              bucket: env.R2_BUCKET,
+            })
+          : env.STORAGE_DEV_DIR && env.NODE_ENV !== 'production'
+            ? new LocalDiskStorage(
+                resolve(env.STORAGE_DEV_DIR),
+                deriveSubkey(env.MFA_ENCRYPTION_KEY as string, 'dev-files'),
+                env.API_URL,
+              )
+            : undefined);
+      v1.get('/features', (_req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ fileUploads: fileStorage !== undefined });
+      });
+      if (fileStorage) {
+        v1.use(fileRouter({ db, files: new FileService(db, fileStorage), env, rateLimitStores }));
+        if (fileStorage instanceof LocalDiskStorage) v1.use(devFilesRouter(fileStorage));
+      }
       v1.use(paymentRouter({ db, payments }));
       v1.use(
         passengerRouter({

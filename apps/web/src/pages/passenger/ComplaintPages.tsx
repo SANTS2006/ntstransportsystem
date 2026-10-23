@@ -8,6 +8,7 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { Attachments } from '../../components/files/FileControls';
 
 const CATEGORIES = [
   { value: 'DELAY', label: 'Delay' },
@@ -219,6 +220,12 @@ export function ComplaintThreadPage() {
           </li>
         ))}
       </ol>
+      <Attachments
+        listPath={`/passenger/complaints/${c.id}/attachments`}
+        uploadPath={`/passenger/complaints/${c.id}/attachments`}
+        linkPath={(fid) => `/passenger/complaints/${c.id}/attachments/${fid}/link`}
+        canUpload={c.status !== 'CLOSED'}
+      />
       {c.status === 'CLOSED' ? (
         <Alert tone="info">
           This complaint is closed. You can start a new one from your booking.

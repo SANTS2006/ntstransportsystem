@@ -9,6 +9,7 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { CvControl } from '../../components/files/FileControls';
 
 const ROLE_LABEL: Record<string, string> = {
   DRIVER: 'Driver',
@@ -289,6 +290,13 @@ export function MyApplicationsPage() {
                 }
                 label={STATUS_LABEL[a.status] ?? a.status}
               />
+              {a.status !== 'WITHDRAWN' && (
+                <CvControl
+                  uploadPath={`/applicant/applications/${a.id}/cv`}
+                  linkPath={`/applicant/applications/${a.id}/cv`}
+                  canUpload={a.canWithdraw}
+                />
+              )}
               {a.canWithdraw && (
                 <Button
                   variant="ghost"

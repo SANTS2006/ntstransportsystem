@@ -6,6 +6,7 @@ import { Card, StatusBadge } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { Attachments } from '../../components/files/FileControls';
 import { useCompany } from './company-context';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -192,6 +193,14 @@ export function ComplaintsPage() {
                   </li>
                 ))}
               </ol>
+              <div className="mt-3">
+                <Attachments
+                  listPath={`${base}/complaints/${d.id}/attachments`}
+                  uploadPath={`${base}/complaints/${d.id}/attachments`}
+                  linkPath={(fid) => `${base}/complaints/${d.id}/attachments/${fid}/link`}
+                  canUpload={d.status !== 'CLOSED'}
+                />
+              </div>
               {d.status !== 'CLOSED' && (
                 <form
                   className="mt-3 space-y-2"

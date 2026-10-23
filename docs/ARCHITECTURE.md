@@ -3,7 +3,7 @@
 ## Phase 0 findings (2026-10-20)
 
 - Repository was empty (no files, not a git repo). Greenfield build; nothing to preserve.
-- Toolchain: Node 24, npm 11, git 2.56. **Not installed:** pnpm, PostgreSQL (`psql`), Redis. Docker is not a requirement.
+- Toolchain: Node 24, npm 11, git 2.56. **Not installed:** pnpm, PostgreSQL (`psql`), Redis.
 - Consequence: DB-backed integration tests need either a Neon test branch (`TEST_DATABASE_URL`) or a native/embedded PostgreSQL. Until one is configured, DB tests are marked **pending**, not passing.
 
 ## Stack

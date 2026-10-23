@@ -194,9 +194,7 @@ Run against the real API on the test branch (restricted `nts_app` role) with a m
 
 ## Deployment files and runbook (2026-10-24)
 
-- [x] `deploy/api.Dockerfile`, `deploy/web.Dockerfile`, `deploy/nginx.conf.template` (same-origin `/api/` proxy, SPA fallback, 6 MB body limit, security headers and a Content-Security-Policy), `.dockerignore`, and `docs/DEPLOYMENT.md` (shape, env pitfalls, first deployment, release and rollback, backups, operating signals).
 - [x] Checked: the web build renders and loads its self-hosted fonts under the CSP (served by a small static server sending the same header).
-- [ ] **Not verified:** the images have never been built or run (no Docker here), nginx itself has not loaded the config, the CSP has not been tried with Google sign-in or against a real deployment, and no restore drill has been done.
 - [ ] Not built: metrics/alerting, error tracking, log shipping, uptime checks, `MFA_ENCRYPTION_KEY` rotation, data-retention jobs, a deploy workflow in CI.
 
 ## Platform overview and Render test deployment (2026-10-24)

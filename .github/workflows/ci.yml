@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
 
 permissions:
@@ -22,22 +22,6 @@ jobs:
       matrix:
         node: [22, 24]
 
-    # Throw-away PostgreSQL for migrations and database-backed tests. No Docker is needed locally;
-    # this is only the CI runner's service container.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: ci-admin-only
-          POSTGRES_DB: nts_ci
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     env:
       # Owner connection: runs migrations (as on Neon, the migrating role is not the app role).
       DIRECT_DATABASE_URL: postgresql://postgres:ci-admin-only@localhost:5432/nts_ci
@@ -53,6 +37,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+
+      # The runner ships with PostgreSQL; start it and create a throw-away database.
+      - name: Start PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'ci-admin-only'"
+          sudo -u postgres createdb nts_ci
 
       - name: Install (lockfile only)
         run: npm ci

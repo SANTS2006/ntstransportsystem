@@ -185,6 +185,9 @@ model Tenant {
   complaints             Complaint[]
   complaintMessages      ComplaintMessage[]
   tripRatings            TripRating[]
+  jobPostings            JobPosting[]
+  jobApplications        JobApplication[]
+  applicationEvents      ApplicationEvent[]
   paymentWebhookEvents   PaymentWebhookEvent[]
 
   @@map("tenants")
@@ -1091,4 +1094,88 @@ model TripRating {
   @@unique([bookingId])
   @@index([tenantId, tripId])
   @@map("trip_ratings")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 12: recruitment.
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model JobPosting {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  title       String
+  jobRole     EmployeeRole @map("job_role")
+  description String
+  location    String?
+  status      JobStatus    @default(DRAFT)
+  closesOn    DateTime?    @map("closes_on") @db.Date
+  createdBy   String?      @map("created_by") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  applications JobApplication[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("job_postings")
+}
+
+/// A signed-in person's application to one posting (one per person per posting).
+model JobApplication {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  jobId         String            @map("job_id") @db.Uuid
+  userId        String            @map("user_id") @db.Uuid
+  fullName      String            @map("full_name")
+  phone         String
+  experience    String
+  licenceNumber String?           @map("licence_number")
+  status        ApplicationStatus @default(SUBMITTED)
+  employeeId    String?           @map("employee_id") @db.Uuid
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  job    JobPosting         @relation(fields: [tenantId, jobId], references: [tenantId, id], onDelete: Cascade)
+  events ApplicationEvent[]
+
+  @@unique([jobId, userId])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("job_applications")
+}
+
+/// Append-only history of an application: status changes and private HR notes.
+model ApplicationEvent {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  applicationId String             @map("application_id") @db.Uuid
+  fromStatus    ApplicationStatus? @map("from_status")
+  toStatus      ApplicationStatus? @map("to_status")
+  note          String?
+  actorUserId   String?            @map("actor_user_id") @db.Uuid
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  application JobApplication @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, applicationId, createdAt])
+  @@map("application_events")
 }

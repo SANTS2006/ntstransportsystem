@@ -196,6 +196,39 @@ export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): Rendere
         text: `The company has replied to your complaint about booking ${msg.data.reference ?? ''}. Sign in to read the reply:\n${link}\n`,
       };
     }
+    case 'application-received': {
+      const link = safeLink(msg.data.link);
+      return {
+        subject: 'A new job application',
+        html: layout(
+          'New application',
+          `<p>Someone has applied for <strong>${escapeHtml(msg.data.job ?? 'a job')}</strong>. Review the application and decide the next step.</p>${button(link, 'Open applications')}`,
+        ),
+        text: `Someone has applied for ${msg.data.job ?? 'a job'}. Review the application:\n${link}\n`,
+      };
+    }
+    case 'application-update': {
+      const link = safeLink(msg.data.link);
+      const line =
+        {
+          SHORTLISTED: 'You have been shortlisted.',
+          INTERVIEW:
+            'You have been invited to an interview. The company will contact you with the details.',
+          OFFERED: 'You have been made an offer. The company will contact you.',
+          HIRED:
+            'Congratulations, you have been hired. The company will be in touch about your start.',
+          REJECTED:
+            'The company has decided not to continue with your application. Thank you for applying.',
+        }[msg.data.status ?? ''] ?? 'There is an update on your application.';
+      return {
+        subject: 'Update on your application',
+        html: layout(
+          'Application update',
+          `<p>Your application for <strong>${escapeHtml(msg.data.job ?? 'the job')}</strong> at <strong>${escapeHtml(msg.data.company ?? 'the company')}</strong>: ${escapeHtml(line)}</p>${button(link, 'View my applications')}`,
+        ),
+        text: `Your application for ${msg.data.job ?? 'the job'} at ${msg.data.company ?? 'the company'}: ${line}\nMy applications: ${link}\n`,
+      };
+    }
     default: {
       const never: never = t;
       throw new Error(`Unknown mail template: ${String(never)}`);

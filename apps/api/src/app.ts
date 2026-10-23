@@ -21,6 +21,8 @@ import { ticketRouter } from './modules/ticket/ticket.routes.js';
 import { TicketService } from './modules/ticket/ticket.service.js';
 import { ComplaintService } from './modules/complaint/complaint.service.js';
 import { complaintRouter } from './modules/complaint/complaint.routes.js';
+import { RecruitmentService } from './modules/recruitment/recruitment.service.js';
+import { recruitmentRouter } from './modules/recruitment/recruitment.routes.js';
 import { reportRouter } from './modules/report/report.routes.js';
 import { ReportService } from './modules/report/report.service.js';
 import { passengerRouter } from './modules/passenger/passenger.routes.js';
@@ -172,6 +174,9 @@ export function createApp({
       v1.use(ticketRouter({ db, tickets }));
       v1.use(complaintRouter({ db, complaints: new ComplaintService(db), env, rateLimitStores }));
       v1.use(reportRouter({ db, reports: new ReportService(db) }));
+      v1.use(
+        recruitmentRouter({ db, recruitment: new RecruitmentService(db), env, rateLimitStores }),
+      );
       v1.use(paymentRouter({ db, payments }));
       v1.use(
         passengerRouter({

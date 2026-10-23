@@ -10,6 +10,7 @@ import {
 } from '../modules/authentication/auth.schemas.js';
 import { requestSchemas as catalog } from '../modules/catalog/catalog.routes.js';
 import { requestSchemas as booking } from '../modules/booking/booking.routes.js';
+import { requestSchemas as recruit } from '../modules/recruitment/recruitment.routes.js';
 import { requestSchemas as complaint } from '../modules/complaint/complaint.routes.js';
 import { requestSchemas as maintenance } from '../modules/platform-settings/maintenance.js';
 import { requestSchemas as ticket } from '../modules/ticket/ticket.routes.js';
@@ -1304,6 +1305,162 @@ export const operations: Record<string, Operation> = {
       { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
     ],
     ok: 200,
+  },
+
+  // ---- Recruitment ----------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/jobs': {
+    summary: 'List job postings',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    paged: true,
+    query: [{ name: 'status', description: 'Filter by status', enum: ['DRAFT', 'OPEN', 'CLOSED'] }],
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/jobs': {
+    summary: 'Create a job posting (draft)',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    body: recruit.jobCreate,
+    ok: 201,
+  },
+  'GET /api/v1/tenants/{tenantId}/jobs/{id}': {
+    summary: 'Get a job posting',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    ok: 200,
+  },
+  'PATCH /api/v1/tenants/{tenantId}/jobs/{id}': {
+    summary: 'Edit a draft or open job posting',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    body: recruit.jobPatch,
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/jobs/{id}/open': {
+    summary: 'Publish a job posting',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/jobs/{id}/close': {
+    summary: 'Close a job posting',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/applications': {
+    summary: 'List applications',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    paged: true,
+    query: [
+      { name: 'jobId', description: 'Filter by posting', format: 'uuid' },
+      {
+        name: 'status',
+        description: 'Filter by status',
+        enum: [
+          'SUBMITTED',
+          'SHORTLISTED',
+          'INTERVIEW',
+          'OFFERED',
+          'HIRED',
+          'REJECTED',
+          'WITHDRAWN',
+        ],
+      },
+    ],
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/applications/{id}': {
+    summary: 'An application with its history',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/applications/{id}/status': {
+    summary: 'Move an application to the next stage',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    description:
+      'SUBMITTED to SHORTLISTED or REJECTED, SHORTLISTED to INTERVIEW or REJECTED, INTERVIEW to OFFERED or REJECTED, OFFERED to REJECTED. HIRED only through the hire action. The applicant is emailed.',
+    body: recruit.statusBody,
+    ok: 204,
+  },
+  'POST /api/v1/tenants/{tenantId}/applications/{id}/notes': {
+    summary: 'Add a private HR note',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    body: recruit.noteBody,
+    ok: 201,
+  },
+  'POST /api/v1/tenants/{tenantId}/applications/{id}/hire': {
+    summary: 'Hire an applicant with an offer',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    description:
+      'Creates the employee record (linked to the applicant account) and marks the application HIRED in one transaction.',
+    body: recruit.hireBody,
+    ok: 201,
+  },
+  'GET /api/v1/public/jobs': {
+    optional: true,
+    summary: 'Open job postings of active companies',
+    tag: 'Recruitment',
+    access: 'public',
+    query: [{ name: 'q', description: 'Search in the title' }],
+    ok: 200,
+  },
+  'GET /api/v1/public/jobs/{tenantId}/{id}': {
+    optional: true,
+    summary: 'One open job posting',
+    tag: 'Recruitment',
+    access: 'public',
+    ok: 200,
+  },
+  'POST /api/v1/applicant/applications': {
+    optional: true,
+    summary: 'Apply for an open job',
+    description: 'One application per person per posting; at most 20 in progress.',
+    tag: 'Recruitment',
+    access: 'session',
+    body: recruit.applyBody,
+    ok: 201,
+  },
+  'GET /api/v1/applicant/applications': {
+    optional: true,
+    summary: "The caller's own applications",
+    tag: 'Recruitment',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/applicant/applications/{id}/withdraw': {
+    optional: true,
+    summary: 'Withdraw an own application',
+    tag: 'Recruitment',
+    access: 'session',
+    ok: 204,
   },
 
   // ---- Crew and HR ----------------------------------------------------------------------------

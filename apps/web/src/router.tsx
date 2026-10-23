@@ -107,6 +107,18 @@ const ComplaintThreadPage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('./pages/company/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 );
+const RecruitmentPage = lazy(() =>
+  import('./pages/company/RecruitmentPage').then((m) => ({ default: m.RecruitmentPage })),
+);
+const JobBoardPage = lazy(() =>
+  import('./pages/recruitment/JobPages').then((m) => ({ default: m.JobBoardPage })),
+);
+const JobDetailPage = lazy(() =>
+  import('./pages/recruitment/JobPages').then((m) => ({ default: m.JobDetailPage })),
+);
+const MyApplicationsPage = lazy(() =>
+  import('./pages/recruitment/JobPages').then((m) => ({ default: m.MyApplicationsPage })),
+);
 const StaffPage = lazy(() =>
   import('./pages/company/CrewPages').then((m) => ({ default: m.StaffPage })),
 );
@@ -132,6 +144,8 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/', element: s(<HomePage />) },
+      { path: '/jobs', element: s(<JobBoardPage />) },
+      { path: '/jobs/:tenantId/:id', element: s(<JobDetailPage />) },
       { path: '/trips', element: s(<TripSearchPage />) },
       { path: '/trips/:tenantId/:tripId', element: s(<TripBookPage />) },
       { path: '/pay/return', element: <RequireAuth>{s(<PayReturnPage />)}</RequireAuth> },
@@ -157,6 +171,7 @@ export const router = createBrowserRouter([
       { index: true, element: s(<MyCompaniesPage />) },
       { path: 'bookings', element: s(<MyBookingsPage />) },
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
+      { path: 'applications', element: s(<MyApplicationsPage />) },
       { path: 'complaints', element: s(<MyComplaintsPage />) },
       { path: 'complaints/new', element: s(<NewComplaintPage />) },
       { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
@@ -181,6 +196,7 @@ export const router = createBrowserRouter([
       { path: 'boarding', element: s(<BoardingPage />) },
       { path: 'complaints', element: s(<ComplaintsPage />) },
       { path: 'reports', element: s(<ReportsPage />) },
+      { path: 'recruitment', element: s(<RecruitmentPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },

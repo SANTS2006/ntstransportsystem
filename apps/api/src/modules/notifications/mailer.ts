@@ -11,7 +11,9 @@ export type MailTemplate =
   | 'trip-vehicle-changed'
   | 'refund-required'
   | 'complaint-received'
-  | 'complaint-reply';
+  | 'complaint-reply'
+  | 'application-received'
+  | 'application-update';
 
 export interface MailMessage {
   to: string;

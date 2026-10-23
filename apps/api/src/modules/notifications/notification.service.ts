@@ -37,6 +37,8 @@ export class NotificationService {
       'complaint.created': (e) => this.complaintToStaff(e),
       'complaint.passenger_replied': (e) => this.complaintToStaff(e),
       'complaint.replied': (e) => this.complaintToPassenger(e),
+      'application.received': (e) => this.applicationToHr(e),
+      'application.status_changed': (e) => this.applicationToApplicant(e),
       // Cancelling a trip cancels each booking, and each of those sends its own notice.
       'trip.cancelled': async () => undefined,
     };
@@ -267,6 +269,72 @@ export class NotificationService {
     await this.deliver(e, sent, `user:${c.userId}`, 'complaint-reply', user.email, {
       reference: c.booking.reference,
       link: `${this.appUrl.replace(/\/$/, '')}/app/complaints/${c.id}`,
+    });
+  }
+
+  private async applicationOf(e: ClaimedEvent) {
+    const id = str(payloadOf(e).applicationId);
+    return withDb(this.db, { tenantId: e.tenantId }, (tx) =>
+      tx.jobApplication.findFirst({
+        where: { id, tenantId: e.tenantId },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          job: { select: { title: true } },
+          tenant: { select: { name: true } },
+        },
+      }),
+    );
+  }
+
+  /** A new application: tell HR (people with recruitment.manage). No applicant details in the mail. */
+  private async applicationToHr(e: ClaimedEvent) {
+    const a = await this.applicationOf(e);
+    if (!a) return;
+    const hr = await withDb(this.db, { platform: true }, (tx) =>
+      tx.membership.findMany({
+        where: {
+          tenantId: e.tenantId,
+          status: 'ACTIVE',
+          role: { permissions: { some: { permission: 'recruitment.manage' } } },
+        },
+        select: { user: { select: { email: true } } },
+        take: 20,
+      }),
+    );
+    const data = {
+      job: a.job.title,
+      link: `${this.appUrl.replace(/\/$/, '')}/c/${e.tenantId}/recruitment`,
+    };
+    const sent = await this.sentKeys(e);
+    for (const m of hr) {
+      await this.deliver(
+        e,
+        sent,
+        `hr:${m.user.email.toLowerCase()}`,
+        'application-received',
+        m.user.email,
+        data,
+      );
+    }
+  }
+
+  /** The applicant hears about a status change (never HR's private notes). */
+  private async applicationToApplicant(e: ClaimedEvent) {
+    const a = await this.applicationOf(e);
+    if (!a) return;
+    const status = str(payloadOf(e).status);
+    const user = await withDb(this.db, { platform: true }, (tx) =>
+      tx.user.findUnique({ where: { id: a.userId }, select: { email: true } }),
+    );
+    if (!user?.email) return;
+    const sent = await this.sentKeys(e);
+    await this.deliver(e, sent, `user:${a.userId}:${status}`, 'application-update', user.email, {
+      job: a.job.title,
+      company: a.tenant.name,
+      status,
+      link: `${this.appUrl.replace(/\/$/, '')}/app/applications`,
     });
   }
 

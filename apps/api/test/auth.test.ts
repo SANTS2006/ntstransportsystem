@@ -1,7 +1,14 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDb, makeApp, TEST_DB_URL, uniq } from './helpers.js';
-import type { Db } from '../src/platform/db.js';
+import {
+  createDb,
+  createTenantWithOwner,
+  makeApp,
+  TEST_DB_URL,
+  uniq,
+  testCompanySlug,
+} from './helpers.js';
+import { withDb, type Db } from '../src/platform/db.js';
 
 const PASSWORD = 'correct-horse-battery';
 const tokenFrom = (link: string | undefined) =>
@@ -14,11 +21,15 @@ const cookieValue = (res: request.Response, name: string) =>
 
 describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
   let db: Db;
+  let SLUG = '';
   let ctx: ReturnType<typeof makeApp>;
 
   beforeAll(() => {
     db = createDb(TEST_DB_URL as string);
     ctx = makeApp(db);
+  });
+  beforeAll(async () => {
+    SLUG = await testCompanySlug(db);
   });
   afterAll(async () => {
     await db.$disconnect();
@@ -27,7 +38,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
   async function registerVerified(email = `${uniq('u')}@example.test`) {
     await request(ctx.app)
       .post('/api/v1/auth/register')
-      .send({ email, password: PASSWORD, displayName: 'T' })
+      .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'T' })
       .expect(202);
     const mail = ctx.mailer.last('verify-email');
     expect(mail?.to).toBe(email);
@@ -42,7 +53,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = await registerVerified();
     const login = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(200);
     const setCookie = (login.headers['set-cookie'] as unknown as string[]).join('\n');
     expect(setCookie).toMatch(/sid=[^;]+;.*HttpOnly/i);
@@ -59,11 +70,11 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = `${uniq('unv')}@example.test`;
     await request(ctx.app)
       .post('/api/v1/auth/register')
-      .send({ email, password: PASSWORD, displayName: 'T' })
+      .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'T' })
       .expect(202);
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(403);
   });
 
@@ -71,28 +82,31 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = `${uniq('code')}@example.test`;
     await request(ctx.app)
       .post('/api/v1/auth/register')
-      .send({ email, password: PASSWORD, displayName: 'T' })
+      .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'T' })
       .expect(202);
     const code = ctx.mailer.last('verify-email')?.data.code ?? '';
     expect(code).toMatch(/^[A-Z0-9]{6}$/);
     const wrong = code === 'AAAAAA' ? 'BBBBBB' : 'AAAAAA';
     await request(ctx.app)
       .post('/api/v1/auth/verify-email-code')
-      .send({ email, code: wrong })
+      .send({ companySlug: SLUG, email, code: wrong })
       .expect(400);
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(403);
     // Lower case is accepted; the code works once.
     await request(ctx.app)
       .post('/api/v1/auth/verify-email-code')
-      .send({ email, code: code.toLowerCase() })
+      .send({ companySlug: SLUG, email, code: code.toLowerCase() })
       .expect(200);
-    await request(ctx.app).post('/api/v1/auth/verify-email-code').send({ email, code }).expect(400);
+    await request(ctx.app)
+      .post('/api/v1/auth/verify-email-code')
+      .send({ companySlug: SLUG, email, code })
+      .expect(400);
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(200);
   });
 
@@ -101,7 +115,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const before = ctx.mailer.sent.length;
     const res = await request(ctx.app)
       .post('/api/v1/auth/register')
-      .send({ email, password: PASSWORD, displayName: 'T' });
+      .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'T' });
     expect(res.status).toBe(202);
     expect(ctx.mailer.sent.length).toBe(before);
   });
@@ -110,10 +124,10 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = await registerVerified();
     const wrong = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: 'nope-nope-nope' });
+      .send({ companySlug: SLUG, email, password: 'nope-nope-nope' });
     const unknown = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email: `${uniq('ghost')}@example.test`, password: PASSWORD });
+      .send({ companySlug: SLUG, email: `${uniq('ghost')}@example.test`, password: PASSWORD });
     expect(wrong.status).toBe(401);
     expect(unknown.status).toBe(401);
     expect(wrong.body.error.message).toBe(unknown.body.error.message);
@@ -124,12 +138,12 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     for (let i = 0; i < 5; i++) {
       await request(ctx.app)
         .post('/api/v1/auth/login')
-        .send({ email, password: 'bad-bad-bad-bad' })
+        .send({ companySlug: SLUG, email, password: 'bad-bad-bad-bad' })
         .expect(401);
     }
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(401);
   });
 
@@ -137,7 +151,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = await registerVerified();
     const login = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD });
+      .send({ companySlug: SLUG, email, password: PASSWORD });
     const sid = cookieValue(login, 'sid');
     const csrf = cookieValue(login, 'csrf');
     const body = { currentPassword: PASSWORD, newPassword: 'another-long-password' };
@@ -158,7 +172,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     await request(ctx.app)
       .post('/api/v1/auth/login')
       .set('origin', 'https://evil.example')
-      .send({ email: 'a@b.co', password: 'x' })
+      .send({ companySlug: SLUG, email: 'a@b.co', password: 'x' })
       .expect(403);
   });
 
@@ -166,13 +180,15 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = await registerVerified();
     const login = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD });
+      .send({ companySlug: SLUG, email, password: PASSWORD });
     const sid = cookieValue(login, 'sid');
 
     const unknown = await request(ctx.app)
       .post('/api/v1/auth/forgot-password')
-      .send({ email: `${uniq('nobody')}@example.test` });
-    const known = await request(ctx.app).post('/api/v1/auth/forgot-password').send({ email });
+      .send({ companySlug: SLUG, email: `${uniq('nobody')}@example.test` });
+    const known = await request(ctx.app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ companySlug: SLUG, email });
     expect(unknown.status).toBe(202);
     expect(known.body).toEqual(unknown.body);
 
@@ -190,11 +206,11 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     await request(ctx.app).get('/api/v1/auth/me').set('Cookie', `sid=${sid}`).expect(401);
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(401);
     await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: newPassword })
+      .send({ companySlug: SLUG, email, password: newPassword })
       .expect(200);
     expect(ctx.mailer.last('password-changed')?.to).toBe(email);
   });
@@ -211,7 +227,7 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
     const email = await registerVerified();
     const login = await request(ctx.app)
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD });
+      .send({ companySlug: SLUG, email, password: PASSWORD });
     const sid = cookieValue(login, 'sid');
     const csrf = cookieValue(login, 'csrf');
     await request(ctx.app)
@@ -220,5 +236,60 @@ describe.skipIf(!TEST_DB_URL)('authentication (database)', () => {
       .set('x-csrf-token', csrf ?? '')
       .expect(204);
     await request(ctx.app).get('/api/v1/auth/me').set('Cookie', `sid=${sid}`).expect(401);
+  });
+
+  describe('which sign-in page an account may use', () => {
+    const otherCompany = async () => {
+      const slug = uniq('other').toLowerCase();
+      await withDb(db, { platform: true }, (tx) =>
+        tx.tenant.create({ data: { name: 'Other Co', slug, status: 'ACTIVE' } }),
+      );
+      return slug;
+    };
+    const login = (email: string, slug?: string, password = PASSWORD) =>
+      request(ctx.app)
+        .post('/api/v1/auth/login')
+        .send({ email, password, ...(slug ? { companySlug: slug } : {}) });
+
+    it('registers only on a real, open company page, and signs in only on that page', async () => {
+      const email = await registerVerified();
+      await request(ctx.app)
+        .post('/api/v1/auth/register')
+        .send({
+          companySlug: 'no-such-company',
+          email: `${uniq('x')}@example.test`,
+          password: PASSWORD,
+          displayName: 'X',
+        })
+        .expect(404);
+      await request(ctx.app)
+        .post('/api/v1/auth/register')
+        .send({ email: `${uniq('y')}@example.test`, password: PASSWORD, displayName: 'Y' })
+        .expect(400); // a company page is required
+
+      await login(email, SLUG).expect(200);
+      // Not on the main page (platform administrators only), and not on another company page.
+      const main = await login(email).expect(403);
+      expect(main.body.error.code).toBe('WRONG_SIGN_IN_PAGE');
+      const other = await login(email, await otherCompany()).expect(403);
+      expect(other.body.error.code).toBe('WRONG_SIGN_IN_PAGE');
+      // A wrong password still looks like any other wrong password, on any page.
+      await login(email, await otherCompany(), 'wrong-wrong-wrong').expect(401);
+    });
+
+    it('lets platform administrators in on the main page only, and company staff on their own page', async () => {
+      const email = await registerVerified();
+      const user = await db.user.findUniqueOrThrow({ where: { email } });
+      await db.platformRoleAssignment.create({ data: { userId: user.id, role: 'SUPER_ADMIN' } });
+      await login(email).expect(200);
+      const denied = await login(email, SLUG).expect(403);
+      expect(denied.body.error.code).toBe('WRONG_SIGN_IN_PAGE');
+
+      const staff = await createTenantWithOwner(db, uniq('staffco'));
+      const slug = staff.tenant.slug;
+      await login(staff.email, slug, staff.password).expect(200);
+      await login(staff.email, undefined, staff.password).expect(403);
+      await login(staff.email, SLUG, staff.password).expect(403);
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Briefcase,
   Building2,
@@ -15,8 +15,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { api } from '../../lib/api';
+import { signInPath } from '../../lib/company-page';
 import { brandStyle } from '../../lib/theme';
-import { BlockingOverlay, Spinner } from '../ui/Spinner';
+import { BlockingOverlay, PageLoader, Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button, linkButton } from '../ui/Button';
 import { Logo } from './Logo';
@@ -125,7 +126,7 @@ export function Avatar({
 function PublicFooter() {
   return (
     <footer className="mt-16 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 sm:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid w-[90%] gap-8 py-10 sm:grid-cols-[1.4fr_1fr_1fr]">
         <div className="space-y-3">
           <Logo size="md" />
           <p className="max-w-xs text-sm text-slate-600 dark:text-slate-400">
@@ -157,8 +158,8 @@ function PublicFooter() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Companies</p>
           <ul className="space-y-2">
             <li>
-              <Link className={linkClass} to="/login">
-                Company sign in
+              <Link className={linkClass} to={signInPath(null)}>
+                Sign in
               </Link>
             </li>
           </ul>
@@ -190,7 +191,7 @@ export function PublicLayout() {
       <TopProgress />
       <MaintenanceBanner />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5">
+        <div className="mx-auto flex w-[90%] items-center justify-between gap-3 py-2.5">
           <Brand />
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
@@ -215,13 +216,8 @@ export function PublicLayout() {
               </>
             ) : (
               <>
-                <span className="hidden sm:block">
-                  <Link className={linkButton('ghost')} to="/login">
-                    Sign in
-                  </Link>
-                </span>
-                <Link className={linkButton('primary')} to="/register">
-                  Create account
+                <Link className={linkButton('primary')} to={signInPath(null)}>
+                  Sign in
                 </Link>
               </>
             )}
@@ -247,14 +243,14 @@ export function PublicLayout() {
               </NavLink>
             ))}
             {!user && (
-              <NavLink to="/login" className={navLink} onClick={() => setOpen(false)}>
+              <NavLink to={signInPath(null)} className={navLink} onClick={() => setOpen(false)}>
                 Sign in
               </NavLink>
             )}
           </nav>
         )}
       </header>
-      <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:py-10">
+      <main id="main" className="mx-auto w-[90%] flex-1 py-8 sm:py-10">
         <Outlet />
       </main>
       <PublicFooter />
@@ -273,8 +269,8 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <div className="w-full max-w-[480px] rounded-3xl bg-white p-6 shadow-level3 sm:p-9 dark:bg-slate-900 dark:ring-1 dark:ring-slate-700">
-      <h1 className="text-3xl font-bold tracking-tight text-brand-900 dark:text-slate-100">
+    <div className="w-full max-w-[480px] rounded-3xl bg-white p-5 shadow-level3 sm:p-8 dark:bg-slate-900 dark:ring-1 dark:ring-slate-700">
+      <h1 className="text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl dark:text-slate-100">
         {title}
       </h1>
       {subtitle && (
@@ -310,9 +306,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (!user) {
     const dest = location.pathname + location.search;
     // /app is the default landing page, so a `next` for it would be redundant noise.
+    const login = signInPath(null);
     return (
       <Navigate
-        to={dest === '/app' ? '/login' : `/login?next=${encodeURIComponent(dest)}`}
+        to={dest === '/app' ? login : `${login}?next=${encodeURIComponent(dest)}`}
         replace
       />
     );
@@ -341,7 +338,7 @@ function groupNav(nav: NavItem[]): { name: string | null; items: NavItem[] }[] {
 }
 
 /** The round picture at the top right: opens a small menu with the profile, security and sign out. */
-function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
+function ProfileMenu({ account, onSignOut }: { account: string; onSignOut: () => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -386,11 +383,21 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
             </div>
           </div>
           <div className="my-1 h-px bg-slate-100 dark:bg-slate-800" />
-          <Link role="menuitem" to="/app/profile" className={item} onClick={() => setOpen(false)}>
+          <Link
+            role="menuitem"
+            to={`${account}/profile`}
+            className={item}
+            onClick={() => setOpen(false)}
+          >
             <UserRound aria-hidden="true" className="size-4" strokeWidth={1.8} />
             Profile and settings
           </Link>
-          <Link role="menuitem" to="/app/security" className={item} onClick={() => setOpen(false)}>
+          <Link
+            role="menuitem"
+            to={`${account}/security`}
+            className={item}
+            onClick={() => setOpen(false)}
+          >
             <ShieldCheck aria-hidden="true" className="size-4" strokeWidth={1.8} />
             Security
           </Link>
@@ -413,7 +420,7 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
 }
 
 /** Foot of every signed-in page: whose workspace this is, and the way back to the public site. */
-function AppFooter({ company }: { company?: CompanyBrand | undefined }) {
+function AppFooter({ company, account }: { company?: CompanyBrand | undefined; account: string }) {
   return (
     <footer className="border-t border-slate-200 px-4 py-5 text-xs text-slate-500 sm:px-6 lg:px-8 dark:border-slate-800">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
@@ -426,10 +433,10 @@ function AppFooter({ company }: { company?: CompanyBrand | undefined }) {
           <Link to="/trips" className="hover:text-brand-700">
             Find a trip
           </Link>
-          <Link to="/app" className="hover:text-brand-700">
+          <Link to={`${account}/profile`} className="hover:text-brand-700">
             My account
           </Link>
-          <Link to="/app/security" className="hover:text-brand-700">
+          <Link to={`${account}/security`} className="hover:text-brand-700">
             Security
           </Link>
         </nav>
@@ -454,6 +461,7 @@ export function DashboardShell({
   heading,
   theme,
   company,
+  account = '/app',
   children,
 }: {
   nav: NavItem[];
@@ -461,6 +469,8 @@ export function DashboardShell({
   theme?: 'platform';
   /** Set inside a company's workspace: its name, logo and colours replace the system's. */
   company?: CompanyBrand | undefined;
+  /** Where this person's profile and security pages live inside this area. */
+  account?: string;
   children?: ReactNode;
 }) {
   const { user, clear } = useAuth();
@@ -476,8 +486,9 @@ export function DashboardShell({
       if (res.status === 'rejected') throw res.reason;
     },
     onSettled: () => {
+      const back = signInPath(user);
       clear();
-      void navigate('/login', { replace: true });
+      void navigate(back, { replace: true });
     },
   });
   const sidebar = (
@@ -602,14 +613,14 @@ export function DashboardShell({
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <NotificationBell />
-            <ProfileMenu onSignOut={() => signOut.mutate()} />
+            <ProfileMenu account={account} onSignOut={() => signOut.mutate()} />
           </div>
         </header>
         <MaintenanceBanner />
         <main id="main" className="min-w-0 p-4 sm:p-6 lg:p-8">
           {children ?? <Outlet />}
         </main>
-        <AppFooter company={company} />
+        <AppFooter company={company} account={account} />
       </div>
     </div>
   );
@@ -619,16 +630,52 @@ const APP_NAV: NavItem[] = [
   { to: '/app/bookings', label: 'My bookings', icon: Ticket, group: 'Travel' },
   { to: '/app/complaints', label: 'My complaints', icon: MessageSquareWarning, group: 'Travel' },
   { to: '/app/applications', label: 'My job applications', icon: Briefcase, group: 'Travel' },
-  { to: '/app', label: 'My companies', end: true, icon: Building2, group: 'Companies' },
   { to: '/app/security', label: 'Security', icon: ShieldCheck, group: 'Account' },
 ];
 
-/** Account area shell. Platform staff additionally get a link to the admin area. */
+/** A staff member who works for more than one company chooses which to open. */
+const PICKER_NAV: NavItem[] = [{ to: '/app', label: 'My companies', end: true, icon: Building2 }];
+
+/**
+ * The passenger area. Platform administrators and company staff never see it: they are sent
+ * straight to their own area when they sign in, and only ordinary (passenger) accounts stay here.
+ */
 export function AppShell() {
   const { user } = useAuth();
-  const nav =
-    user && user.platformRoles.length > 0
-      ? [...APP_NAV, { to: '/platform', label: 'Platform admin' }]
-      : APP_NAV;
-  return <DashboardShell nav={nav} heading="Your account" />;
+  const isPlatform = (user?.platformRoles.length ?? 0) > 0;
+  const mine = useQuery({
+    queryKey: ['tenants', 'mine'],
+    enabled: Boolean(user) && !isPlatform,
+    queryFn: ({ signal }) =>
+      api<{ tenants: { tenantId: string; name: string; membershipStatus: string }[] }>(
+        '/tenants/mine',
+        { signal },
+      ),
+  });
+  if (isPlatform) return <Navigate to="/platform" replace />;
+  if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
+  const staff = (mine.data?.tenants ?? []).filter((t) => t.membershipStatus === 'ACTIVE');
+  if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}`} replace />;
+  if (staff.length > 1) {
+    return (
+      <DashboardShell nav={PICKER_NAV} heading="Your companies">
+        <div className="mx-auto w-[90%] space-y-3">
+          <h1 className="text-2xl">Choose a company</h1>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {staff.map((t) => (
+              <li key={t.tenantId}>
+                <Link
+                  to={'/c/' + t.tenantId}
+                  className="block rounded-2xl border border-slate-200 bg-white p-4 font-semibold shadow-level1 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  {t.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </DashboardShell>
+    );
+  }
+  return <DashboardShell nav={APP_NAV} heading="Your account" />;
 }

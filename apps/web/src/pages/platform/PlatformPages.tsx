@@ -1,35 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Building2, LayoutDashboard, Plus, Power, ScrollText } from 'lucide-react';
+import { Building2, LayoutDashboard, Plus, Power, ScrollText } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Badge, Card, StatusBadge } from '../../components/ui/Card';
+import { Badge, Card } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { ApiError, api } from '../../lib/api';
+import { CompaniesTable, type Action, type TenantRow } from './CompaniesTable';
+import { EditCompanyDialog } from './EditCompanyDialog';
 import { RegisterCompanyDialog } from './RegisterCompanyDialog';
 
-interface TenantRow {
-  id: string;
-  name: string;
-  slug: string;
-  status: string;
-  timezone: string;
-  createdAt: string;
-}
-type Action = 'approve' | 'reject' | 'suspend' | 'reactivate' | 'deactivate';
 const NEEDS_REASON: Action[] = ['reject', 'suspend', 'deactivate'];
 
-const ACTIONS_BY_STATUS: Record<string, Action[]> = {
-  PENDING: ['approve', 'reject'],
-  ACTIVE: ['suspend', 'deactivate'],
-  SUSPENDED: ['reactivate', 'deactivate'],
-};
-const STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'DEACTIVATED'];
+const STATUSES = ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED', 'DEACTIVATED', 'ALL'];
 
 /** Visible only to people with a platform role; the API independently requires role + MFA. */
 export function PlatformLayout() {
@@ -48,12 +36,12 @@ export function PlatformLayout() {
     <DashboardShell
       heading="Platform administration"
       theme="platform"
+      account="/platform"
       nav={[
         { to: '/platform/overview', label: 'Overview', icon: LayoutDashboard, group: 'Platform' },
         { to: '/platform', label: 'Companies', end: true, icon: Building2, group: 'Platform' },
         { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
-        { to: '/app', label: 'Exit admin', icon: ArrowLeft, group: 'Account' },
       ]}
     >
       <Outlet />
@@ -64,15 +52,22 @@ export function PlatformLayout() {
 export function PlatformTenantsPage() {
   const toast = useToast();
   const qc = useQueryClient();
-  const [status, setStatus] = useState('PENDING');
+  const [status, setStatus] = useState('ACTIVE');
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<TenantRow | null>(null);
   const [pending, setPending] = useState<{ tenant: TenantRow; action: Action } | null>(null);
   const [reason, setReason] = useState('');
   const [registering, setRegistering] = useState(false);
 
   const q = useQuery({
-    queryKey: ['platform', 'tenants', status],
+    queryKey: ['platform', 'tenants', status, search],
     queryFn: ({ signal }) =>
-      api<{ tenants: TenantRow[] }>(`/platform/tenants?status=${status}&limit=50`, { signal }),
+      api<{ tenants: TenantRow[] }>(
+        `/platform/tenants?limit=100${status === 'ALL' ? '' : `&status=${status}`}${
+          search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''
+        }`,
+        { signal },
+      ),
     retry: false,
   });
   const run = useMutation({
@@ -98,7 +93,7 @@ export function PlatformTenantsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Companies</h1>
@@ -112,6 +107,16 @@ export function PlatformTenantsPage() {
           Register a company
         </Button>
       </div>
+      <div className="max-w-md">
+        <input
+          type="search"
+          aria-label="Search companies"
+          placeholder="Search by name or web address"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base placeholder:text-slate-500 dark:border-slate-600 dark:bg-slate-900"
+        />
+      </div>
       <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-2">
         {STATUSES.map((s) => (
           <button
@@ -121,14 +126,14 @@ export function PlatformTenantsPage() {
             onClick={() => setStatus(s)}
             className={`min-h-11 rounded-lg px-3 text-sm font-medium ${status === s ? 'bg-brand-600 text-white' : 'bg-white ring-1 ring-slate-300 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-600'}`}
           >
-            {s.charAt(0) + s.slice(1).toLowerCase()}
+            {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
           </button>
         ))}
       </div>
       {mfaMissing && (
         <Alert tone="warning">
           Platform access requires two-step verification.{' '}
-          <Link className="font-medium" to="/app/security">
+          <Link className="font-medium" to="/platform/security">
             Turn it on in Security
           </Link>
           , then reload.
@@ -136,41 +141,30 @@ export function PlatformTenantsPage() {
       )}
       {q.isPending && <PageLoader label="Loading companies" />}
       {q.error && !mfaMissing && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-      <Card>
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-          {q.data?.tenants.length === 0 && (
-            <li className="py-3 text-sm text-slate-500">No companies with this status.</li>
-          )}
-          {q.data?.tenants.map((t) => (
-            <li
-              key={t.id}
-              className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-medium">{t.name}</p>
-                <p className="text-xs text-slate-500">
-                  {t.slug} · registered {new Date(t.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={t.status} />
-                {(ACTIONS_BY_STATUS[t.status] ?? []).map((a) => (
-                  <Button
-                    key={a}
-                    variant={a === 'approve' || a === 'reactivate' ? 'primary' : 'secondary'}
-                    onClick={() => {
-                      setReason('');
-                      setPending({ tenant: t, action: a });
-                    }}
-                  >
-                    {a.charAt(0).toUpperCase() + a.slice(1)}
-                  </Button>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {q.data && q.data.tenants.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
+          No companies match.
+        </p>
+      )}
+      {q.data && q.data.tenants.length > 0 && (
+        <CompaniesTable
+          rows={q.data.tenants}
+          onEdit={setEditing}
+          onAction={(tenant, action) => {
+            setReason('');
+            setPending({ tenant, action });
+          }}
+        />
+      )}
+      <EditCompanyDialog
+        company={editing}
+        onClose={() => setEditing(null)}
+        onSaved={async (message) => {
+          toast(message, 'success');
+          setEditing(null);
+          await qc.invalidateQueries({ queryKey: ['platform', 'tenants'] });
+        }}
+      />
 
       <RegisterCompanyDialog
         open={registering}
@@ -279,7 +273,7 @@ export function PlatformMaintenancePage() {
   const [confirmOn, setConfirmOn] = useState(false);
   const on = status.data?.enabled === true;
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <h1 className="text-2xl font-semibold">Maintenance mode</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         While on, passengers and companies get a maintenance message instead of the service.

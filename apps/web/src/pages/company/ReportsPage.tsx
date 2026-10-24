@@ -80,7 +80,7 @@ export function ReportsPage() {
         : `/api/v1${base}/occupancy.csv?${qs}`;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <h1 className="text-2xl font-semibold">Reports</h1>
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-44">

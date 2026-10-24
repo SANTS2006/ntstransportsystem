@@ -5,7 +5,7 @@ import {
   OTP_RESEND_AFTER_MS,
 } from '../src/modules/authentication/otp.service.js';
 import { withDb, type Db } from '../src/platform/db.js';
-import { createDb, makeApp, TEST_DB_URL, uniq } from './helpers.js';
+import { createDb, makeApp, TEST_DB_URL, uniq, testCompanySlug } from './helpers.js';
 
 const PASSWORD = 'correct-horse-battery';
 const cookieValue = (res: request.Response, name: string) =>
@@ -16,11 +16,15 @@ const cookieValue = (res: request.Response, name: string) =>
 
 describe.skipIf(!TEST_DB_URL)('sign-up and sign-in by phone number (database)', () => {
   let db: Db;
+  let SLUG = '';
   let ctx: ReturnType<typeof makeApp>;
 
   beforeAll(() => {
     db = createDb(TEST_DB_URL as string);
     ctx = makeApp(db);
+  });
+  beforeAll(async () => {
+    SLUG = await testCompanySlug(db);
   });
   afterAll(async () => {
     await db.$disconnect();
@@ -34,7 +38,9 @@ describe.skipIf(!TEST_DB_URL)('sign-up and sign-in by phone number (database)', 
     return { typed: `0${digits.slice(0, 2)} ${digits.slice(2)}`, e164: `+232${digits}` };
   };
   const api = (path: string, body: object) =>
-    request(ctx.app).post(`/api/v1/auth${path}`).send(body);
+    request(ctx.app)
+      .post(`/api/v1/auth${path}`)
+      .send({ companySlug: SLUG, ...body });
   /** Lets the resend cooldown pass without waiting a real minute. */
   const skipCooldown = (phone: string) =>
     plat((tx) =>

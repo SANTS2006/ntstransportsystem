@@ -54,7 +54,7 @@ function renderAt(url: string) {
       <AuthProvider>
         <MemoryRouter initialEntries={[url]}>
           <Routes>
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/:slug/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/verify-email-code" element={<VerifyEmailCodePage />} />
             <Route path="/verify-phone" element={<VerifyPhonePage />} />
@@ -79,7 +79,7 @@ describe('Sign up with a phone number', () => {
   it('refuses a phone number on the form when the server cannot send texts', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: false });
-    renderAt('/register');
+    renderAt('/acme-coaches/register');
     await user.type(await screen.findByLabelText('Email address / Phone number'), '076 123 456');
     await user.type(screen.getByLabelText('Full name'), 'Fanta');
     await user.type(screen.getByLabelText('Password'), 'a-long-enough-password');
@@ -92,7 +92,7 @@ describe('Sign up with a phone number', () => {
   it('does not create the account until the agreement box is ticked', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: false });
-    renderAt('/register');
+    renderAt('/acme-coaches/register');
     await user.type(
       await screen.findByLabelText('Email address / Phone number'),
       'ada@example.com',
@@ -107,7 +107,7 @@ describe('Sign up with a phone number', () => {
   it('registers by email, then goes to the code page', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: false, handler: () => json(202, { message: 'ok' }) });
-    renderAt('/register');
+    renderAt('/acme-coaches/register');
     await user.type(
       await screen.findByLabelText('Email address / Phone number'),
       'Ada@Example.com',
@@ -119,6 +119,7 @@ describe('Sign up with a phone number', () => {
     await waitFor(() => expect(where()).toContain('/verify-email-code'));
     expect(where()).toBe('/verify-email-code?email=ada%40example.com');
     expect(calls.find((c) => c.url === '/auth/register')!.body).toMatchObject({
+      companySlug: 'acme-coaches',
       email: 'Ada@Example.com',
     });
   });
@@ -165,7 +166,7 @@ describe('Sign up with a phone number', () => {
   it('sends the number as typed, then goes to the code screen with it in international form', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: true, handler: () => json(202, { message: 'ok' }) });
-    renderAt('/register');
+    renderAt('/acme-coaches/register');
     await screen.findByLabelText('Email address / Phone number');
     await user.type(screen.getByLabelText('Full name'), 'Fanta Jalloh');
     await user.type(screen.getByLabelText('Email address / Phone number'), '076 123 456');
@@ -176,6 +177,7 @@ describe('Sign up with a phone number', () => {
     expect(where()).toBe(`/verify-phone?phone=${encodeURIComponent('+23276123456')}`);
     const sent = calls.find((c) => c.url === '/auth/register-phone')!;
     expect(sent.body).toEqual({
+      companySlug: 'acme-coaches',
       displayName: 'Fanta Jalloh',
       phone: '076 123 456',
       password: 'a-long-enough-password',
@@ -185,7 +187,7 @@ describe('Sign up with a phone number', () => {
   it('says what is wrong with a number before sending anything', async () => {
     const user = userEvent.setup();
     const calls = mockApi({ phoneSignup: true });
-    renderAt('/register');
+    renderAt('/acme-coaches/register');
     await screen.findByLabelText('Email address / Phone number');
     await user.type(screen.getByLabelText('Full name'), 'F');
     await user.type(screen.getByLabelText('Email address / Phone number'), '1234');

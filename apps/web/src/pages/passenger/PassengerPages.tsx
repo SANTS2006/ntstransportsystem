@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
 import { Accessibility, Bus, Clock, Lock } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -98,6 +99,7 @@ export function TripBookPage() {
   const [boardAt, setBoardAt] = useState<string | null>(null);
   const [alightAt, setAlightAt] = useState<string | null>(null);
   const attempt = useRef(crypto.randomUUID());
+  const links = useCompanyLinks(tenantId);
 
   const q = useQuery({
     queryKey: ['public-trip', tenantId, tripId],
@@ -161,7 +163,7 @@ export function TripBookPage() {
   if (q.isPending) return <PageLoader label="Loading trip" />;
   if (q.error || !q.data) {
     return (
-      <div className="mx-auto max-w-xl space-y-4">
+      <div className="mx-auto w-[90%] space-y-4">
         <Alert tone="error">This trip is no longer available for online booking.</Alert>
         <Link className="text-brand-700 font-medium" to="/trips">
           Back to search
@@ -189,7 +191,7 @@ export function TripBookPage() {
     contact.phone.trim().length >= 6;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       {/* The trip */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 sm:p-6 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -436,12 +438,12 @@ export function TripBookPage() {
             <Alert tone="info">
               <Link
                 className="font-medium font-medium"
-                to={`/login?next=${encodeURIComponent(`/trips/${tenantId}/${tripId}`)}`}
+                to={links.signIn(`/trips/${tenantId}/${tripId}`)}
               >
                 Sign in
               </Link>{' '}
               or{' '}
-              <Link className="font-medium font-medium" to="/register">
+              <Link className="font-medium font-medium" to={links.signUp}>
                 create an account
               </Link>{' '}
               to book these seats.
@@ -482,7 +484,7 @@ export function PayReturnPage() {
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   const b = q.data;
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="mx-auto w-[90%] space-y-4">
       {b.status === 'CONFIRMED' && (
         <Alert tone="success">
           Payment received. Your booking <strong>{b.reference}</strong> is confirmed.
@@ -613,7 +615,7 @@ export function MyBookingsPage() {
     onError: (e) => toast(errMsg(e), 'error'),
   });
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto w-[90%] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My bookings</h1>
         <Button variant="secondary" onClick={() => nav('/trips')}>

@@ -59,6 +59,14 @@ export function CompanyLayout() {
     queryFn: ({ signal }) => api<Profile>(`/tenants/${tenantId}/profile`, { signal }),
     retry: false,
   });
+  const mine = useQuery({
+    queryKey: ['tenants', 'mine'],
+    queryFn: ({ signal }) =>
+      api<{ tenants: { tenantId: string; membershipStatus: string }[] }>('/tenants/mine', {
+        signal,
+      }),
+    retry: false,
+  });
   const brand = useQuery({
     queryKey: ['company', tenantId, 'branding'],
     queryFn: ({ signal }) => api<Branding>(`/tenants/${tenantId}/branding`, { signal }),
@@ -112,12 +120,15 @@ export function CompanyLayout() {
     add(can(a, 'tenant.profile.update'), 'Company', 'branding', 'Branding', Palette);
     add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
   }
-  nav.push({ to: '/app', label: 'My companies', icon: ArrowLeft, group: 'Account' });
+  if ((mine.data?.tenants?.filter((t) => t.membershipStatus === 'ACTIVE').length ?? 0) > 1) {
+    nav.push({ to: '/app', label: 'Switch company', icon: ArrowLeft, group: 'Account' });
+  }
   return (
     <AccessContext.Provider value={{ tenantId, access: a }}>
       <DashboardShell
         nav={nav}
         heading="Company workspace"
+        account={`/c/${tenantId}`}
         company={{
           name: name || 'Company workspace',
           logoUrl: brand.data?.logoUrl ?? null,
@@ -138,7 +149,7 @@ export function CompanyOverview() {
     queryFn: ({ signal }) => api<Profile>(`/tenants/${tenantId}/profile`, { signal }),
   });
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       {q.isPending && <PageLoader label="Loading" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
@@ -295,7 +306,7 @@ export function TeamPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <h1 className="text-2xl font-semibold">Team</h1>
       {can(access, 'membership.invite') && (
         <InviteForm roles={roles.data?.roles ?? []} onInvited={refresh} />
@@ -476,7 +487,7 @@ export function RolesPage() {
       api<{ roles: RoleRow[]; catalog: string[] }>(`/tenants/${tenantId}/roles`, { signal }),
   });
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="mx-auto w-[90%] space-y-4">
       <h1 className="text-2xl font-semibold">Roles & permissions</h1>
       {q.isPending && <PageLoader label="Loading roles" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
@@ -521,7 +532,7 @@ export function ActivityPage() {
       ),
   });
   return (
-    <div className="mx-auto max-w-4xl space-y-4">
+    <div className="mx-auto w-[90%] space-y-4">
       <h1 className="text-2xl font-semibold">Activity</h1>
       {q.isPending && <PageLoader label="Loading activity" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}

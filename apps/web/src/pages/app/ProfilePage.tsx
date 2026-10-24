@@ -44,7 +44,7 @@ export function ProfilePage() {
   });
   if (!user) return null;
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <div>
         <h1 className="text-2xl">Profile and settings</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">

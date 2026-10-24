@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { ArrowRight, Mail, User } from 'lucide-react';
 import { normalizePhone } from '@nts/shared';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
 import { AuthCard } from '../../components/layout/Layouts';
@@ -37,12 +37,22 @@ export default function RegisterPage() {
       if (identifierKind(id) === 'email') {
         return api('/auth/register', {
           method: 'POST',
-          body: { displayName: x.displayName, email: id, password: x.password },
+          body: {
+            displayName: x.displayName,
+            email: id,
+            password: x.password,
+            companySlug: slug,
+          },
         });
       }
       return api('/auth/register-phone', {
         method: 'POST',
-        body: { displayName: x.displayName, phone: id, password: x.password },
+        body: {
+          displayName: x.displayName,
+          phone: id,
+          password: x.password,
+          companySlug: slug,
+        },
       });
     },
     onSuccess: (_r, x) => {
@@ -58,10 +68,10 @@ export default function RegisterPage() {
     mutationFn: (credential: string) =>
       api<{ userId?: string; mfaRequired?: boolean }>('/auth/google', {
         method: 'POST',
-        body: { credential },
+        body: { credential, companySlug: slug },
       }),
     onSuccess: async (res) => {
-      if (res.mfaRequired) return void navigate('/login');
+      if (res.mfaRequired) return void navigate(`/${slug}/login`);
       await refresh();
       void navigate('/app', { replace: true });
     },
@@ -81,6 +91,8 @@ export default function RegisterPage() {
     if (Object.keys(next).length === 0 && agreed && !register.isPending) register.mutate(v);
   };
 
+  // There is no sign-up on the main page: accounts are made on a company's own page.
+  if (!slug) return <Navigate to="/login" replace />;
   return (
     <AuthCard
       title="Create an account"
@@ -149,7 +161,7 @@ export default function RegisterPage() {
       </form>
       <p className="text-center text-sm text-slate-800 dark:text-slate-200">
         Already registered?{' '}
-        <Link className="font-semibold text-brand-600" to={slug ? `/${slug}/login` : '/login'}>
+        <Link className="font-semibold text-brand-600" to={`/${slug}/login`}>
           Sign in
         </Link>
       </p>

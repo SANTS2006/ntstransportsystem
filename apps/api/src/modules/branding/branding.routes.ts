@@ -39,6 +39,13 @@ export function brandingRouter(db: Db, branding: BrandingService): ExpressRouter
   };
 
   // --- Public: what a company's sign-in and sign-up pages look like -----------------------------
+  r.get('/public/company-by-id/:id', async (req, res) => {
+    const id = z.uuid().safeParse(req.params.id);
+    const found = id.success ? await branding.summaryById(id.data) : null;
+    if (!found) throw AppError.notFound('Company not found');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(found);
+  });
   r.get('/public/companies/:slug', async (req, res) => {
     const slug = z.string().regex(SLUG_RE).max(40).safeParse(req.params.slug);
     const found = slug.success ? await branding.publicBySlug(slug.data) : null;

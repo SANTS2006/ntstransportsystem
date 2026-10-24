@@ -19,12 +19,21 @@ const me = (platformRoles: string[]) =>
     platformRoles,
   });
 
-function renderAt(path: string, signedIn: boolean, platformRoles: string[] = []) {
+function renderAt(
+  path: string,
+  signedIn: boolean,
+  platformRoles: string[] = [],
+  companies: { tenantId: string; name: string; membershipStatus: string }[] = [],
+) {
   if (signedIn) document.cookie = 'csrf=abc; path=/';
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async () => me(platformRoles));
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
+    String(input).endsWith('/tenants/mine') ? json(200, { tenants: companies }) : me(platformRoles),
+  );
   const router = createMemoryRouter(
     [
       { path: '/login', element: <p>LOGIN</p> },
+      { path: '/platform', element: <p>PLATFORM AREA</p> },
+      { path: '/c/:id', element: <p>COMPANY AREA</p> },
       {
         path: '/app',
         element: (
@@ -64,16 +73,22 @@ afterEach(() => {
 const linkTexts = () => screen.getAllByRole('link').map((a) => a.textContent);
 
 describe('AppShell', () => {
-  it('offers the platform admin link only to platform staff', async () => {
+  it('sends platform staff straight to the platform area, never showing the passenger area', async () => {
     renderAt('/app', true, ['OPERATIONS']);
-    await screen.findByText('HOME');
-    expect(linkTexts()).toContain('Platform admin');
+    await screen.findByText('PLATFORM AREA');
+    expect(screen.queryByText('HOME')).toBeNull();
   });
 
-  it('does not show it to ordinary users', async () => {
+  it('sends company staff straight to their company', async () => {
+    renderAt('/app', true, [], [{ tenantId: 'c1', name: 'Coach Co', membershipStatus: 'ACTIVE' }]);
+    await screen.findByText('COMPANY AREA');
+  });
+
+  it('keeps ordinary passengers in the passenger area, with no company or admin links', async () => {
     renderAt('/app', true, []);
     await screen.findByText('HOME');
     expect(linkTexts()).not.toContain('Platform admin');
+    expect(linkTexts()).not.toContain('My companies');
   });
 });
 

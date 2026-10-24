@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -52,7 +53,7 @@ export function JobBoardPage() {
       }),
   });
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <h1 className="text-3xl font-semibold text-brand-700 dark:text-brand-500">Jobs</h1>
       <form
         className="flex flex-wrap items-end gap-3"
@@ -92,6 +93,7 @@ export function JobBoardPage() {
 
 export function JobDetailPage() {
   const { tenantId, id } = useParams();
+  const links = useCompanyLinks(tenantId);
   const { user } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
@@ -129,7 +131,7 @@ export function JobDetailPage() {
   if (job.isPending) return <PageLoader label="Loading" />;
   if (job.error || !job.data) {
     return (
-      <div className="mx-auto max-w-xl space-y-3">
+      <div className="mx-auto w-[90%] space-y-3">
         <Alert tone="error">This job is no longer open.</Alert>
         <Link className="text-brand-700 font-medium" to="/jobs">
           All jobs
@@ -143,7 +145,7 @@ export function JobDetailPage() {
     form.phone.trim().length >= 6 &&
     form.experience.trim().length >= 10;
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
         All jobs
       </Link>
@@ -212,14 +214,11 @@ export function JobDetailPage() {
         </Card>
       ) : (
         <Alert tone="info">
-          <Link
-            className="font-medium font-medium"
-            to={`/login?next=${encodeURIComponent(`/jobs/${tenantId}/${id}`)}`}
-          >
+          <Link className="font-medium font-medium" to={links.signIn(`/jobs/${tenantId}/${id}`)}>
             Sign in
           </Link>{' '}
           or{' '}
-          <Link className="font-medium font-medium" to="/register">
+          <Link className="font-medium font-medium" to={links.signUp}>
             create an account
           </Link>{' '}
           to apply.
@@ -258,7 +257,7 @@ export function MyApplicationsPage() {
     onError: (e) => toast(errMsg(e), 'error'),
   });
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto w-[90%] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My job applications</h1>
         <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">

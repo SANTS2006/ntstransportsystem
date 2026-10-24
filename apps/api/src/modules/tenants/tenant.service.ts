@@ -271,15 +271,104 @@ export class TenantService {
     return outcome;
   }
 
-  async listForPlatform(status: TenantStatus | undefined, page: { limit: number; offset: number }) {
-    return withDb(this.db, { platform: true }, (tx) =>
-      tx.tenant.findMany({
-        where: status ? { status } : {},
+  async listForPlatform(
+    status: TenantStatus | undefined,
+    page: { limit: number; offset: number },
+    q?: string,
+  ) {
+    return withDb(this.db, { platform: true }, async (tx) => {
+      const rows = await tx.tenant.findMany({
+        where: {
+          ...(status ? { status } : {}),
+          ...(q
+            ? {
+                OR: [
+                  { name: { contains: q, mode: 'insensitive' as const } },
+                  { slug: { contains: q, mode: 'insensitive' as const } },
+                ],
+              }
+            : {}),
+        },
         orderBy: { createdAt: 'desc' },
         take: page.limit,
         skip: page.offset,
-        select: { id: true, name: true, slug: true, status: true, timezone: true, createdAt: true },
-      }),
-    );
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+          timezone: true,
+          defaultCurrency: true,
+          createdAt: true,
+          branding: {
+            select: { primaryColor: true, accentColor: true, logoType: true, updatedAt: true },
+          },
+          memberships: {
+            where: { status: 'ACTIVE', role: { key: 'owner' } },
+            take: 3,
+            select: { user: { select: { displayName: true, email: true } } },
+          },
+        },
+      });
+      return rows.map(({ branding, memberships, ...t }) => ({
+        ...t,
+        primaryColor: branding?.primaryColor ?? null,
+        accentColor: branding?.accentColor ?? null,
+        logoUrl: branding?.logoType
+          ? `/api/v1/public/companies/${t.slug}/logo?v=${branding.updatedAt.getTime()}`
+          : null,
+        admins: memberships.map((m) => ({ name: m.user.displayName, email: m.user.email })),
+      }));
+    });
+  }
+
+  /** Platform staff correct a company's details. Status changes go through the lifecycle actions. */
+  async updateByPlatform(
+    actorUserId: string,
+    id: string,
+    patch: {
+      name?: string | undefined;
+      slug?: string | undefined;
+      timezone?: string | undefined;
+      defaultCurrency?: string | undefined;
+      primaryColor?: string | null | undefined;
+      accentColor?: string | null | undefined;
+    },
+    requestId?: string,
+  ) {
+    if (patch.slug !== undefined) checkSlug(patch.slug);
+    const { primaryColor, accentColor, ...core } = patch;
+    const data = Object.fromEntries(Object.entries(core).filter(([, v]) => v !== undefined));
+    await withDb(this.db, { platform: true, userId: actorUserId }, async (tx) => {
+      const t = await tx.tenant.findUnique({ where: { id }, select: { id: true, slug: true } });
+      if (!t) throw AppError.notFound('Company not found');
+      if (patch.slug && patch.slug !== t.slug) {
+        if (await tx.tenant.findUnique({ where: { slug: patch.slug }, select: { id: true } })) {
+          throw AppError.conflict('That web address name is already taken');
+        }
+      }
+      if (Object.keys(data).length > 0) await tx.tenant.update({ where: { id }, data });
+      const colours = {
+        ...(primaryColor !== undefined ? { primaryColor } : {}),
+        ...(accentColor !== undefined ? { accentColor } : {}),
+      };
+      if (Object.keys(colours).length > 0) {
+        await tx.tenantBranding.upsert({
+          where: { tenantId: id },
+          create: { tenantId: id, ...colours },
+          update: colours,
+        });
+      }
+      await writeAudit(tx, {
+        action: 'platform.tenant_updated',
+        outcome: 'SUCCESS',
+        tenantId: id,
+        actorUserId,
+        targetType: 'tenant',
+        targetId: id,
+        requestId,
+        summary: { fields: Object.keys({ ...data, ...colours }).join(',') },
+      });
+    });
   }
 }

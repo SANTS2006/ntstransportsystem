@@ -64,6 +64,16 @@ const registerSchema = z
     accentColor: colour.optional(),
   })
   .strict();
+const updateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    slug: z.string().trim().toLowerCase().min(3).max(40).optional(),
+    timezone: timezone.optional(),
+    defaultCurrency: currency.optional(),
+    primaryColor: colour.nullable().optional(),
+    accentColor: colour.nullable().optional(),
+  })
+  .strict();
 const auditQuery = z.object({
   action: z.string().trim().max(80).optional(),
   outcome: z.enum(['SUCCESS', 'FAILURE', 'DENIED']).optional(),
@@ -91,7 +101,18 @@ export function platformRouter(
 
   r.get('/tenants', requireAuth, readGuard, async (req, res) => {
     const status = statusQuery.parse(req.query.status);
-    res.json({ tenants: await tenants.listForPlatform(status, pageQuery(req)) });
+    const q = z.string().trim().max(80).optional().parse(req.query.q);
+    res.json({ tenants: await tenants.listForPlatform(status, pageQuery(req), q || undefined) });
+  });
+
+  r.patch('/tenants/:id', requireAuth, writeGuard, async (req, res) => {
+    await tenants.updateByPlatform(
+      actor(req),
+      uuidParam(req, 'id'),
+      updateSchema.parse(req.body),
+      req.id,
+    );
+    res.status(204).end();
   });
 
   if (members) {
@@ -156,4 +177,4 @@ export function platformRouter(
 }
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
-export const requestSchemas = { reasonSchema, optionalReason, registerSchema };
+export const requestSchemas = { reasonSchema, optionalReason, registerSchema, updateSchema };

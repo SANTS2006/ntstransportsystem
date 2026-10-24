@@ -181,7 +181,7 @@ export function BookingsPage() {
     picked.length > 0 && contact.name.trim().length >= 2 && contact.phone.trim().length >= 6;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <h1 className="text-2xl font-semibold">Bookings</h1>
       <p className="text-xs text-slate-500">Times shown in {tz}.</p>
 

@@ -382,6 +382,78 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       await nobody.call('get', '/platform/audit').expect(404);
     });
 
+    it('lets platform staff list companies with their administrators and edit their details', async () => {
+      const ops = await platformUser('OPERATIONS');
+      const support = await platformUser('SUPPORT');
+      const { tenant, owner } = await activeCompany('edit-me');
+      const other = await activeCompany('edit-other');
+
+      const listed = await ops
+        .call('get', `/platform/tenants?status=ACTIVE&q=${tenant.slug}`)
+        .expect(200);
+      const row = listed.body.tenants.find((t: { id: string }) => t.id === tenant.id);
+      expect(row).toMatchObject({ slug: tenant.slug, defaultCurrency: 'SLE', logoUrl: null });
+      expect(row.admins).toEqual([expect.objectContaining({ email: owner.email })]);
+      expect(listed.body.tenants.some((t: { id: string }) => t.id === other.tenant.id)).toBe(false);
+
+      const newSlug = uniq('renamed').toLowerCase();
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({
+          name: 'Renamed Transport',
+          slug: newSlug,
+          timezone: 'Africa/Freetown',
+          defaultCurrency: 'USD',
+          primaryColor: '#0b6e4f',
+          accentColor: null,
+        })
+        .expect(204);
+      const pub = await request(ctx.app).get(`/api/v1/public/companies/${newSlug}`).expect(200);
+      expect(pub.body).toMatchObject({ name: 'Renamed Transport', primaryColor: '#0b6e4f' });
+      await request(ctx.app).get(`/api/v1/public/companies/${tenant.slug}`).expect(404);
+
+      // Refused: taken, reserved or malformed names, bad values, unknown keys and status changes.
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ slug: other.tenant.slug })
+        .expect(409);
+      await ops.call('patch', `/platform/tenants/${tenant.id}`).send({ slug: 'login' }).expect(409);
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ slug: 'Bad Name' })
+        .expect(400);
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ defaultCurrency: 'dollars' })
+        .expect(400);
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ primaryColor: 'red' })
+        .expect(400);
+      await ops
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ status: 'SUSPENDED' })
+        .expect(400);
+      await ops
+        .call('patch', `/platform/tenants/${randomUUID()}`)
+        .send({ name: 'Ghost Co' })
+        .expect(404);
+      // Support staff may read but not edit; company owners have no platform access at all.
+      await support
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ name: 'Nope Nope' })
+        .expect(403);
+      await owner
+        .call('patch', `/platform/tenants/${tenant.id}`)
+        .send({ name: 'Nope Nope' })
+        .expect(404);
+
+      const audit = await withDb(db, { platform: true }, (tx) =>
+        tx.auditLog.findMany({ where: { tenantId: tenant.id, action: 'platform.tenant_updated' } }),
+      );
+      expect(audit).toHaveLength(1);
+    });
+
     it('does not give a company owner any platform access', async () => {
       const { owner } = await activeCompany('owner-not-platform');
       await enrollMfa(owner);

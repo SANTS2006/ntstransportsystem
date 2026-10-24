@@ -56,8 +56,12 @@ export default function LoginPage() {
       const id = v.identifier.trim();
       const body =
         identifierKind(id) === 'email'
-          ? { email: id, password: v.password }
-          : { phone: normalizePhone(id) ?? id, password: v.password };
+          ? { email: id, password: v.password, ...(slug ? { companySlug: slug } : {}) }
+          : {
+              phone: normalizePhone(id) ?? id,
+              password: v.password,
+              ...(slug ? { companySlug: slug } : {}),
+            };
       return api<LoginResponse>('/auth/login', { method: 'POST', body });
     },
     onSuccess: finish,
@@ -76,7 +80,10 @@ export default function LoginPage() {
   });
   const google = useMutation({
     mutationFn: (credential: string) =>
-      api<LoginResponse>('/auth/google', { method: 'POST', body: { credential } }),
+      api<LoginResponse>('/auth/google', {
+        method: 'POST',
+        body: { credential, ...(slug ? { companySlug: slug } : {}) },
+      }),
     onSuccess: finish,
   });
 
@@ -120,7 +127,14 @@ export default function LoginPage() {
     );
   }
   return (
-    <AuthCard title="Sign In" subtitle="Enter your details to access your account.">
+    <AuthCard
+      title={slug ? 'Sign In' : 'Administrator sign-in'}
+      subtitle={
+        slug
+          ? 'Enter your details to access your account.'
+          : "For NTS platform administrators. Everyone else signs in from their transport company's own page."
+      }
+    >
       {params.get('reset') && <Alert tone="success">Password updated. Please sign in.</Alert>}
       {params.get('verified') && (
         <Alert tone="success">Your account is confirmed. Please sign in.</Alert>
@@ -161,17 +175,18 @@ export default function LoginPage() {
           <ArrowRight aria-hidden="true" className="size-5" strokeWidth={1.8} />
         </Button>
       </form>
-      <p className="text-center text-sm text-slate-800 dark:text-slate-200">
-        Don&apos;t have an account?{' '}
-        <Link
-          className="font-semibold text-brand-600"
-          to={slug ? `/${slug}/register` : '/register'}
-        >
-          Create an account
-        </Link>
-      </p>
-      <OrDivider />
-      <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
+      {slug && (
+        <>
+          <p className="text-center text-sm text-slate-800 dark:text-slate-200">
+            Don&apos;t have an account?{' '}
+            <Link className="font-semibold text-brand-600" to={`/${slug}/register`}>
+              Create an account
+            </Link>
+          </p>
+          <OrDivider />
+          <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
+        </>
+      )}
     </AuthCard>
   );
 }

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { signInPath, signUpPath } from '../../lib/company-page';
 import { useMutation } from '@tanstack/react-query';
 import { normalizePhone } from '@nts/shared';
 import { useEffect, useRef, useState } from 'react';
@@ -40,7 +41,7 @@ export function VerifyEmailPage() {
       {verify.isSuccess ? (
         <>
           <Alert tone="success">Your email is confirmed.</Alert>
-          <Link className={linkClass} to="/login">
+          <Link className={linkClass} to={signInPath()}>
             Continue to sign in
           </Link>
         </>
@@ -89,7 +90,7 @@ export function ForgotPasswordPage() {
           If an account exists for that address, a reset link is on its way. It expires in 30
           minutes.
         </Alert>
-        <Link className={linkClass} to="/login">
+        <Link className={linkClass} to={signInPath()}>
           Back to sign in
         </Link>
       </AuthCard>
@@ -128,7 +129,7 @@ export function ForgotPasswordPage() {
           {phoneSignup ? 'Send reset link or code' : 'Send reset link'}
         </Button>
       </form>
-      <Link className={linkClass} to="/login">
+      <Link className={linkClass} to={signInPath()}>
         Back to sign in
       </Link>
     </AuthCard>
@@ -145,7 +146,7 @@ export function ResetPasswordPage() {
   const reset = useMutation({
     mutationFn: (v: ResetValues) =>
       api('/auth/reset-password', { method: 'POST', body: { token, password: v.password } }),
-    onSuccess: () => void navigate('/login?reset=1', { replace: true }),
+    onSuccess: () => void navigate(`${signInPath()}?reset=1`, { replace: true }),
   });
   const { errors } = form.formState;
   if (!token) {
@@ -242,7 +243,9 @@ export function VerifyEmailCodePage() {
     mutationFn: () =>
       api('/auth/verify-email-code', { method: 'POST', body: { email, code: code.trim() } }),
     onSuccess: () =>
-      void navigate(`/login?email=${encodeURIComponent(email)}&verified=1`, { replace: true }),
+      void navigate(`${signInPath()}?email=${encodeURIComponent(email)}&verified=1`, {
+        replace: true,
+      }),
   });
   // Sent here from a sign-in that needs a code: ask for one straight away, once.
   const asked = useRef(false);
@@ -261,7 +264,7 @@ export function VerifyEmailCodePage() {
     return (
       <AuthCard title="Confirm your email">
         <Alert tone="error">This page needs your email address. Please start again.</Alert>
-        <Link className={linkClass} to="/register">
+        <Link className={linkClass} to={signUpPath()}>
           Create an account
         </Link>
       </AuthCard>
@@ -304,10 +307,10 @@ export function VerifyEmailCodePage() {
       </form>
       <ResendCode path="/auth/resend-email-code" body={{ email }} startNow />
       <div className="flex justify-between">
-        <Link className={linkClass} to="/register">
+        <Link className={linkClass} to={signUpPath()}>
           Use a different email
         </Link>
-        <Link className={linkClass} to="/login">
+        <Link className={linkClass} to={signInPath()}>
           Back to sign in
         </Link>
       </div>

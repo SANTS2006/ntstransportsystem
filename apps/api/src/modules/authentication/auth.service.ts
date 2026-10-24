@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { generateToken, hashPassword, hashToken, verifyPassword } from '../../platform/crypto.js';
-import type { Db } from '../../platform/db.js';
+import { withDb, type Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import { checkImage, MAX_AVATAR_BYTES } from '../branding/branding.service.js';
@@ -69,8 +69,73 @@ export class AuthService {
     return token;
   }
 
+  /** A company that is open for business, by its web address name. */
+  async openCompany(slug: string) {
+    const t = await withDb(this.db, { platform: true }, (tx) =>
+      tx.tenant.findUnique({ where: { slug }, select: { id: true, name: true, status: true } }),
+    );
+    if (!t || t.status !== 'ACTIVE') throw AppError.notFound('Company not found');
+    return t;
+  }
+
+  /**
+   * Which sign-in page an account may use. The main page is for platform administrators only. A
+   * company's page takes the people who signed up on it and its own staff, nobody else, and never
+   * a platform administrator. Called only after the password is proven, so it reveals nothing to
+   * someone who is only guessing.
+   */
+  async assertSignInPage(
+    user: { id: string; homeTenantId: string | null },
+    slug: string | undefined,
+    meta: ReqMeta,
+  ) {
+    const deny = async (why: string, message: string): Promise<never> => {
+      await writeAudit(this.db, {
+        action: 'auth.login',
+        outcome: 'DENIED',
+        actorUserId: user.id,
+        requestId: meta.requestId,
+        summary: { reason: why },
+      });
+      throw new AppError(403, 'WRONG_SIGN_IN_PAGE', message);
+    };
+    const platform =
+      (await this.db.platformRoleAssignment.count({ where: { userId: user.id } })) > 0;
+    if (!slug) {
+      if (platform) return;
+      return deny(
+        'wrong_page_main',
+        "This page is for platform administrators. Sign in from your transport company's own sign-in page.",
+      );
+    }
+    if (platform) {
+      return deny(
+        'wrong_page_platform',
+        'Platform administrators sign in on the main sign-in page.',
+      );
+    }
+    const company = await this.openCompany(slug).catch(() => null);
+    if (!company) return deny('wrong_page_company_closed', 'This company is not open for sign-in.');
+    if (user.homeTenantId === company.id) return;
+    const member = await withDb(this.db, { userId: user.id }, (tx) =>
+      tx.membership.findFirst({
+        where: { userId: user.id, tenantId: company.id, status: 'ACTIVE' },
+        select: { id: true },
+      }),
+    );
+    if (member) return;
+    return deny(
+      'wrong_page_other_company',
+      `This account does not belong to ${company.name}. Sign in from the page of the company you signed up with.`,
+    );
+  }
+
   /** Resolves identically whether or not the email is already registered. */
-  async register(input: { email: string; password: string; displayName: string }, meta: ReqMeta) {
+  async register(
+    input: { email: string; password: string; displayName: string; companySlug: string },
+    meta: ReqMeta,
+  ) {
+    const company = await this.openCompany(input.companySlug);
     const existing = await this.db.user.findUnique({ where: { email: input.email } });
     if (existing) {
       await writeAudit(this.db, {
@@ -86,6 +151,7 @@ export class AuthService {
         email: input.email,
         displayName: input.displayName,
         passwordHash: await hashPassword(input.password),
+        homeTenantId: company.id,
       },
     });
     await this.sendEmailCode(user.id, input.email);
@@ -185,7 +251,12 @@ export class AuthService {
   }
 
   async login(
-    input: { email?: string | undefined; phone?: string | undefined; password: string },
+    input: {
+      email?: string | undefined;
+      phone?: string | undefined;
+      password: string;
+      companySlug?: string | undefined;
+    },
     meta: ReqMeta,
   ): Promise<LoginResult> {
     const byPhone = input.phone !== undefined;
@@ -237,6 +308,7 @@ export class AuthService {
       throw genericFailure();
     }
     // Only a caller who proved the password learns the account state.
+    await this.assertSignInPage(user, input.companySlug, meta);
     const verified = byPhone ? user.phoneVerifiedAt : user.emailVerifiedAt;
     if (user.status !== 'ACTIVE' || !verified) {
       const inactive = user.status !== 'ACTIVE';
@@ -489,10 +561,11 @@ export class AuthService {
    * the code can finish it), so nobody can lock a real owner out by registering their number first.
    */
   async registerPhone(
-    input: { phone: string; password: string; displayName: string },
+    input: { phone: string; password: string; displayName: string; companySlug: string },
     meta: ReqMeta,
   ) {
     const otp = this.requireOtp();
+    const company = await this.openCompany(input.companySlug);
     const existing = await this.db.user.findUnique({ where: { phone: input.phone } });
     if (existing?.phoneVerifiedAt || (existing && existing.status !== 'ACTIVE')) {
       await writeAudit(this.db, {
@@ -508,14 +581,19 @@ export class AuthService {
     if (existing) {
       await this.db.user.update({
         where: { id: existing.id },
-        data: { passwordHash, displayName: input.displayName },
+        data: { passwordHash, displayName: input.displayName, homeTenantId: company.id },
       });
       userId = existing.id;
     } else {
       try {
         userId = (
           await this.db.user.create({
-            data: { phone: input.phone, displayName: input.displayName, passwordHash },
+            data: {
+              phone: input.phone,
+              displayName: input.displayName,
+              passwordHash,
+              homeTenantId: company.id,
+            },
           })
         ).id;
       } catch {

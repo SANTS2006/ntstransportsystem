@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { signInPath, signUpPath } from '../../lib/company-page';
 import { formatPhone, normalizePhone } from '@nts/shared';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -73,7 +74,7 @@ export function VerifyPhonePage() {
     mutationFn: (v: { code: string }) =>
       api('/auth/verify-phone', { method: 'POST', body: { phone, code: v.code } }),
     onSuccess: () =>
-      void navigate(`/login?phone=${encodeURIComponent(phone as string)}&verified=1`, {
+      void navigate(`${signInPath()}?phone=${encodeURIComponent(phone as string)}&verified=1`, {
         replace: true,
       }),
   });
@@ -94,7 +95,7 @@ export function VerifyPhonePage() {
     return (
       <AuthCard title="Confirm your phone number">
         <Alert tone="error">This page needs your phone number. Please start again.</Alert>
-        <Link className={linkClass} to="/register">
+        <Link className={linkClass} to={signUpPath()}>
           Create an account
         </Link>
       </AuthCard>
@@ -121,10 +122,10 @@ export function VerifyPhonePage() {
       </form>
       <ResendCode body={{ phone }} startNow />
       <div className="flex justify-between">
-        <Link className={linkClass} to="/register">
+        <Link className={linkClass} to={signUpPath()}>
           Use a different number
         </Link>
-        <Link className={linkClass} to="/login">
+        <Link className={linkClass} to={signInPath()}>
           Back to sign in
         </Link>
       </div>
@@ -147,7 +148,7 @@ export function ResetPhonePasswordPage() {
         body: { phone, code: v.code, password: v.password },
       }),
     onSuccess: () =>
-      void navigate(`/login?phone=${encodeURIComponent(phone as string)}&reset=1`, {
+      void navigate(`${signInPath()}?phone=${encodeURIComponent(phone as string)}&reset=1`, {
         replace: true,
       }),
   });

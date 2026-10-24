@@ -100,7 +100,7 @@ export function StaffPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <Title>Staff</Title>
       {manage && (
         <ModalCard title="Add an employee" open={adding816} onOpenChange={setAdding816}>
@@ -409,7 +409,7 @@ export function MaintenancePage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <Title>Maintenance</Title>
 
       <Card

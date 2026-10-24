@@ -64,7 +64,7 @@ export class GoogleAuthService {
    *   and link from account settings.
    * Google authentication grants no tenant or administrative access by itself.
    */
-  async signIn(idToken: string, meta: ReqMeta): Promise<LoginResult> {
+  async signIn(idToken: string, meta: ReqMeta, companySlug?: string): Promise<LoginResult> {
     const profile = await this.verifier.verify(idToken);
     if (!profile.emailVerified)
       throw AppError.unauthenticated('Your Google email address is not verified');
@@ -76,8 +76,19 @@ export class GoogleAuthService {
     if (identity) {
       if (identity.user.status !== 'ACTIVE')
         throw AppError.forbidden('This account is unavailable');
+      await this.auth.assertSignInPage(identity.user, companySlug, meta);
       return this.auth.completeLogin(identity.userId, 'google', meta);
     }
+
+    // A new account is always created on a company's page, which becomes its company.
+    if (!companySlug) {
+      throw new AppError(
+        403,
+        'WRONG_SIGN_IN_PAGE',
+        "Create your account from a transport company's own page.",
+      );
+    }
+    const company = await this.auth.openCompany(companySlug);
 
     const existing = await this.db.user.findUnique({ where: { email: profile.email } });
     if (existing?.emailVerifiedAt) {
@@ -99,6 +110,7 @@ export class GoogleAuthService {
           where: { id: existing.id },
           data: {
             passwordHash: null,
+            homeTenantId: company.id,
             emailVerifiedAt: new Date(),
             failedLoginCount: 0,
             lockedUntil: null,
@@ -118,6 +130,7 @@ export class GoogleAuthService {
         data: {
           email: profile.email,
           displayName: profile.name.slice(0, 100),
+          homeTenantId: company.id,
           emailVerifiedAt: new Date(),
           identities: { create: { provider: 'GOOGLE', subject: profile.sub } },
         },

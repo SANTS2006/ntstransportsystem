@@ -33,9 +33,6 @@ const ResetPasswordPage = lazy(() =>
 const AcceptInvitationPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.AcceptInvitationPage })),
 );
-const MyCompaniesPage = lazy(() =>
-  import('./pages/app/AppPages').then((m) => ({ default: m.MyCompaniesPage })),
-);
 const SecurityPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.SecurityPage })),
 );
@@ -179,7 +176,7 @@ export const router = createBrowserRouter([
       { path: '/change-password', element: s(<ChangePasswordPage />) },
       { path: '/:slug/login', element: s(<LoginPage />) },
       { path: '/:slug/register', element: s(<RegisterPage />) },
-      { path: '/register', element: s(<RegisterPage />) },
+      { path: '/register', element: <Navigate to="/login" replace /> },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
       { path: '/verify-email-code', element: s(<VerifyEmailCodePage />) },
       { path: '/forgot-password', element: s(<ForgotPasswordPage />) },
@@ -200,7 +197,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: s(<MyCompaniesPage />) },
+      { index: true, element: <Navigate to="bookings" replace /> },
       { path: 'bookings', element: s(<MyBookingsPage />) },
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
       { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
@@ -218,6 +215,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: s(<CompanyOverview />) },
       { path: 'branding', element: s(<BrandingPage />) },
+      { path: 'profile', element: s(<ProfilePage />) },
+      { path: 'security', element: s(<SecurityPage />) },
       { path: 'members', element: s(<TeamPage />) },
       { path: 'roles', element: s(<RolesPage />) },
       { path: 'audit', element: s(<ActivityPage />) },
@@ -245,6 +244,8 @@ export const router = createBrowserRouter([
       { index: true, element: s(<PlatformTenantsPage />) },
       { path: 'overview', element: s(<PlatformOverviewPage />) },
       { path: 'audit', element: s(<PlatformAuditPage />) },
+      { path: 'profile', element: s(<ProfilePage />) },
+      { path: 'security', element: s(<SecurityPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
     ],
   },

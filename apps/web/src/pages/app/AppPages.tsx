@@ -4,12 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router';
 import { ME_KEY, useAuth } from '../../auth/AuthProvider';
 import { GoogleButton } from '../../components/GoogleButton';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card, StatusBadge } from '../../components/ui/Card';
+import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
@@ -17,69 +16,9 @@ import { api } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
 import { mfaCodeSchema } from '../../lib/schemas';
 
-interface MyTenant {
-  tenantId: string;
-  name: string;
-  status: string;
-  membershipStatus: string;
-  role: { key: string; name: string };
-}
-
 const PageTitle = ({ children }: { children: string }) => (
   <h1 className="mb-6 text-2xl font-semibold">{children}</h1>
 );
-
-export function MyCompaniesPage() {
-  const { user } = useAuth();
-  const q = useQuery({
-    queryKey: ['tenants', 'mine'],
-    queryFn: ({ signal }) => api<{ tenants: MyTenant[] }>('/tenants/mine', { signal }),
-  });
-  return (
-    <div className="mx-auto max-w-3xl">
-      <PageTitle>My companies</PageTitle>
-      {q.isPending && <PageLoader label="Loading companies" />}
-      {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-      {q.data && q.data.tenants.length === 0 && (
-        <Card>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            You do not belong to a transport company yet. Companies are registered by the NTS
-            platform team; ask your company owner to invite {user?.email ?? user?.phone ?? 'you'} to
-            join.
-          </p>
-        </Card>
-      )}
-      <ul className="space-y-3">
-        {q.data?.tenants.map((t) => (
-          <li key={t.tenantId}>
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{t.name}</p>
-                  <p className="text-xs text-slate-500">{t.role.name}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={t.status} />
-                  <Link
-                    className="text-sm font-medium text-brand-700 font-medium dark:text-brand-500"
-                    to={`/c/${t.tenantId}`}
-                  >
-                    Open
-                  </Link>
-                </div>
-              </div>
-              {t.status === 'PENDING' && (
-                <p className="mt-3 text-xs text-slate-500">
-                  Awaiting platform review. You will be able to operate once approved.
-                </p>
-              )}
-            </Card>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 // ---- Security: MFA, sessions, Google linking -------------------------------------------------
 
@@ -124,7 +63,7 @@ export function SecurityPage() {
   const googleLinked = user?.identities.some((i) => i.provider === 'GOOGLE');
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <PageTitle>Account security</PageTitle>
       <Card title="Two-step verification">
         {user?.mfaEnabled ? (

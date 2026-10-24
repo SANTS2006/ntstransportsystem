@@ -14,6 +14,8 @@ export interface Me {
   mustChangePassword?: boolean;
   /** Changes whenever the profile picture does (null: no picture). */
   avatarVersion?: number | null;
+  /** The company this account signed up with (null for platform staff). */
+  homeCompany?: { id: string; name: string; slug: string } | null;
   identities: { provider: string }[];
   platformRoles: string[];
 }

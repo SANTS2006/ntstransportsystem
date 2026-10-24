@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'PHONE_NOT_VERIFIED'
   | 'EMAIL_NOT_VERIFIED'
   | 'PASSWORD_CHANGE_REQUIRED'
+  | 'WRONG_SIGN_IN_PAGE'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {

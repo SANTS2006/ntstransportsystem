@@ -164,7 +164,7 @@ export function DispatchPage() {
   const { errors } = form.formState;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <h1 className="text-2xl font-semibold">Dispatch board</h1>
       <p className="text-xs text-slate-500">Times shown in {tz}. Updates every minute.</p>
       <div className="w-48">
@@ -412,7 +412,7 @@ export function CalendarPage() {
   });
   const { errors } = form.formState;
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <h1 className="text-2xl font-semibold">Service calendar</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Dates on which no trips are generated, for every route or just one. Holidays, strikes, road
@@ -573,7 +573,7 @@ export function SeatLayoutsPage() {
   const { errors } = form.formState;
   const cols = detail.data ? Math.max(...detail.data.seats.map((s) => s.col)) : 0;
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto w-[90%] space-y-6">
       <h1 className="text-2xl font-semibold">Seat layouts</h1>
       {manage && (
         <Card title="New layout">

@@ -64,6 +64,7 @@ model User {
   emailVerifiedAt    DateTime?  @map("email_verified_at") @db.Timestamptz(6)
   passwordHash       String?    @map("password_hash")
   mustChangePassword Boolean    @default(false) @map("must_change_password")
+  homeTenantId       String?    @map("home_tenant_id") @db.Uuid
   displayName        String     @map("display_name")
   status             UserStatus @default(ACTIVE)
   failedLoginCount   Int        @default(0) @map("failed_login_count")
@@ -813,24 +814,24 @@ model Fare {
 }
 
 model Booking {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String        @map("tenant_id") @db.Uuid
-  tripId          String        @map("trip_id") @db.Uuid
-  reference       String
-  status          BookingStatus @default(PENDING_PAYMENT)
-  contactName     String        @map("contact_name")
-  contactPhone    String        @map("contact_phone")
-  contactEmail    String?       @map("contact_email")
-  totalMinor      Int           @map("total_minor")
-  currency        String
-  boardingLocationId  String?   @map("boarding_location_id") @db.Uuid
-  alightingLocationId String?   @map("alighting_location_id") @db.Uuid
-  holdExpiresAt   DateTime?     @map("hold_expires_at") @db.Timestamptz(6)
-  idempotencyKey  String?       @map("idempotency_key")
-  requestHash     String?       @map("request_hash")
-  createdByUserId String?       @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  tripId              String        @map("trip_id") @db.Uuid
+  reference           String
+  status              BookingStatus @default(PENDING_PAYMENT)
+  contactName         String        @map("contact_name")
+  contactPhone        String        @map("contact_phone")
+  contactEmail        String?       @map("contact_email")
+  totalMinor          Int           @map("total_minor")
+  currency            String
+  boardingLocationId  String?       @map("boarding_location_id") @db.Uuid
+  alightingLocationId String?       @map("alighting_location_id") @db.Uuid
+  holdExpiresAt       DateTime?     @map("hold_expires_at") @db.Timestamptz(6)
+  idempotencyKey      String?       @map("idempotency_key")
+  requestHash         String?       @map("request_hash")
+  createdByUserId     String?       @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   trip       Trip                   @relation(fields: [tenantId, tripId], references: [tenantId, id])

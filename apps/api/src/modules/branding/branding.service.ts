@@ -111,6 +111,17 @@ export class BrandingService {
     });
   }
 
+  /** Just the name and web address of an open company, from its id (for sign-in links). */
+  async summaryById(id: string) {
+    return withDb(this.db, { platform: true }, async (tx) => {
+      const t = await tx.tenant.findUnique({
+        where: { id },
+        select: { id: true, name: true, slug: true, status: true },
+      });
+      return t && t.status === 'ACTIVE' ? { id: t.id, name: t.name, slug: t.slug } : null;
+    });
+  }
+
   async logoBySlug(slug: string) {
     return withDb(this.db, { platform: true }, async (tx) => {
       const t = await tx.tenant.findUnique({ where: { slug }, select: { id: true, status: true } });

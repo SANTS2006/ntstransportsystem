@@ -42,7 +42,7 @@ export function PlatformOverviewPage() {
   });
   const o = q.data;
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
           Platform administration

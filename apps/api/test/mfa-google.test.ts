@@ -2,7 +2,7 @@ import * as OTPAuth from 'otpauth';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from '../src/platform/db.js';
-import { createDb, makeApp, TEST_DB_URL, uniq } from './helpers.js';
+import { createDb, makeApp, TEST_DB_URL, uniq, testCompanySlug } from './helpers.js';
 
 const PASSWORD = 'correct-horse-battery';
 type Res = request.Response;
@@ -21,12 +21,16 @@ const totpCode = (secret: string, stepOffset = 0) =>
 
 describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
   let db: Db;
+  let SLUG = '';
   let ctx: ReturnType<typeof makeApp>;
   const api = () => request(ctx.app);
 
   beforeAll(() => {
     db = createDb(TEST_DB_URL as string);
     ctx = makeApp(db);
+  });
+  beforeAll(async () => {
+    SLUG = await testCompanySlug(db);
   });
   afterAll(async () => {
     await db.$disconnect();
@@ -36,7 +40,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
     const email = `${uniq('m')}@example.test`;
     await api()
       .post('/api/v1/auth/register')
-      .send({ email, password: PASSWORD, displayName: 'M' })
+      .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'M' })
       .expect(202);
     await api()
       .post('/api/v1/auth/verify-email')
@@ -44,7 +48,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       .expect(200);
     const login = await api()
       .post('/api/v1/auth/login')
-      .send({ email, password: PASSWORD })
+      .send({ companySlug: SLUG, email, password: PASSWORD })
       .expect(200);
     const sid = cookie(login, 'sid') ?? '';
     const csrf = cookie(login, 'csrf') ?? '';
@@ -94,7 +98,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const u = await enrolledUser();
       const step1 = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD })
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD })
         .expect(200);
       expect(step1.body.mfaRequired).toBe(true);
       expect(cookie(step1, 'sid')).toBeUndefined();
@@ -113,7 +117,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const code = totpCode(u.secret, 1);
       const c1 = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       await api()
         .post('/api/v1/auth/mfa/verify')
         .send({ challengeToken: c1.body.challengeToken, code })
@@ -124,7 +128,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
         .expect(401);
       const c2 = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       await api()
         .post('/api/v1/auth/mfa/verify')
         .send({ challengeToken: c2.body.challengeToken, code })
@@ -133,7 +137,9 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
 
     it('limits attempts per challenge', async () => {
       const u = await enrolledUser();
-      const c = await api().post('/api/v1/auth/login').send({ email: u.email, password: PASSWORD });
+      const c = await api()
+        .post('/api/v1/auth/login')
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       for (let i = 0; i < 5; i++) {
         await api()
           .post('/api/v1/auth/mfa/verify')
@@ -152,14 +158,14 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const recovery = u.recoveryCodes[0] as string;
       const c1 = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       await api()
         .post('/api/v1/auth/mfa/verify')
         .send({ challengeToken: c1.body.challengeToken, recoveryCode: recovery })
         .expect(200);
       const c2 = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       await api()
         .post('/api/v1/auth/mfa/verify')
         .send({ challengeToken: c2.body.challengeToken, recoveryCode: recovery })
@@ -201,7 +207,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const u = await signedInUser();
       const login = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       await api()
         .post('/api/v1/auth/mfa/enroll')
         .set('Cookie', `sid=${cookie(login, 'sid')}`)
@@ -225,7 +231,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const p = profile();
       const res = await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(200);
       const sid = cookie(res, 'sid');
       expect(sid).toBeTruthy();
@@ -239,7 +245,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       // Signing in again resolves via the stable subject.
       await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(200);
       expect(await db.user.count({ where: { email: p.email } })).toBe(1);
     });
@@ -247,7 +253,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
     it('rejects tokens that did not come from Google verification', async () => {
       await api()
         .post('/api/v1/auth/google')
-        .send({ credential: 'forged-profile-'.padEnd(40, 'x') })
+        .send({ companySlug: SLUG, credential: 'forged-profile-'.padEnd(40, 'x') })
         .expect(401);
     });
 
@@ -255,7 +261,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const p = profile({ emailVerified: false });
       await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(401);
       expect(await db.user.count({ where: { email: p.email } })).toBe(0);
     });
@@ -265,7 +271,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const p = profile({ email: u.email });
       const res = await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) });
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) });
       expect(res.status).toBe(409);
       expect(cookie(res, 'sid')).toBeUndefined();
       expect(await db.authIdentity.count({ where: { subject: p.sub } })).toBe(0);
@@ -275,16 +281,19 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const email = `${uniq('squat')}@example.test`;
       await api()
         .post('/api/v1/auth/register')
-        .send({ email, password: PASSWORD, displayName: 'Squatter' })
+        .send({ companySlug: SLUG, email, password: PASSWORD, displayName: 'Squatter' })
         .expect(202);
       const p = profile({ email });
       await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(200);
       const user = await db.user.findUniqueOrThrow({ where: { email } });
       expect(user.passwordHash).toBeNull();
-      await api().post('/api/v1/auth/login').send({ email, password: PASSWORD }).expect(401);
+      await api()
+        .post('/api/v1/auth/login')
+        .send({ companySlug: SLUG, email, password: PASSWORD })
+        .expect(401);
     });
 
     it('links Google from a signed-in session after re-entering the password', async () => {
@@ -293,15 +302,15 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const credential = ctx.google.issue(p);
       await u
         .authed('post', '/google/link')
-        .send({ credential, currentPassword: 'wrong-password-123' })
+        .send({ companySlug: SLUG, credential, currentPassword: 'wrong-password-123' })
         .expect(403);
       await u
         .authed('post', '/google/link')
-        .send({ credential, currentPassword: PASSWORD })
+        .send({ companySlug: SLUG, credential, currentPassword: PASSWORD })
         .expect(200);
       await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(200);
     });
 
@@ -311,11 +320,11 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const p = profile();
       await first
         .authed('post', '/google/link')
-        .send({ credential: ctx.google.issue(p), currentPassword: PASSWORD })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
         .expect(200);
       await second
         .authed('post', '/google/link')
-        .send({ credential: ctx.google.issue(p), currentPassword: PASSWORD })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
         .expect(409);
     });
 
@@ -324,11 +333,11 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const p = profile({ email: `${uniq('mg')}@example.test` });
       await u
         .authed('post', '/google/link')
-        .send({ credential: ctx.google.issue(p), currentPassword: PASSWORD })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
         .expect(200);
       const res = await api()
         .post('/api/v1/auth/google')
-        .send({ credential: ctx.google.issue(p) })
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
         .expect(200);
       expect(res.body.mfaRequired).toBe(true);
       expect(cookie(res, 'sid')).toBeUndefined();
@@ -340,7 +349,7 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       const u = await signedInUser();
       const other = await api()
         .post('/api/v1/auth/login')
-        .send({ email: u.email, password: PASSWORD });
+        .send({ companySlug: SLUG, email: u.email, password: PASSWORD });
       const otherSid = cookie(other, 'sid');
       const list = await u.authed('get', '/sessions').expect(200);
       expect(list.body.sessions.length).toBeGreaterThanOrEqual(2);

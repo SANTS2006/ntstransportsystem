@@ -90,7 +90,7 @@ export function ComplaintsPage() {
 
   const d = detail.data;
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto w-[90%] space-y-5">
       <h1 className="text-2xl font-semibold">Complaints</h1>
 
       {ratings.data && ratings.data.total > 0 && (

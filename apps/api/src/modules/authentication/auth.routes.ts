@@ -4,7 +4,7 @@ import { Router } from '../../platform/router.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import type { Env } from '../../config/env.js';
-import type { Db } from '../../platform/db.js';
+import { withDb, type Db } from '../../platform/db.js';
 import type { RateLimitStoreFactory } from '../../platform/redis.js';
 import { AppError } from '../../platform/errors.js';
 import { IMAGE_TYPES, MAX_AVATAR_BYTES } from '../branding/branding.service.js';
@@ -14,6 +14,7 @@ import {
   loginSchema,
   phoneCodeSchema,
   phoneOnlySchema,
+  companySlugSchema,
   emailCodeSchema,
   emailOnlySchema,
   profileSchema,
@@ -57,7 +58,11 @@ const mfaVerifySchema = z
   .refine((v) => (v.code === undefined) !== (v.recoveryCode === undefined), {
     message: 'Provide either a code or a recovery code',
   });
-const credentialSchema = z.object({ credential: z.string().min(20).max(4096) });
+const credentialSchema = z.object({
+  credential: z.string().min(20).max(4096),
+  /** The company page the button is on; absent on the main page. */
+  companySlug: companySlugSchema.optional(),
+});
 const googleLinkSchema = credentialSchema.extend({
   currentPassword: z.string().max(128).optional(),
 });
@@ -180,7 +185,11 @@ export function authRouter({
     r.post('/google', limiter('google', 20), async (req, res) => {
       respondLogin(
         res,
-        await google.signIn(credentialSchema.parse(req.body).credential, meta(req)),
+        await google.signIn(
+          credentialSchema.parse(req.body).credential,
+          meta(req),
+          credentialSchema.parse(req.body).companySlug,
+        ),
       );
     });
     r.post('/google/link', requireAuth, limiter('google-link', 10), async (req, res) => {
@@ -262,14 +271,24 @@ export function authRouter({
         phoneVerifiedAt: true,
         mfaEnabled: true,
         mustChangePassword: true,
+        homeTenantId: true,
         avatar: { select: { updatedAt: true } },
         identities: { select: { provider: true } },
         platformRoles: { select: { role: true } },
       },
     });
-    const { platformRoles, avatar, ...rest } = user;
+    const { platformRoles, avatar, homeTenantId, ...rest } = user;
+    const homeCompany = homeTenantId
+      ? await withDb(db, { platform: true }, (tx) =>
+          tx.tenant.findUnique({
+            where: { id: homeTenantId },
+            select: { id: true, name: true, slug: true },
+          }),
+        )
+      : null;
     res.json({
       ...rest,
+      homeCompany,
       avatarVersion: avatar ? avatar.updatedAt.getTime() : null,
       platformRoles: platformRoles.map((r) => r.role),
     });

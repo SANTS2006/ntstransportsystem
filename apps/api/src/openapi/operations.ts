@@ -343,6 +343,13 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Companies ------------------------------------------------------------------------------
+  'GET /api/v1/public/company-by-id/{id}': {
+    summary: 'A live company name and web address, from its id',
+    description: 'Lets a page that only knows a company id link to that company sign-in page.',
+    tag: 'Companies',
+    access: 'public',
+    ok: 200,
+  },
   'GET /api/v1/public/companies/{slug}': {
     summary: "A company's name, colours and logo address",
     description: "For the company's own sign-in and sign-up pages. 404 unless the company is live.",
@@ -529,6 +536,16 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Platform administration ----------------------------------------------------------------
+  'PATCH /api/v1/platform/tenants/{id}': {
+    summary: "Edit a company's details (platform)",
+    description:
+      'Name, web address name, timezone, currency and the two colours. Status changes use the lifecycle actions.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS',
+    body: platform.updateSchema,
+    ok: 204,
+  },
   'POST /api/v1/platform/tenants': {
     summary: 'Register a company (platform)',
     description:

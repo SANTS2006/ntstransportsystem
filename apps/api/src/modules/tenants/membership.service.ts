@@ -158,6 +158,7 @@ export class MembershipService {
               emailVerifiedAt: this.now(),
               passwordHash: await hashPassword(generated),
               mustChangePassword: true,
+              homeTenantId: input.tenantId,
             },
           })
         ).id;

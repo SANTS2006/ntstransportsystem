@@ -6,7 +6,16 @@ export const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(25
 // Length over composition rules (NIST 800-63B); the upper bound avoids hashing DoS.
 export const passwordSchema = z.string().min(12, 'Use at least 12 characters').max(128);
 
+/** The company page a person signs in or signs up on. */
+export const companySlugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+  .max(40);
+
 export const registerSchema = z.object({
+  companySlug: companySlugSchema,
   email: emailSchema,
   password: passwordSchema,
   displayName: z.string().trim().min(1).max(100),
@@ -19,6 +28,7 @@ export const phoneSchema = z
   .refine((v) => normalizePhone(v) !== null, 'Enter a valid phone number')
   .transform((v) => normalizePhone(v) as string);
 export const registerPhoneSchema = z.object({
+  companySlug: companySlugSchema,
   phone: phoneSchema,
   password: passwordSchema,
   displayName: z.string().trim().min(1).max(100),
@@ -49,6 +59,8 @@ export const loginSchema = z
     email: emailSchema.optional(),
     phone: phoneSchema.optional(),
     password: z.string().min(1).max(128),
+    /** Absent on the main (platform administrator) page; the company's slug on its own page. */
+    companySlug: companySlugSchema.optional(),
   })
   .refine((v) => (v.email === undefined) !== (v.phone === undefined), {
     message: 'Sign in with an email address or a phone number',

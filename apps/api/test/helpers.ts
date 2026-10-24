@@ -155,16 +155,55 @@ const cookieOf = (res: request.Response, name: string) =>
     ?.split(';')[0]
     ?.slice(name.length + 1) ?? '';
 
+let defaultCompany: Promise<{ id: string; slug: string }> | undefined;
+/** One ordinary company that test accounts without a company of their own belong to. */
+export function testCompany(db: Db) {
+  defaultCompany ??= withDb(db, { platform: true }, async (tx) => {
+    const slug = uniq('tc').toLowerCase();
+    const t = await tx.tenant.create({ data: { name: 'Test company', slug, status: 'ACTIVE' } });
+    await TenantService.seedRoles(tx, t.id);
+    return { id: t.id, slug };
+  });
+  return defaultCompany;
+}
+export const testCompanySlug = async (db: Db) => (await testCompany(db)).slug;
+
+/**
+ * The sign-in page an account must use: none (the main page) for platform staff, otherwise the
+ * page of the company it belongs to. Accounts with no company yet are given the test company.
+ */
+async function pageFor(db: Db, userId: string): Promise<string | undefined> {
+  const roles = await db.platformRoleAssignment.count({ where: { userId } });
+  if (roles > 0) return undefined;
+  const u = await db.user.findUniqueOrThrow({ where: { id: userId } });
+  const found = await withDb(db, { platform: true }, async (tx) => {
+    if (u.homeTenantId) return tx.tenant.findUnique({ where: { id: u.homeTenantId } });
+    const m = await tx.membership.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      include: { tenant: true },
+    });
+    return m?.tenant ?? null;
+  });
+  if (found) return found.slug;
+  const c = await testCompany(db);
+  await db.user.update({ where: { id: userId }, data: { homeTenantId: c.id } });
+  return c.slug;
+}
+
 export async function loginClient(
   app: Express,
   db: Db,
   email: string,
   password: string,
 ): Promise<Client> {
-  const res = await request(app).post('/api/v1/auth/login').send({ email, password }).expect(200);
+  const user = await db.user.findUniqueOrThrow({ where: { email } });
+  const companySlug = await pageFor(db, user.id);
+  const res = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email, password, ...(companySlug ? { companySlug } : {}) })
+    .expect(200);
   const sid = cookieOf(res, 'sid');
   const csrf = cookieOf(res, 'csrf');
-  const user = await db.user.findUniqueOrThrow({ where: { email } });
   return {
     email,
     userId: user.id,

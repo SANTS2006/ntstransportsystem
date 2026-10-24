@@ -128,12 +128,8 @@ export default function LoginPage() {
   }
   return (
     <AuthCard
-      title={slug ? 'Sign In' : 'Administrator sign-in'}
-      subtitle={
-        slug
-          ? 'Enter your details to access your account.'
-          : "For NTS platform administrators. Everyone else signs in from their transport company's own page."
-      }
+      title={slug ? 'Sign In' : 'Login'}
+      {...(slug ? { subtitle: 'Enter your details to access your account.' } : {})}
     >
       {params.get('reset') && <Alert tone="success">Password updated. Please sign in.</Alert>}
       {params.get('verified') && (

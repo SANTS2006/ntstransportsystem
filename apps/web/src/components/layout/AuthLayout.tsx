@@ -74,7 +74,7 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
             ? joining
               ? `Join ${company.name}`
               : `Welcome to ${company.name}`
-            : 'Platform administration'}
+            : 'Transport System'}
         </h2>
         <p className="mt-3 max-w-md text-base font-medium text-slate-800 xl:text-lg dark:text-slate-100">
           {company

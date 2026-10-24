@@ -121,7 +121,9 @@ export function createApp({
       },
     }),
   );
-  app.use(helmet());
+  // Google's sign-in window talks back to this page, which the default same-origin policy would cut off
+  // (the window opens blank): popups opened by this page are allowed to keep their link to it.
+  app.use(helmet({ crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } }));
   app.use(
     cors({
       origin: (origin, cb) => cb(null, !origin || env.CORS_ORIGINS.includes(origin)),

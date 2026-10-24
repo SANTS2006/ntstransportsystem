@@ -82,6 +82,11 @@ describe('http foundation', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('lets the Google sign-in window talk back to the page (it opens blank otherwise)', async () => {
+    const res = await request(createApp({ env, logger })).get('/health/live');
+    expect(res.headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+  });
+
   it('reports readiness failure without detail', async () => {
     const app = createApp({
       env,

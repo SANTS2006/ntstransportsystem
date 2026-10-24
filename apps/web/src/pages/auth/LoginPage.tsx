@@ -13,7 +13,7 @@ import { Button } from '../../components/ui/Button';
 import { Field, PasswordField } from '../../components/ui/Field';
 import { ApiError, api, safeNext } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
-import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { checkIdentifier, identifierKind } from '../../lib/identifier';
 import { mfaCodeSchema, recoveryCodeSchema } from '../../lib/schemas';
 
 type LoginResponse = { userId: string } | { mfaRequired: true; challengeToken: string };
@@ -146,8 +146,7 @@ export default function LoginPage() {
           icon={Mail}
           autoComplete="username"
           inputMode="text"
-          placeholder="you@example.com or 076 123 456"
-          hint={PHONE_HINT}
+          placeholder="Enter your email or phone number"
           error={fieldError.id}
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}

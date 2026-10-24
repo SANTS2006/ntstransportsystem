@@ -13,7 +13,7 @@ import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { ResendCode } from './PhonePages';
 import { useFeatures } from '../../lib/features';
-import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { checkIdentifier, identifierKind } from '../../lib/identifier';
 import { resetSchema, type ResetValues } from '../../lib/schemas';
 
 const linkClass = 'text-sm text-brand-700 font-medium dark:text-brand-500';
@@ -120,7 +120,7 @@ export function ForgotPasswordPage() {
           label="Email address / Phone number"
           icon={Mail}
           autoComplete="username"
-          hint={PHONE_HINT}
+          placeholder="Enter your email or phone number"
           error={error}
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}

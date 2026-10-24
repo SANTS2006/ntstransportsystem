@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button';
 import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { useFeatures } from '../../lib/features';
-import { PHONE_HINT, checkIdentifier, identifierKind } from '../../lib/identifier';
+import { checkIdentifier, identifierKind } from '../../lib/identifier';
 import { registerSchema } from '../../lib/schemas';
 import { OrDivider } from './LoginPage';
 
@@ -114,8 +114,7 @@ export default function RegisterPage() {
           icon={Mail}
           autoComplete="username"
           inputMode="text"
-          placeholder="you@example.com or 076 123 456"
-          hint={PHONE_HINT}
+          placeholder="Enter your email or phone number"
           error={errors.identifier}
           value={v.identifier}
           onChange={(e) => setV({ ...v, identifier: e.target.value })}

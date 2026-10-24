@@ -20,6 +20,3 @@ export function checkIdentifier(raw: string, phoneAllowed: boolean): string | nu
     return 'Phone numbers cannot be used on this server yet. Use your email address.';
   return normalizePhone(v) ? null : 'Enter a valid phone number, or an email address';
 }
-
-/** Same wording wherever a phone number is asked for. */
-export const PHONE_HINT = 'Orange, Africell and Qcell numbers all work. Example: 076 123 456';

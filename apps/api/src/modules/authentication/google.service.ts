@@ -1,5 +1,4 @@
 import { OAuth2Client } from 'google-auth-library';
-import { verifyPassword } from '../../platform/crypto.js';
 import type { Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';

@@ -21,7 +21,7 @@ type LoginResponse = { userId: string } | { mfaRequired: true; challengeToken: s
 /** Divider with a word in the middle, between Google and the form. */
 export function OrDivider() {
   return (
-    <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wider text-slate-400">
+    <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
       <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
       or
       <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
@@ -161,7 +161,7 @@ export default function LoginPage() {
           <ArrowRight aria-hidden="true" className="size-5" strokeWidth={1.8} />
         </Button>
       </form>
-      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-center text-sm text-slate-800 dark:text-slate-200">
         Don&apos;t have an account?{' '}
         <Link
           className="font-semibold text-brand-600"

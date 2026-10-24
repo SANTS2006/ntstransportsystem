@@ -125,7 +125,8 @@ Sign-in cookies are same-origin because the API also serves the web app.
 - **Rate limiting** uses the visitor's address as Render forwards it. The setting that reads it
   (`trust proxy` = 1) has not been checked against Render's proxy chain; with it wrong, visitors
   could share one limit. Fine for a test; verify before real use.
-- **Sign-up by phone number works with the codes in the logs.** Choose "Phone number" on Create account, then open the Render logs and search for `DEV SMS`: the line contains the 6-digit code. For real text messages, delete `ALLOW_DEV_SMS` and set the `TWILIO_*` variables (see `ENVIRONMENT.md`); this has not been run against Twilio yet.
+- **Sign-up by phone number: with `ALLOW_DEV_SMS` and no provider, codes are only written to the logs and no text is sent.** To send real texts set `BREVO_SMS_SENDER` (Brevo, with SMS credits) or the `TWILIO_*` variables, then test with `npm run sms:test -w @nts/api -- +232...`, which prints the provider's real answer. The note below is about the log-only mode.
+- **Log-only mode:** Choose "Phone number" on Create account, then open the Render logs and search for `DEV SMS`: the line contains the 6-digit code. For real text messages, delete `ALLOW_DEV_SMS` and set the `TWILIO_*` variables (see `ENVIRONMENT.md`); this has not been run against Twilio yet.
 - **E-mail** is sent through Brevo: set `BREVO_API_KEY` and `MAIL_FROM_EMAIL` (a sender verified in
   Brevo). Without them, add `ALLOW_DEV_MAILER=true` to log e-mails instead (anyone who can read the
   logs can then use the links and codes, so use throwaway accounts).

@@ -49,6 +49,13 @@ const baseSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().min(10).optional(),
   TWILIO_FROM: z.string().min(1).max(20).optional(),
   TWILIO_MESSAGING_SERVICE_SID: z.string().min(10).optional(),
+  // Brevo SMS (uses BREVO_API_KEY): set a sender name (up to 11 letters and digits) to send sign-up
+  // codes through Brevo. Used when Twilio is not configured.
+  BREVO_SMS_SENDER: z
+    .string()
+    .trim()
+    .regex(/^([A-Za-z0-9]{1,11}|[0-9]{12,15})$/, 'up to 11 letters and digits, or 12 to 15 digits')
+    .optional(),
   // TEST DEPLOYMENTS ONLY: in production mode, log each text (with its code) instead of sending it.
   ALLOW_DEV_SMS: bool,
   // Cloudinary for uploaded files, as three separate settings from the Cloudinary dashboard

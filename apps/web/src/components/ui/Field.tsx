@@ -26,14 +26,17 @@ export function Field({
   const errId = error ? `${id}-err` : undefined;
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium">
+      <label
+        htmlFor={id}
+        className="block text-sm font-semibold text-slate-900 dark:text-slate-100"
+      >
         {label}
       </label>
       <div className="relative">
         {Icon && (
           <Icon
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-slate-500"
             strokeWidth={1.8}
           />
         )}
@@ -41,7 +44,7 @@ export function Field({
           id={id}
           aria-invalid={error ? true : undefined}
           aria-describedby={[hintId, errId].filter(Boolean).join(' ') || undefined}
-          className={`block min-h-11 w-full rounded-lg border bg-white py-2 text-[15px] text-slate-900 transition-shadow focus:border-brand-600 focus:shadow-[0_0_0_3px_rgb(0_117_223/0.15)] placeholder:text-slate-400 dark:bg-slate-900 dark:text-slate-100 ${
+          className={`block min-h-11 w-full rounded-lg border bg-white py-2 text-base text-slate-900 transition-shadow focus:border-brand-600 focus:shadow-[0_0_0_3px_rgb(0_117_223/0.15)] placeholder:text-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400 ${
             Icon ? 'pl-10' : 'pl-3'
           } ${trailing ? 'pr-11' : 'pr-3'} ${
             error ? 'border-red-600' : 'border-slate-300 dark:border-slate-600'
@@ -51,7 +54,7 @@ export function Field({
         {trailing && <div className="absolute right-1 top-1/2 -translate-y-1/2">{trailing}</div>}
       </div>
       {hint && !error && (
-        <p id={hintId} className="text-xs text-slate-500">
+        <p id={hintId} className="text-xs text-slate-700 dark:text-slate-300">
           {hint}
         </p>
       )}

@@ -11,6 +11,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { PageLoader } from '../ui/Spinner';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { api } from '../../lib/api';
 import { brandStyle } from '../../lib/theme';
 import { MaintenanceBanner } from './MaintenanceBanner';
@@ -52,7 +53,9 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
                 className="h-24 w-auto max-w-72 object-contain"
               />
             ) : (
-              <span className="text-3xl font-bold text-brand-900">{company.name}</span>
+              <span className="text-3xl font-bold text-brand-900 dark:text-white">
+                {company.name}
+              </span>
             )
           ) : (
             <img
@@ -64,7 +67,7 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
             />
           )}
         </Link>
-        <h2 className="mt-6 text-5xl font-bold tracking-tight text-brand-900">
+        <h2 className="mt-6 text-5xl font-bold tracking-tight text-brand-900 dark:text-white">
           {company
             ? joining
               ? `Join ${company.name}`
@@ -73,7 +76,7 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
               ? 'Join NTS'
               : 'Welcome Back'}
         </h2>
-        <p className="mt-3 max-w-md text-lg text-slate-700">
+        <p className="mt-3 max-w-md text-lg font-medium text-slate-800 dark:text-slate-100">
           {company
             ? joining
               ? `Create your account to book ${company.name} trips and manage your tickets.`
@@ -89,8 +92,10 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
                 <f.icon aria-hidden="true" className="size-6" strokeWidth={1.8} />
               </span>
               <span>
-                <span className="block text-sm font-semibold text-brand-900">{f.title}</span>
-                <span className="block text-xs text-slate-600">{f.note}</span>
+                <span className="block text-sm font-semibold text-brand-900 dark:text-white">
+                  {f.title}
+                </span>
+                <span className="block text-xs text-slate-700 dark:text-slate-300">{f.note}</span>
               </span>
             </li>
           ))}
@@ -139,7 +144,7 @@ export function AuthLayout() {
       <div className="grid min-h-dvh place-items-center p-6 text-center">
         <div>
           <h1 className="text-2xl font-bold">Company not found</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
             There is no company at this web address, or it is not open yet.
           </p>
           <Link className="mt-4 inline-block font-semibold text-brand-600" to="/login">
@@ -162,8 +167,9 @@ export function AuthLayout() {
         <HeroPanel company={company} />
         <main
           id="main"
-          className="flex flex-col items-center justify-center gap-5 px-4 py-8 sm:px-8"
+          className="relative flex flex-col items-center justify-center gap-5 px-4 py-8 sm:px-8"
         >
+          <ThemeToggle className="absolute right-4 top-4" />
           <Link to="/" aria-label="NTS Transport home" className="lg:hidden">
             {company ? (
               company.logoUrl ? (
@@ -173,7 +179,9 @@ export function AuthLayout() {
                   className="h-16 w-auto max-w-56 object-contain"
                 />
               ) : (
-                <span className="text-2xl font-bold text-brand-900">{company.name}</span>
+                <span className="text-2xl font-bold text-brand-900 dark:text-white">
+                  {company.name}
+                </span>
               )
             ) : (
               <img

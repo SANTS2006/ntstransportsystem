@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../config/env.js';
-import { TwilioSms } from './sms.js';
+import { BrevoSms, maskNumbers, TwilioSms } from './sms.js';
 
 interface Call {
   url: string;
@@ -100,5 +100,53 @@ describe('text message settings', () => {
       }),
     ).not.toThrow();
     expect(() => loadEnv(prod)).not.toThrow(); // phone sign-up is simply off without them
+  });
+});
+
+describe('BrevoSms', () => {
+  it('posts the sender, recipient and content as JSON with the API key', async () => {
+    const calls: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const fn = (async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        headers: init?.headers as Record<string, string>,
+        body: String(init?.body),
+      });
+      return new Response(JSON.stringify({ messageId: 1 }), { status: 201 });
+    }) as typeof fetch;
+    await new BrevoSms({ apiKey: 'xkeysib-test-key', sender: 'NTS' }, fn).send(
+      '+23276123456',
+      'Your code is 123456',
+    );
+    expect(calls[0]!.url).toBe('https://api.brevo.com/v3/transactionalSMS/send');
+    expect(calls[0]!.headers['api-key']).toBe('xkeysib-test-key');
+    expect(JSON.parse(calls[0]!.body)).toEqual({
+      sender: 'NTS',
+      recipient: '+23276123456',
+      content: 'Your code is 123456',
+      type: 'transactional',
+    });
+  });
+
+  it("says why Brevo refused, without the person's number", async () => {
+    const fn = (async () =>
+      new Response(
+        JSON.stringify({ code: 'not_enough_credits', message: 'No credits for +232 76 123 456' }),
+        { status: 400 },
+      )) as typeof fetch;
+    const err = await new BrevoSms({ apiKey: 'k'.repeat(12), sender: 'NTS' }, fn)
+      .send('+23276123456', 'secret text 123456')
+      .catch((e: Error) => e);
+    expect((err as Error).message).toContain('not_enough_credits');
+    expect((err as Error).message).not.toContain('76 123 456');
+    expect((err as Error).message).not.toContain('secret text');
+  });
+});
+
+describe('maskNumbers', () => {
+  it('hides phone numbers in a provider message', () => {
+    expect(maskNumbers("The 'To' number +23276123456 is not valid")).toBe(
+      "The 'To' number [number] is not valid",
+    );
   });
 });

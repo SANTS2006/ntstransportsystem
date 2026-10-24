@@ -67,8 +67,13 @@ services:
         sync: false
 
       # ---- Text messages (sign-up by phone number) -----------------------------------------
-      # Test deployment: the 6-digit codes appear in the Render logs ("DEV SMS"). For real texts,
-      # delete ALLOW_DEV_SMS and add the TWILIO_* variables listed below.
+      # ALLOW_DEV_SMS=true means codes are only WRITTEN TO THE RENDER LOGS ("DEV SMS") and never
+      # sent. To send real texts, add EITHER the Brevo variable (uses BREVO_API_KEY; needs SMS
+      # credits in Brevo) OR the Twilio variables below. A real provider always wins over
+      # ALLOW_DEV_SMS, so you can leave it or delete it. To check it works, run on your machine:
+      #   npm run sms:test -w @nts/api -- +23276123456
+      # - key: BREVO_SMS_SENDER   # up to 11 letters and digits, e.g. NTSTransport
+      #   sync: false
       - key: ALLOW_DEV_SMS
         value: 'true'
       # - key: TWILIO_ACCOUNT_SID

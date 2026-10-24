@@ -90,6 +90,7 @@ export default function RegisterPage() {
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field
           label="Full name"
+          placeholder="Enter your full name"
           icon={User}
           autoComplete="name"
           error={errors.displayName}
@@ -117,7 +118,7 @@ export default function RegisterPage() {
           onChange={(e) => setV({ ...v, password: e.target.value })}
         />
         <div>
-          <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+          <label className="flex items-start gap-3 text-sm text-slate-900 dark:text-slate-200">
             <input
               type="checkbox"
               checked={agreed}
@@ -146,7 +147,7 @@ export default function RegisterPage() {
           <ArrowRight aria-hidden="true" className="size-5" strokeWidth={1.8} />
         </Button>
       </form>
-      <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+      <p className="text-center text-sm text-slate-800 dark:text-slate-200">
         Already registered?{' '}
         <Link className="font-semibold text-brand-600" to={slug ? `/${slug}/login` : '/login'}>
           Sign in

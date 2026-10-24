@@ -21,6 +21,7 @@ import { Alert } from '../ui/Alert';
 import { Button, linkButton } from '../ui/Button';
 import { Logo } from './Logo';
 import { MaintenanceBanner } from './MaintenanceBanner';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { TopProgress } from './TopProgress';
 
@@ -199,6 +200,7 @@ export function PublicLayout() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {loading ? null : user ? (
               <>
                 <NotificationBell />
@@ -276,7 +278,7 @@ export function AuthCard({
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-1.5 text-[15px] text-slate-600 dark:text-slate-400">{subtitle}</p>
+        <p className="mt-1.5 text-base text-slate-700 dark:text-slate-300">{subtitle}</p>
       )}
       <div className="mt-6 space-y-4">{children}</div>
     </div>
@@ -598,6 +600,7 @@ export function DashboardShell({
           </button>
           <span className="hidden text-sm font-medium text-slate-500 lg:block">{heading}</span>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <NotificationBell />
             <ProfileMenu onSignOut={() => signOut.mutate()} />
           </div>

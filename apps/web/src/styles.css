@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+
+/* Dark mode is chosen by a `dark` class on <html> (set from the person's choice, or from their
+   system when they have not chosen), not by the system setting alone. */
+@custom-variant dark (&:where(.dark, .dark *));
 @import '@fontsource/poppins/latin-400.css';
 @import '@fontsource/poppins/latin-500.css';
 @import '@fontsource/poppins/latin-600.css';
@@ -28,16 +32,14 @@
   --canvas: #f4f7fb;
   --ink: #0f172a;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --brand-50: #0b1a33;
-    --brand-100: #102a52;
-    --brand-500: #3b9bff;
-    --brand-600: #1f84ea;
-    --brand-700: #0f66c4;
-    --canvas: #0b1220;
-    --ink: #e2e8f0;
-  }
+:root.dark {
+  --brand-50: #0b1a33;
+  --brand-100: #102a52;
+  --brand-500: #3b9bff;
+  --brand-600: #1f84ea;
+  --brand-700: #0f66c4;
+  --canvas: #0b1220;
+  --ink: #e2e8f0;
 }
 
 @theme inline {
@@ -63,7 +65,10 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -112,10 +117,8 @@ main h1 {
   letter-spacing: -0.02em;
   color: var(--brand-800);
 }
-@media (prefers-color-scheme: dark) {
-  main h1 {
-    color: var(--ink);
-  }
+.dark main h1 {
+  color: var(--ink);
 }
 
 /* Money and counts line up in columns. */

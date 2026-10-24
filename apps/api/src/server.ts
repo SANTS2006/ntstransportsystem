@@ -6,7 +6,7 @@ import { DevLogMailer, type Mailer } from './modules/notifications/mailer.js';
 import { createDb } from './platform/db.js';
 import { createLogger } from './platform/logger.js';
 import { createRedis, redisRateLimitStores } from './platform/redis.js';
-import { DevLogSms, TwilioSms, type SmsSender } from './platform/sms.js';
+import { BrevoSms, DevLogSms, TwilioSms, type SmsSender } from './platform/sms.js';
 import { startWorkers } from './workers.js';
 
 const env = loadEnv();
@@ -29,7 +29,11 @@ function buildMailer(): Mailer {
   return new DevLogMailer(logger);
 }
 
-/** How sign-up codes are sent: Twilio when configured; logged in development; otherwise phone sign-up is off. */
+/**
+ * How sign-up codes are sent: Twilio when configured, else Brevo when BREVO_SMS_SENDER is set, else
+ * only written to the log (development, or ALLOW_DEV_SMS), else phone sign-up is off. A real
+ * provider always wins over ALLOW_DEV_SMS.
+ */
 function buildSms(): SmsSender | undefined {
   if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
     return new TwilioSms({
@@ -38,6 +42,10 @@ function buildSms(): SmsSender | undefined {
       from: env.TWILIO_FROM,
       messagingServiceSid: env.TWILIO_MESSAGING_SERVICE_SID,
     });
+  }
+  if (env.BREVO_API_KEY && env.BREVO_SMS_SENDER) {
+    logger.info('Sign-up codes are sent as text messages through Brevo');
+    return new BrevoSms({ apiKey: env.BREVO_API_KEY, sender: env.BREVO_SMS_SENDER });
   }
   if (env.NODE_ENV !== 'production' || env.ALLOW_DEV_SMS) {
     logger.warn(

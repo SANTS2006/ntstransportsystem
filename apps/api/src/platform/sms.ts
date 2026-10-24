@@ -62,10 +62,67 @@ export class TwilioSms implements SmsSender {
       },
     );
     if (!res.ok) {
-      const err = (await res.json().catch(() => null)) as { code?: number } | null;
-      // The message text and number are deliberately left out of the error.
+      const err = (await res.json().catch(() => null)) as {
+        code?: number;
+        message?: string;
+      } | null;
+      // The message text is never in the error, and long digit runs (phone numbers) are masked.
       throw new Error(
-        `Twilio refused the message (${res.status}${err?.code ? `, code ${err.code}` : ''})`,
+        `Twilio refused the message (${res.status}${err?.code ? `, code ${err.code}` : ''})${
+          err?.message ? `: ${maskNumbers(err.message)}` : ''
+        }`,
+      );
+    }
+  }
+}
+
+/** Keeps a provider's explanation useful in the logs without writing anyone's number there. */
+export const maskNumbers = (text: string): string =>
+  text.replace(/\+?\d[\d\s-]{6,}\d/g, '[number]').slice(0, 300);
+
+export interface BrevoSmsConfig {
+  apiKey: string;
+  /** Sender name: up to 11 letters and digits (or 12 to 15 digits). */
+  sender: string;
+}
+
+/**
+ * Brevo transactional SMS (the same account that sends the e-mails): POST
+ * /v3/transactionalSMS/send with the API key. It needs SMS credits bought in Brevo, and an
+ * alphanumeric sender may be refused by some networks: check Brevo's country rules for Sierra Leone.
+ */
+export class BrevoSms implements SmsSender {
+  constructor(
+    private readonly cfg: BrevoSmsConfig,
+    private readonly http: FetchFn = fetch,
+    private readonly timeoutMs = 10_000,
+  ) {}
+
+  async send(to: string, text: string): Promise<void> {
+    const res = await this.http('https://api.brevo.com/v3/transactionalSMS/send', {
+      method: 'POST',
+      headers: {
+        'api-key': this.cfg.apiKey,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: this.cfg.sender,
+        recipient: to,
+        content: text,
+        type: 'transactional',
+      }),
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as {
+        code?: string;
+        message?: string;
+      } | null;
+      throw new Error(
+        `Brevo refused the message (${res.status}${err?.code ? `, ${err.code}` : ''})${
+          err?.message ? `: ${maskNumbers(err.message)}` : ''
+        }`,
       );
     }
   }

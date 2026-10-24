@@ -162,7 +162,7 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       // The new administrator signs in with the generated password and must change it first.
       const login = await request(ctx.app)
         .post('/api/v1/auth/login')
-        .send({ email: adminEmail, password: mail?.data.password })
+        .send({ companySlug: slug, email: adminEmail, password: mail?.data.password })
         .expect(200);
       const sid = (login.headers['set-cookie'] as unknown as string[])
         .find((c) => c.startsWith('sid='))!
@@ -307,7 +307,6 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
 
     it('lets OPERATIONS approve, reject and suspend with legal transitions only', async () => {
       const pend = await createTenantWithOwner(db, 'life', 'PENDING');
-      const applicant = await loginClient(ctx.app, db, pend.email, pend.password);
       const id = pend.tenant.id;
       const ops = await platformUser('OPERATIONS');
 
@@ -319,6 +318,8 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
         .send({ reason: 'too early' })
         .expect(409); // PENDING cannot be suspended
       await ops.call('post', `/platform/tenants/${id}/approve`).send({}).expect(200);
+      // Only a company that is open can be signed in to, so its owner signs in after approval.
+      const applicant = await loginClient(ctx.app, db, pend.email, pend.password);
       await ops.call('post', `/platform/tenants/${id}/approve`).send({}).expect(409);
       await ops.call('post', `/platform/tenants/${id}/suspend`).send({}).expect(400); // reason required
       await ops

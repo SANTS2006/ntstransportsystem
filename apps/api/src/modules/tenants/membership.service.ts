@@ -112,13 +112,21 @@ export class MembershipService {
         requestId,
         summary: { role: role.key },
       });
-      return { id: invitation.id, tenantName: tenant.name, role: role.key };
+      return {
+        id: invitation.id,
+        tenantName: tenant.name,
+        tenantSlug: tenant.slug,
+        role: role.key,
+      };
     });
     // Sent after commit. The email states the company name but carries no other tenant data.
     await this.mailer.send({
       to: email,
       template: 'tenant-invitation',
-      data: { company: result.tenantName, link: `${this.appUrl}/accept-invitation?token=${token}` },
+      data: {
+        company: result.tenantName,
+        link: `${this.appUrl}/accept-invitation?token=${token}&company=${result.tenantSlug}`,
+      },
     });
     return { id: result.id, email, role: result.role };
   }

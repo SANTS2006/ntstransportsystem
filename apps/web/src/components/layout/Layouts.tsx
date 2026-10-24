@@ -306,7 +306,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (!user) {
     const dest = location.pathname + location.search;
     // /app is the default landing page, so a `next` for it would be redundant noise.
-    const login = signInPath(null);
+    // An invitation link names the company, so the person lands on that company's sign-in page.
+    const named = new URLSearchParams(location.search).get('company');
+    const login = signInPath(null, named && /^[a-z0-9-]{3,40}$/.test(named) ? named : null);
     return (
       <Navigate
         to={dest === '/app' ? login : `${login}?next=${encodeURIComponent(dest)}`}

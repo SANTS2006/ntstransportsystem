@@ -60,7 +60,8 @@ export function GoogleButton({
           theme: 'outline',
           size: 'large',
           text,
-          width: 400,
+          // Google draws a fixed-width button: fit it to the space there is (it allows 200 to 400).
+          width: Math.max(200, Math.min(400, Math.floor(host.current.clientWidth))),
         });
       })
       .catch(() => undefined); // button simply stays absent; password sign-in still works
@@ -85,7 +86,11 @@ export function GoogleButton({
     );
   }
   return (
-    <div ref={host} className="flex min-h-10 justify-center" aria-label="Sign in with Google" />
+    <div
+      ref={host}
+      className="flex min-h-10 w-full max-w-full justify-center overflow-hidden"
+      aria-label="Sign in with Google"
+    />
   );
 }
 

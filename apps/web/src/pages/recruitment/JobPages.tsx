@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { companyPath } from '../../lib/company-page';
 import { useCompanyPublic } from '../../lib/company-public';
 import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
@@ -103,6 +104,7 @@ export function JobDetailPage() {
   const tenantId = company?.id ?? tenantParam;
   const links = useCompanyLinks(tenantId);
   const { user } = useAuth();
+  const jobsHome = company ? `/${company.slug}/jobs` : companyPath(user, '/jobs');
   const toast = useToast();
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -141,7 +143,7 @@ export function JobDetailPage() {
     return (
       <div className="w-full space-y-3">
         <Alert tone="error">This job is no longer open.</Alert>
-        <Link className="text-brand-700 font-medium" to="/jobs">
+        <Link className="text-brand-700 font-medium" to={jobsHome}>
           All jobs
         </Link>
       </div>
@@ -154,7 +156,7 @@ export function JobDetailPage() {
     form.experience.trim().length >= 10;
   return (
     <div className="w-full space-y-5">
-      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
+      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to={jobsHome}>
         All jobs
       </Link>
       <div>
@@ -250,6 +252,7 @@ interface MyApplication {
 }
 
 export function MyApplicationsPage() {
+  const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
   const q = useQuery({
@@ -271,7 +274,10 @@ export function MyApplicationsPage() {
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My job applications</h1>
-        <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
+        <Link
+          className="text-sm text-brand-700 font-medium dark:text-brand-500"
+          to={companyPath(user, '/jobs')}
+        >
           Find jobs
         </Link>
       </div>

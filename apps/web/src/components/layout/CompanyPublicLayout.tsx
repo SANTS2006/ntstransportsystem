@@ -32,8 +32,8 @@ export function CompanyPublicLayout() {
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             There is no company at this web address, or it is not open yet.
           </p>
-          <Link className="mt-4 inline-block font-semibold text-brand-600" to="/">
-            Go to the NTS Transport home page
+          <Link className="mt-4 inline-block font-semibold text-brand-600" to="/login">
+            Go to the sign-in page
           </Link>
         </div>
       </div>

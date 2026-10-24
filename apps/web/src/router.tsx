@@ -2,11 +2,11 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { CompanyPublicLayout } from './components/layout/CompanyPublicLayout';
-import { AppShell, PublicLayout, RequireAuth } from './components/layout/Layouts';
+import { AppShell, RequireAuth } from './components/layout/Layouts';
+import { rememberedCompany } from './lib/company-page';
 import { PageLoader } from './components/ui/Spinner';
 
 // Route-level code splitting: each area downloads only when visited (low-bandwidth friendly).
-const HomePage = lazy(() => import('./pages/HomePage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
@@ -159,17 +159,22 @@ const PlatformTenantsPage = lazy(() =>
 const fallback = <PageLoader label="Loading" />;
 const s = (node: ReactNode) => <Suspense fallback={fallback}>{node}</Suspense>;
 
+/** The bare address goes to the last company this browser used, otherwise to the main sign-in. */
+function RootRedirect() {
+  const slug = rememberedCompany();
+  return <Navigate to={slug ? `/${slug}` : '/login'} replace />;
+}
+
 export const router = createBrowserRouter([
+  // The system itself has no public site: each company has its own at /<web-address-name>.
+  { path: '/', element: <RootRedirect /> },
   {
-    element: <PublicLayout />,
-    children: [
-      { path: '/', element: s(<HomePage />) },
-      { path: '/jobs', element: s(<JobBoardPage />) },
-      { path: '/jobs/:tenantId/:id', element: s(<JobDetailPage />) },
-      { path: '/trips', element: s(<TripSearchPage />) },
-      { path: '/trips/:tenantId/:tripId', element: s(<TripBookPage />) },
-      { path: '/pay/return', element: <RequireAuth>{s(<PayReturnPage />)}</RequireAuth> },
-    ],
+    path: '/pay/return',
+    element: (
+      <RequireAuth>
+        <main className="mx-auto w-full max-w-2xl p-4">{s(<PayReturnPage />)}</main>
+      </RequireAuth>
+    ),
   },
   {
     element: <AuthLayout />,

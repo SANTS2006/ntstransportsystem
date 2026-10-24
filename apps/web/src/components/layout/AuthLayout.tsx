@@ -1,13 +1,4 @@
-import {
-  BarChart3,
-  Bus,
-  Settings,
-  ShieldCheck,
-  Ticket,
-  Users,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
+import { BarChart3, Bus, Ticket, Users, type LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { rememberCompany } from '../../lib/company-page';
@@ -26,11 +17,6 @@ const FEATURES: { icon: LucideIcon; title: string; note: string }[] = [
   { icon: Users, title: 'Manage Staff', note: 'Drivers, conductors and staff' },
   { icon: BarChart3, title: 'Grow Your Business', note: 'Reports and analytics' },
 ];
-const TRUST: { icon: LucideIcon; title: string; note: string }[] = [
-  { icon: ShieldCheck, title: 'Secure Platform', note: 'Your data is protected' },
-  { icon: Zap, title: 'Reliable & Fast', note: 'Built for operations' },
-  { icon: Settings, title: 'Trusted by Transport Companies', note: 'Across the region' },
-];
 
 /** The pitch beside the form: logo, headline, what the platform does, and the fleet. */
 interface PublicCompany {
@@ -45,7 +31,7 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
   const { pathname } = useLocation();
   const joining = pathname.endsWith('/register');
   return (
-    <aside className="relative hidden flex-col justify-between gap-6 overflow-hidden px-8 pt-10 lg:flex xl:px-16 xl:pt-12">
+    <aside className="relative hidden flex-col justify-center gap-6 overflow-hidden px-8 py-10 lg:flex xl:px-16">
       <div>
         <Link to={company ? `/${company.slug}` : '/'} aria-label="Home" className="inline-block">
           {company ? (
@@ -95,28 +81,6 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
                   {f.title}
                 </span>
                 <span className="block text-xs text-slate-700 dark:text-slate-300">{f.note}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="relative -mx-8 mt-auto xl:-mx-16">
-        <img
-          src="/auth-hero.jpg"
-          alt=""
-          width={860}
-          height={310}
-          className="max-h-[38dvh] w-full object-cover object-bottom [mask-image:linear-gradient(to_bottom,transparent,black_35%)]"
-        />
-        <ul className="absolute inset-x-0 bottom-0 grid grid-cols-3 gap-3 bg-gradient-to-t from-brand-900/90 to-transparent px-8 pb-4 pt-10 text-white xl:gap-4 xl:px-16 xl:pb-5">
-          {TRUST.map((t) => (
-            <li key={t.title} className="flex items-start gap-2.5">
-              <t.icon aria-hidden="true" className="mt-0.5 size-6 shrink-0" strokeWidth={1.6} />
-              <span>
-                <span className="block text-xs font-semibold leading-snug xl:text-sm">
-                  {t.title}
-                </span>
-                <span className="hidden text-xs text-slate-200 xl:block">{t.note}</span>
               </span>
             </li>
           ))}

@@ -41,3 +41,12 @@ export function signUpPath(user?: Who | null, slug?: string | null): string {
   const s = companyOf(user, slug);
   return s ? `/${s}/register` : '/login';
 }
+
+/**
+ * A page inside this person's company's public site (for example "/trips"), or the sign-in page
+ * when no company is known. There is no system-wide trip or job listing: only companies have one.
+ */
+export function companyPath(user?: Who | null, sub = ''): string {
+  const s = user?.homeCompany?.slug ?? rememberedCompany();
+  return s ? `/${s}${sub}` : '/login';
+}

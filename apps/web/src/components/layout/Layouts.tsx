@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { api } from '../../lib/api';
-import { signInPath } from '../../lib/company-page';
+import { companyPath, signInPath } from '../../lib/company-page';
 import { brandStyle } from '../../lib/theme';
 import { BlockingOverlay, PageLoader, Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
@@ -487,6 +487,7 @@ function ProfileMenu({ account, onSignOut }: { account: string; onSignOut: () =>
 
 /** Foot of every signed-in page: whose workspace this is, and the way back to the public site. */
 function AppFooter({ company, account }: { company?: CompanyBrand | undefined; account: string }) {
+  const { user } = useAuth();
   return (
     <footer className="border-t border-slate-200 px-4 py-5 text-xs text-slate-500 sm:px-6 lg:px-8 dark:border-slate-800">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
@@ -496,9 +497,11 @@ function AppFooter({ company, account }: { company?: CompanyBrand | undefined; a
           (SLE) unless a company sets another currency.
         </p>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-1">
-          <Link to="/trips" className="hover:text-brand-700">
-            Find a trip
-          </Link>
+          {user?.homeCompany && (
+            <Link to={companyPath(user, '/trips')} className="hover:text-brand-700">
+              Find a trip
+            </Link>
+          )}
           <Link to={`${account}/profile`} className="hover:text-brand-700">
             My account
           </Link>

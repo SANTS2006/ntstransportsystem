@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { companyPath } from '../../lib/company-page';
 import { useCompanyPublic } from '../../lib/company-public';
 import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
@@ -605,6 +606,7 @@ function BookingCard({ b, children }: { b: MyBooking; children?: ReactNode }) {
 }
 
 export function MyBookingsPage() {
+  const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -626,7 +628,7 @@ export function MyBookingsPage() {
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My bookings</h1>
-        <Button variant="secondary" onClick={() => nav('/trips')}>
+        <Button variant="secondary" onClick={() => nav(companyPath(user, '/trips'))}>
           Find a trip
         </Button>
       </div>
@@ -635,7 +637,7 @@ export function MyBookingsPage() {
       {q.data?.bookings.length === 0 && (
         <Alert tone="info">
           You have no bookings yet.{' '}
-          <Link className="font-medium" to="/trips">
+          <Link className="font-medium" to={companyPath(user, '/trips')}>
             Search for a trip
           </Link>
           .

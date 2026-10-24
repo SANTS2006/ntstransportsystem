@@ -109,11 +109,7 @@ export function TripResultCard({ t }: { t: TripCardData }) {
             )}
             {!soldOut && (
               <Link
-                to={
-                  company
-                    ? `/${company.slug}/trips/${t.tripId}`
-                    : `/trips/${t.tenantId}/${t.tripId}`
-                }
+                to={company ? `/${company.slug}/trips/${t.tripId}` : '/'}
                 className={linkButton('primary')}
               >
                 Choose seats

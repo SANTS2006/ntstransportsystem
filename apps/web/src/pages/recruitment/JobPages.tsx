@@ -59,7 +59,7 @@ export function JobBoardPage() {
       ),
   });
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-3xl font-semibold text-brand-700 dark:text-brand-500">Jobs</h1>
       <form
         className="flex flex-wrap items-end gap-3"
@@ -139,7 +139,7 @@ export function JobDetailPage() {
   if (job.isPending) return <PageLoader label="Loading" />;
   if (job.error || !job.data) {
     return (
-      <div className="mx-auto w-[90%] space-y-3">
+      <div className="w-full space-y-3">
         <Alert tone="error">This job is no longer open.</Alert>
         <Link className="text-brand-700 font-medium" to="/jobs">
           All jobs
@@ -153,7 +153,7 @@ export function JobDetailPage() {
     form.phone.trim().length >= 6 &&
     form.experience.trim().length >= 10;
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">
         All jobs
       </Link>
@@ -268,7 +268,7 @@ export function MyApplicationsPage() {
     onError: (e) => toast(errMsg(e), 'error'),
   });
   return (
-    <div className="mx-auto w-[90%] space-y-4">
+    <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">My job applications</h1>
         <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/jobs">

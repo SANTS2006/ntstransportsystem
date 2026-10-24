@@ -93,7 +93,7 @@ export function PlatformTenantsPage() {
   };
 
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Companies</h1>
@@ -124,7 +124,7 @@ export function PlatformTenantsPage() {
             role="tab"
             aria-selected={status === s}
             onClick={() => setStatus(s)}
-            className={`min-h-11 rounded-lg px-3 text-sm font-medium ${status === s ? 'bg-brand-600 text-white' : 'bg-white ring-1 ring-slate-300 hover:bg-slate-50 dark:bg-slate-900 dark:ring-slate-600'}`}
+            className={`min-h-11 rounded-lg px-3 text-sm font-medium ${status === s ? 'bg-brand-600 text-white' : 'bg-white shadow-[var(--shadow-field)] hover:bg-slate-50 dark:bg-slate-900'}`}
           >
             {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
           </button>
@@ -273,7 +273,7 @@ export function PlatformMaintenancePage() {
   const [confirmOn, setConfirmOn] = useState(false);
   const on = status.data?.enabled === true;
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-semibold">Maintenance mode</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         While on, passengers and companies get a maintenance message instead of the service.

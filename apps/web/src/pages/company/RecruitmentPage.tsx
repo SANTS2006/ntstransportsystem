@@ -156,7 +156,7 @@ export function RecruitmentPage() {
 
   const d = detail.data;
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-semibold">Recruitment</h1>
       <div role="tablist" aria-label="Recruitment" className="flex gap-2">
         {(['applications', 'jobs'] as const).map((t) => (

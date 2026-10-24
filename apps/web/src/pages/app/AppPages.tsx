@@ -46,7 +46,7 @@ export function SecurityPage() {
     onError: () => toast('Could not sign that session out', 'error'),
   });
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <PageTitle>Account security</PageTitle>
       <Card title="Two-step verification">
         {user?.mfaEnabled ? (

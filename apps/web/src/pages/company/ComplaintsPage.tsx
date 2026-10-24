@@ -90,7 +90,7 @@ export function ComplaintsPage() {
 
   const d = detail.data;
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-semibold">Complaints</h1>
 
       {ratings.data && ratings.data.total > 0 && (
@@ -182,7 +182,7 @@ export function ComplaintsPage() {
                 {d.messages.map((m) => (
                   <li
                     key={m.id}
-                    className={`max-w-[90%] rounded-xl p-3 text-sm ${
+                    className={`max-w-full rounded-xl p-3 text-sm ${
                       m.from === 'STAFF'
                         ? 'ml-auto bg-brand-600 text-white'
                         : 'bg-slate-100 dark:bg-slate-800'

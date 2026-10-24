@@ -78,7 +78,7 @@ export function MyTicketsPage() {
   const b = booking.data;
   const list = tickets.data.tickets;
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/bookings">
         My bookings
       </Link>

@@ -103,7 +103,7 @@ export function BoardingPage() {
   const pct = counts && counts.total > 0 ? Math.round((counts.boarded / counts.total) * 100) : 0;
 
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-semibold tracking-tight">Boarding</h1>
       <div>
         <label htmlFor="bd-trip" className="mb-1 block text-sm font-medium">

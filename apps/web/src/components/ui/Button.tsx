@@ -40,7 +40,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[15px] font-semibold shadow-[var(--shadow-field)] transition-colors disabled:cursor-not-allowed ${styles[variant]} ${className}`}
       {...rest}
     >
       {loading && <Spinner size="sm" />}
@@ -51,4 +51,4 @@ export function Button({
 
 /** Class string for a link that should look like a button (used with <Link>). */
 export const linkButton = (variant: Variant = 'primary') =>
-  `inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[15px] font-semibold transition-colors ${styles[variant]}`;
+  `inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-[15px] font-semibold shadow-[var(--shadow-field)] transition-colors ${styles[variant]}`;

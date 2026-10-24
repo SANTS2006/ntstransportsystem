@@ -94,7 +94,7 @@ export function LocationsPage() {
   });
   const { errors } = form.formState;
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <Title>Locations</Title>
       {manage && (
         <ModalCard title="Add a location" open={adding400} onOpenChange={setAdding400}>
@@ -274,7 +274,7 @@ export function VehiclesPage() {
   });
   const { errors } = form.formState;
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <Title>Vehicles</Title>
       {manage && (
         <ModalCard title="Add a vehicle" open={adding112} onOpenChange={setAdding112}>
@@ -577,7 +577,7 @@ export function RoutesPage() {
   );
 
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <Title>Routes</Title>
       {manage && (
         <Card title="New route">

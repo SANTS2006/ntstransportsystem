@@ -45,7 +45,7 @@ export function TripSearchPage() {
   );
 
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Find a trip</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">

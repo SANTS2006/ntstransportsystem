@@ -129,7 +129,7 @@ function CompanyFooter({ company, base }: { company: CompanyBrand; base: string 
   const link = 'text-sm font-medium text-slate-700 hover:text-brand-700 dark:text-slate-300';
   return (
     <footer className="mt-16 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="mx-auto flex w-[90%] flex-wrap items-center justify-between gap-4 py-8">
+      <div className="flex w-full flex-wrap items-center justify-between gap-4 px-4 py-8 sm:px-6">
         <div>
           <p className="font-semibold">{company.name}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -161,7 +161,7 @@ function CompanyFooter({ company, base }: { company: CompanyBrand; base: string 
 function PublicFooter() {
   return (
     <footer className="mt-16 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="mx-auto grid w-[90%] gap-8 py-10 sm:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="grid w-full gap-8 px-4 py-10 sm:grid-cols-[1.4fr_1fr_1fr] sm:px-6">
         <div className="space-y-3">
           <Logo size="md" />
           <p className="max-w-xs text-sm text-slate-600 dark:text-slate-400">
@@ -234,7 +234,7 @@ export function PublicLayout({
       <TopProgress />
       <MaintenanceBanner />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-        <div className="mx-auto flex w-[90%] items-center justify-between gap-3 py-2.5">
+        <div className="flex w-full items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <Brand company={company} home={base || undefined} />
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
@@ -312,7 +312,7 @@ export function PublicLayout({
           </nav>
         )}
       </header>
-      <main id="main" className="mx-auto w-[90%] flex-1 py-8 sm:py-10">
+      <main id="main" className="w-full flex-1 px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
       {company ? <CompanyFooter company={company} base={base} /> : <PublicFooter />}
@@ -331,7 +331,7 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <div className="w-full max-w-[480px] rounded-3xl bg-white p-5 shadow-level3 sm:p-8 dark:bg-slate-900 dark:ring-1 dark:ring-slate-700">
+    <div className="w-full max-w-[480px] rounded-3xl bg-white p-5 shadow-level3 sm:p-8 dark:bg-slate-900 dark:shadow-[0_8px_30px_rgb(0_0_0/0.6)]">
       <h1 className="text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl dark:text-slate-100">
         {title}
       </h1>
@@ -681,7 +681,7 @@ export function DashboardShell({
           </div>
         </header>
         <MaintenanceBanner />
-        <main id="main" className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <main id="main" className="min-w-0 p-3 sm:p-4">
           {children ?? <Outlet />}
         </main>
         <AppFooter company={company} account={account} />
@@ -723,7 +723,7 @@ export function AppShell() {
   if (staff.length > 1) {
     return (
       <DashboardShell nav={PICKER_NAV} heading="Your companies">
-        <div className="mx-auto w-[90%] space-y-3">
+        <div className="w-full space-y-3">
           <h1 className="text-2xl">Choose a company</h1>
           <ul className="grid gap-3 sm:grid-cols-2">
             {staff.map((t) => (

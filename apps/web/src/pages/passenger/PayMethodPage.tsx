@@ -89,7 +89,7 @@ export function PayMethodPage() {
   if (q.isPending) return <PageLoader label="Loading payment options" />;
   if (q.error || !q.data) {
     return (
-      <div className="mx-auto w-[90%] space-y-4">
+      <div className="w-full space-y-4">
         <Alert tone="error">We could not find that booking.</Alert>
         <Link className="text-brand-700 font-medium" to="/app/bookings">
           My bookings
@@ -102,7 +102,7 @@ export function PayMethodPage() {
 
   if (booking.status !== 'PENDING_PAYMENT') {
     return (
-      <div className="mx-auto w-[90%] space-y-4">
+      <div className="w-full space-y-4">
         <Alert tone={booking.status === 'CONFIRMED' ? 'success' : 'info'}>
           {booking.status === 'CONFIRMED'
             ? 'This booking is paid and confirmed.'
@@ -119,7 +119,7 @@ export function PayMethodPage() {
   }
 
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <div>
         <h1 className="text-2xl font-semibold">How would you like to pay?</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">

@@ -50,11 +50,11 @@ export default function CompanyHome() {
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Book your seat with {company.name}
           </h1>
-          <p className="mx-auto w-[90%] text-slate-700 dark:text-slate-300">
+          <p className="w-full text-slate-700 dark:text-slate-300">
             Find a departure, choose your seat and pay securely with mobile money.
           </p>
         </div>
-        <div className="mx-auto w-[90%] text-left">
+        <div className="w-full text-left">
           <SearchBar
             initial={{ from: '', to: '', date: addDays(today, 1) }}
             onSearch={(v) => {

@@ -122,7 +122,7 @@ export function BrandingPage() {
   };
   const colourOk = isHexColor(primary) && isHexColor(accent);
   return (
-    <div className="mx-auto w-[90%] space-y-5">
+    <div className="w-full space-y-5">
       <div>
         <h1 className="text-2xl">Branding</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">

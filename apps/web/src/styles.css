@@ -31,6 +31,9 @@
   --accent-700: #b85f00;
   --canvas: #f4f7fb;
   --ink: #0f172a;
+  /* Fields, buttons and cards are lifted with a soft shadow instead of drawn with a line. */
+  --shadow-field: 0 1px 2px rgb(15 23 42 / 0.1), 0 3px 10px rgb(15 23 42 / 0.08);
+  --shadow-focus: 0 0 0 3px rgb(0 117 223 / 0.28), 0 3px 10px rgb(15 23 42 / 0.1);
 }
 :root.dark {
   --brand-50: #0b1a33;
@@ -40,6 +43,8 @@
   --brand-700: #0f66c4;
   --canvas: #0b1220;
   --ink: #e2e8f0;
+  --shadow-field: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 14px rgb(0 0 0 / 0.45);
+  --shadow-focus: 0 0 0 3px rgb(59 155 255 / 0.4), 0 4px 14px rgb(0 0 0 / 0.45);
 }
 
 @theme inline {
@@ -109,6 +114,25 @@ a:hover,
 a:focus,
 a:active {
   text-decoration: none !important;
+}
+
+/*
+ * No drawn outlines on fields, buttons and cards: anything built with a plain `border` and a grey
+ * border colour keeps its shape but gets a shadow instead. Written outside the utility layer so it
+ * applies everywhere without touching every component. Errors keep their coloured border, and
+ * dashed boxes (empty states) and dialogs are left alone.
+ */
+[class~='border'][class*='border-slate-']:not([class*='border-dashed']):not(dialog) {
+  border-color: transparent;
+  box-shadow: var(--shadow-field);
+}
+input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']):not(
+    [aria-invalid='true']
+  ):focus,
+select:focus,
+textarea:focus {
+  box-shadow: var(--shadow-focus);
+  outline: none;
 }
 
 /* Page titles share one look everywhere: heavier, tighter, in the logo navy. */

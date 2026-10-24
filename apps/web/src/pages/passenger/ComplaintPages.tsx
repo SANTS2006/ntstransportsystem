@@ -52,7 +52,7 @@ export function MyComplaintsPage() {
       api<{ complaints: ComplaintRow[] }>('/passenger/complaints', { signal }),
   });
   return (
-    <div className="mx-auto w-[90%] space-y-4">
+    <div className="w-full space-y-4">
       <h1 className="text-2xl font-semibold">My complaints</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         To report a problem, open the booking it is about in{' '}
@@ -141,7 +141,7 @@ export function NewComplaintPage() {
     return <Alert tone="error">Open a booking first, then choose Report a problem.</Alert>;
   const valid = subject.trim().length >= 3 && (body.trim().length >= 5 || voice !== null);
   return (
-    <div className="mx-auto w-[90%] space-y-4">
+    <div className="w-full space-y-4">
       <h1 className="text-2xl font-semibold">Report a problem</h1>
       <Card>
         <form
@@ -222,7 +222,7 @@ export function ComplaintThreadPage() {
   if (q.error) return <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />;
   const c = q.data;
   return (
-    <div className="mx-auto w-[90%] space-y-4">
+    <div className="w-full space-y-4">
       <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/complaints">
         My complaints
       </Link>

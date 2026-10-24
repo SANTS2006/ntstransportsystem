@@ -67,7 +67,7 @@ export function PaymentSettingsPage() {
   });
   const { errors } = form.formState;
   return (
-    <div className="mx-auto w-[90%] space-y-6">
+    <div className="w-full space-y-6">
       <h1 className="text-2xl font-semibold">Online payments (Monime)</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Passengers pay through Monime hosted checkout, straight into your Monime account. Your

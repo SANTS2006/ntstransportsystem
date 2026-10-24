@@ -14,6 +14,7 @@ import { rememberCompany } from '../../lib/company-page';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { PageLoader } from '../ui/Spinner';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { AuthCompanyContext } from './AuthBrand';
 import { api } from '../../lib/api';
 import { brandStyle } from '../../lib/theme';
 import { MaintenanceBanner } from './MaintenanceBanner';
@@ -173,36 +174,11 @@ export function AuthLayout() {
           className="relative flex min-w-0 flex-col items-center justify-center gap-4 px-4 pb-8 pt-14 sm:gap-5 sm:px-8 lg:pt-16"
         >
           <ThemeToggle className="absolute right-4 top-4" />
-          <Link
-            to={company ? `/${company.slug}` : '/'}
-            aria-label="Home"
-            className="order-2 mt-2 lg:hidden"
-          >
-            {company ? (
-              company.logoUrl ? (
-                <img
-                  src={company.logoUrl}
-                  alt={company.name}
-                  className="h-16 w-auto max-w-56 object-contain"
-                />
-              ) : (
-                <span className="text-2xl font-bold text-brand-900 dark:text-white">
-                  {company.name}
-                </span>
-              )
-            ) : (
-              <img
-                src="/nts-wordmark.png"
-                alt="NTS Transport"
-                width={340}
-                height={130}
-                className="h-16 w-auto"
-              />
-            )}
-          </Link>
-          <div className="order-1 flex w-full justify-center">
-            <Outlet />
-          </div>
+          <AuthCompanyContext.Provider value={company ?? null}>
+            <div className="flex w-full justify-center">
+              <Outlet />
+            </div>
+          </AuthCompanyContext.Provider>
         </main>
       </div>
     </div>

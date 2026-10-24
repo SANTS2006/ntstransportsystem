@@ -20,6 +20,7 @@ import { brandStyle } from '../../lib/theme';
 import { BlockingOverlay, PageLoader, Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button, linkButton } from '../ui/Button';
+import { AuthBrandLogo } from './AuthBrand';
 import { Logo } from './Logo';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { ThemeToggle } from '../ui/ThemeToggle';
@@ -332,6 +333,7 @@ export function AuthCard({
 }) {
   return (
     <div className="w-full max-w-[480px] rounded-3xl bg-white p-5 shadow-level3 sm:p-8 dark:bg-slate-900 dark:shadow-[0_8px_30px_rgb(0_0_0/0.6)]">
+      <AuthBrandLogo className="mb-4" />
       <h1 className="text-2xl font-bold tracking-tight text-brand-900 sm:text-3xl dark:text-slate-100">
         {title}
       </h1>

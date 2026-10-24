@@ -34,6 +34,7 @@
   /* Fields, buttons and cards are lifted with a soft shadow instead of drawn with a line. */
   --shadow-field: 0 1px 2px rgb(15 23 42 / 0.1), 0 3px 10px rgb(15 23 42 / 0.08);
   --shadow-focus: 0 0 0 3px rgb(0 117 223 / 0.28), 0 3px 10px rgb(15 23 42 / 0.1);
+  --row-bg: #f8fafc;
 }
 :root.dark {
   --brand-50: #0b1a33;
@@ -45,6 +46,7 @@
   --ink: #e2e8f0;
   --shadow-field: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 14px rgb(0 0 0 / 0.45);
   --shadow-focus: 0 0 0 3px rgb(59 155 255 / 0.4), 0 4px 14px rgb(0 0 0 / 0.45);
+  --row-bg: #172033;
 }
 
 @theme inline {
@@ -133,6 +135,33 @@ select:focus,
 textarea:focus {
   box-shadow: var(--shadow-focus);
   outline: none;
+}
+
+/*
+ * Lists: every plain list of rows (the ones that used to be separated by thin lines) is shown as a
+ * stack of soft cards that lift a little when pointed at.
+ */
+ul[class~='divide-y'] {
+  display: grid;
+  gap: 0.625rem;
+}
+ul[class~='divide-y'] > li {
+  border-width: 0;
+  border-radius: 0.875rem;
+  background: var(--row-bg);
+  padding: 0.75rem 1rem;
+  box-shadow: var(--shadow-field);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+ul[class~='divide-y'] > li:hover {
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  ul[class~='divide-y'] > li:hover {
+    transform: none;
+  }
 }
 
 /* Page titles share one look everywhere: heavier, tighter, in the logo navy. */

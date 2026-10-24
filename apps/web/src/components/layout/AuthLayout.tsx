@@ -170,10 +170,14 @@ export function AuthLayout() {
         <HeroPanel company={company} />
         <main
           id="main"
-          className="relative flex min-w-0 flex-col items-center justify-center gap-4 px-4 pb-8 pt-16 sm:gap-5 sm:px-8"
+          className="relative flex min-w-0 flex-col items-center justify-center gap-4 px-4 pb-8 pt-14 sm:gap-5 sm:px-8 lg:pt-16"
         >
           <ThemeToggle className="absolute right-4 top-4" />
-          <Link to={company ? `/${company.slug}` : '/'} aria-label="Home" className="lg:hidden">
+          <Link
+            to={company ? `/${company.slug}` : '/'}
+            aria-label="Home"
+            className="order-2 mt-2 lg:hidden"
+          >
             {company ? (
               company.logoUrl ? (
                 <img
@@ -196,7 +200,9 @@ export function AuthLayout() {
               />
             )}
           </Link>
-          <Outlet />
+          <div className="order-1 flex w-full justify-center">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

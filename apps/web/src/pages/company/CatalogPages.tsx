@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { DataTable } from '../../components/ui/DataTable';
 import { StopFaresDialog } from './StopFaresDialog';
 import { ModalCard } from '../../components/ui/ModalCard';
 import { useConfirm } from '../../components/ui/Confirm';
@@ -130,56 +131,77 @@ export function LocationsPage() {
       <Card>
         {q.isPending && <PageLoader label="Loading locations" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {q.data?.locations.length === 0 && (
-            <li className="py-2 text-slate-500">No locations yet.</li>
-          )}
-          {q.data?.locations.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">{l.name}</p>
-                <p className="text-xs text-slate-500">
-                  {l.city} · {l.kind.toLowerCase()}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
+        <DataTable
+          rows={q.data?.locations ?? []}
+          rowKey={(l) => l.id}
+          empty="No locations yet."
+          columns={[
+            {
+              key: 'name',
+              header: 'Location',
+              kind: 'title',
+              cell: (l) => (
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{l.name}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{l.city}</p>
+                </div>
+              ),
+            },
+            {
+              key: 'kind',
+              header: 'Type',
+              cell: (l) => <span className="capitalize">{l.kind.toLowerCase()}</span>,
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              cell: (l) => (
                 <StatusBadge
                   status={l.active ? 'ACTIVE' : 'DEACTIVATED'}
                   label={l.active ? 'Active' : 'Inactive'}
                 />
-                {manage && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      loading={toggle.isPending && toggle.variables?.id === l.id}
-                      onClick={() => toggle.mutate(l)}
-                    >
-                      {l.active ? 'Deactivate' : 'Activate'}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      loading={remove.isPending && remove.variables === l.id}
-                      onClick={async () => {
-                        if (
-                          await ask({
-                            title: `Delete ${l.name}?`,
-                            message:
-                              'This location is removed. It cannot be deleted while a route uses it.',
-                            confirmLabel: 'Delete location',
-                            danger: true,
-                          })
-                        )
-                          remove.mutate(l.id);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              ),
+            },
+            ...(manage
+              ? [
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    kind: 'actions' as const,
+                    cell: (l: Location) => (
+                      <>
+                        <Button
+                          variant="secondary"
+                          loading={toggle.isPending && toggle.variables?.id === l.id}
+                          onClick={() => toggle.mutate(l)}
+                        >
+                          {l.active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          loading={remove.isPending && remove.variables === l.id}
+                          onClick={async () => {
+                            if (
+                              await ask({
+                                title: `Delete ${l.name}?`,
+                                message:
+                                  'This location is removed. It cannot be deleted while a route uses it.',
+                                confirmLabel: 'Delete location',
+                                danger: true,
+                              })
+                            )
+                              remove.mutate(l.id);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </Card>
     </div>
   );
@@ -337,20 +359,34 @@ export function VehiclesPage() {
       <Card>
         {q.isPending && <PageLoader label="Loading vehicles" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {q.data?.vehicles.length === 0 && (
-            <li className="py-2 text-slate-500">No vehicles yet.</li>
-          )}
-          {q.data?.vehicles.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">{v.registration}</p>
-                <p className="text-xs text-slate-500">
-                  {v.type.replace('_', ' ').toLowerCase()} · {v.seatingCapacity} seats ·{' '}
-                  {v.odometerKm.toLocaleString()} km
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
+        <DataTable
+          rows={q.data?.vehicles ?? []}
+          rowKey={(v) => v.id}
+          empty="No vehicles yet."
+          columns={[
+            {
+              key: 'reg',
+              header: 'Vehicle',
+              kind: 'title',
+              cell: (v) => <span className="font-semibold">{v.registration}</span>,
+            },
+            {
+              key: 'type',
+              header: 'Type',
+              cell: (v) => (
+                <span className="capitalize">{v.type.replace('_', ' ').toLowerCase()}</span>
+              ),
+            },
+            { key: 'seats', header: 'Seats', cell: (v) => v.seatingCapacity },
+            {
+              key: 'odo',
+              header: 'Odometer',
+              cell: (v) => <span className="tabular">{v.odometerKm.toLocaleString()} km</span>,
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              cell: (v) => (
                 <StatusBadge
                   status={v.status === 'MAINTENANCE' ? 'PENDING' : v.status}
                   label={
@@ -361,23 +397,33 @@ export function VehiclesPage() {
                         : 'Active'
                   }
                 />
-                {manage && v.status !== 'RETIRED' && (
-                  <select
-                    aria-label={`Status for ${v.registration}`}
-                    className={selectClass}
-                    value={v.status}
-                    disabled={setStatus.isPending}
-                    onChange={(e) => setStatus.mutate({ id: v.id, status: e.target.value })}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="RETIRED">Retire…</option>
-                  </select>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              ),
+            },
+            ...(manage
+              ? [
+                  {
+                    key: 'actions',
+                    header: 'Change status',
+                    kind: 'actions' as const,
+                    cell: (v: Vehicle) =>
+                      v.status === 'RETIRED' ? null : (
+                        <select
+                          aria-label={`Status for ${v.registration}`}
+                          className={selectClass}
+                          value={v.status}
+                          disabled={setStatus.isPending}
+                          onChange={(e) => setStatus.mutate({ id: v.id, status: e.target.value })}
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="MAINTENANCE">Maintenance</option>
+                          <option value="RETIRED">Retire…</option>
+                        </select>
+                      ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </Card>
     </div>
   );

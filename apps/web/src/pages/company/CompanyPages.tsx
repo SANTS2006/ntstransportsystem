@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { DataTable } from '../../components/ui/DataTable';
 import { ModalCard } from '../../components/ui/ModalCard';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -316,62 +317,84 @@ export function TeamPage() {
         {members.error && (
           <ErrorAlert error={members.error} onRetry={() => void members.refetch()} />
         )}
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-          {members.data?.memberships
-            .filter((m) => m.status === 'ACTIVE')
-            .map((m) => (
-              <li
-                key={m.id}
-                className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{m.displayName}</p>
-                  <p className="truncate text-xs text-slate-500">{m.email}</p>
+        <DataTable
+          rows={(members.data?.memberships ?? []).filter((x) => x.status === 'ACTIVE')}
+          rowKey={(x) => x.id}
+          empty="No team members yet."
+          columns={[
+            {
+              key: 'person',
+              header: 'Person',
+              kind: 'title',
+              cell: (x) => (
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white"
+                  >
+                    {x.displayName.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{x.displayName}</p>
+                    <p className="truncate text-xs text-slate-600 dark:text-slate-400">{x.email}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {can(access, 'membership.invite') && roles.data && m.userId !== user?.id ? (
-                    <select
-                      aria-label={`Role for ${m.displayName}`}
-                      className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-                      value={m.role.key}
-                      disabled={changeRole.isPending}
-                      onChange={(e) => changeRole.mutate({ id: m.id, roleKey: e.target.value })}
-                    >
-                      {roles.data.roles.map((r) => (
-                        <option key={r.id} value={r.key}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-xs text-slate-600 dark:text-slate-400">
-                      {m.role.name}
-                    </span>
-                  )}
-                  {can(access, 'membership.revoke') && m.userId !== user?.id && (
-                    <Button
-                      variant="danger"
-                      loading={revoke.isPending && revoke.variables === m.id}
-                      loadingText="Removing…"
-                      onClick={async () => {
-                        if (
-                          await ask({
-                            title: `Remove ${m.displayName}?`,
-                            message: 'They lose access to this company straight away.',
-                            confirmLabel: 'Remove',
-                            danger: true,
-                          })
-                        )
-                          revoke.mutate(m.id);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-        </ul>
+              ),
+            },
+            {
+              key: 'role',
+              header: 'Role',
+              cell: (x) =>
+                can(access, 'membership.invite') && roles.data && x.userId !== user?.id ? (
+                  <select
+                    aria-label={`Role for ${x.displayName}`}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+                    value={x.role.key}
+                    disabled={changeRole.isPending}
+                    onChange={(e) => changeRole.mutate({ id: x.id, roleKey: e.target.value })}
+                  >
+                    {roles.data.roles.map((r) => (
+                      <option key={r.id} value={r.key}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span>{x.role.name}</span>
+                ),
+            },
+            ...(can(access, 'membership.revoke')
+              ? [
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    kind: 'actions' as const,
+                    cell: (x: Member) =>
+                      x.userId === user?.id ? null : (
+                        <Button
+                          variant="danger"
+                          loading={revoke.isPending && revoke.variables === x.id}
+                          loadingText="Removing…"
+                          onClick={async () => {
+                            if (
+                              await ask({
+                                title: `Remove ${x.displayName}?`,
+                                message: 'They lose access to this company straight away.',
+                                confirmLabel: 'Remove',
+                                danger: true,
+                              })
+                            )
+                              revoke.mutate(x.id);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </Card>
       {invitations.data && invitations.data.invitations.length > 0 && (
         <Card title="Pending invitations">

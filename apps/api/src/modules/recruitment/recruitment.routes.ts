@@ -201,8 +201,10 @@ export function recruitmentRouter({
   const r = Router();
   r.use('/tenants/:tenantId', t);
   r.get('/public/jobs', limit('list', 60), async (req, res) => {
-    const q = z.object({ q: trim.max(60).optional() }).parse(req.query);
-    res.json({ jobs: await recruitment.listOpen(q.q) });
+    const q = z
+      .object({ q: trim.max(60).optional(), tenantId: z.uuid().optional() })
+      .parse(req.query);
+    res.json({ jobs: await recruitment.listOpen(q.q, q.tenantId) });
   });
   r.get('/public/jobs/:tenantId/:id', limit('detail', 60), async (req, res) => {
     const ids = z.object({ tenantId: z.uuid(), id: z.uuid() }).safeParse(req.params);

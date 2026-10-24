@@ -5,7 +5,6 @@ import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ME_KEY, useAuth } from '../../auth/AuthProvider';
-import { GoogleButton } from '../../components/GoogleButton';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -13,14 +12,13 @@ import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { useFeatures } from '../../lib/features';
 import { mfaCodeSchema } from '../../lib/schemas';
 
 const PageTitle = ({ children }: { children: string }) => (
   <h1 className="mb-6 text-2xl font-semibold">{children}</h1>
 );
 
-// ---- Security: MFA, sessions, Google linking -------------------------------------------------
+// ---- Security: MFA and sessions -------------------------------------------------
 
 interface SessionRow {
   id: string;
@@ -31,7 +29,7 @@ interface SessionRow {
 }
 
 export function SecurityPage() {
-  const { user, refresh } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
   const sessions = useQuery({
@@ -47,21 +45,6 @@ export function SecurityPage() {
     },
     onError: () => toast('Could not sign that session out', 'error'),
   });
-  const [linkPassword, setLinkPassword] = useState('');
-  const link = useMutation({
-    mutationFn: (credential: string) =>
-      api('/auth/google/link', {
-        method: 'POST',
-        body: { credential, ...(linkPassword ? { currentPassword: linkPassword } : {}) },
-      }),
-    onSuccess: async () => {
-      toast('Google account linked', 'success');
-      await refresh();
-    },
-  });
-  const { googleClientId } = useFeatures();
-  const googleLinked = user?.identities.some((i) => i.provider === 'GOOGLE');
-
   return (
     <div className="mx-auto w-[90%] space-y-6">
       <PageTitle>Account security</PageTitle>
@@ -72,30 +55,6 @@ export function SecurityPage() {
           <MfaEnroll onEnabled={() => void qc.invalidateQueries({ queryKey: ME_KEY })} />
         )}
       </Card>
-      {googleClientId && (
-        <Card title="Google sign-in">
-          {googleLinked ? (
-            <p className="text-sm">Your Google account is linked.</p>
-          ) : (
-            <>
-              {link.error && <ErrorAlert error={link.error} />}
-              <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
-                Link Google to sign in with it next time. Confirm your password first.
-              </p>
-              <div className="mb-3 max-w-sm">
-                <Field
-                  label="Password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={linkPassword}
-                  onChange={(e) => setLinkPassword(e.target.value)}
-                />
-              </div>
-              <GoogleButton onCredential={(c) => link.mutate(c)} />
-            </>
-          )}
-        </Card>
-      )}
       <Card title="Active sessions">
         {sessions.isPending && <PageLoader label="Loading sessions" />}
         {sessions.error && (

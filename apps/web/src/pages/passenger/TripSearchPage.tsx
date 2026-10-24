@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useCompanyPublic } from '../../lib/company-public';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { SearchBar } from '../../components/travel/SearchBar';
@@ -20,6 +21,7 @@ const dayLabel = (iso: string) =>
 /** Search results for one day, earliest departure first, with a quick way to try the next day. */
 export function TripSearchPage() {
   const [params, setParams] = useSearchParams();
+  const company = useCompanyPublic();
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const active = params.get('date');
@@ -30,11 +32,11 @@ export function TripSearchPage() {
       date: v.date,
     });
   const results = useQuery({
-    queryKey: ['public-trips', from || null, to || null, active],
+    queryKey: ['public-trips', company?.id ?? null, from || null, to || null, active],
     enabled: active !== null,
     queryFn: ({ signal }) =>
       api<{ trips: TripCardData[] }>(
-        `/public/trips?date=${active}${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}`,
+        `/public/trips?date=${active}${company ? `&tenantId=${company.id}` : ''}${from ? `&from=${encodeURIComponent(from)}` : ''}${to ? `&to=${encodeURIComponent(to)}` : ''}`,
         { signal },
       ),
   });
@@ -47,7 +49,9 @@ export function TripSearchPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Find a trip</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Compare departures from licensed companies and choose your seats.
+          {company
+            ? `Departures by ${company.name}. Choose your seats.`
+            : 'Compare departures from licensed companies and choose your seats.'}
         </p>
       </div>
       <SearchBar

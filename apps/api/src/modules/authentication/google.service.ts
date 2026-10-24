@@ -80,6 +80,25 @@ export class GoogleAuthService {
       return this.auth.completeLogin(identity.userId, 'google', meta);
     }
 
+    const existing = await this.db.user.findUnique({ where: { email: profile.email } });
+    if (existing?.emailVerifiedAt) {
+      // Google vouches for this address and the account's address was confirmed too, so it is the
+      // same person: remember the Google account and sign them in (on the right page for them).
+      if (existing.status !== 'ACTIVE') throw AppError.forbidden('This account is unavailable');
+      await this.auth.assertSignInPage(existing, companySlug, meta);
+      await this.db.authIdentity.create({
+        data: { userId: existing.id, provider: 'GOOGLE', subject: profile.sub },
+      });
+      await writeAudit(this.db, {
+        action: 'auth.google_linked',
+        outcome: 'SUCCESS',
+        actorUserId: existing.id,
+        requestId: meta.requestId,
+        summary: { via: 'sign_in' },
+      });
+      return this.auth.completeLogin(existing.id, 'google', meta);
+    }
+
     // A new account is always created on a company's page, which becomes its company.
     if (!companySlug) {
       throw new AppError(
@@ -89,19 +108,6 @@ export class GoogleAuthService {
       );
     }
     const company = await this.auth.openCompany(companySlug);
-
-    const existing = await this.db.user.findUnique({ where: { email: profile.email } });
-    if (existing?.emailVerifiedAt) {
-      await writeAudit(this.db, {
-        action: 'auth.google_link_required',
-        outcome: 'DENIED',
-        actorUserId: existing.id,
-        requestId: meta.requestId,
-      });
-      throw AppError.conflict(
-        'An account with this email already exists. Sign in with your password, then link Google in account settings.',
-      );
-    }
 
     let userId: string;
     if (existing) {
@@ -144,36 +150,5 @@ export class GoogleAuthService {
       requestId: meta.requestId,
     });
     return this.auth.completeLogin(userId, 'google', meta);
-  }
-
-  /** Link Google to the signed-in account. Users with a password must re-enter it. */
-  async link(userId: string, idToken: string, currentPassword: string | undefined, meta: ReqMeta) {
-    const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
-    if (
-      user.passwordHash &&
-      !(currentPassword && (await verifyPassword(user.passwordHash, currentPassword)))
-    ) {
-      throw AppError.forbidden('Password is incorrect');
-    }
-    const profile = await this.verifier.verify(idToken);
-    if (!profile.emailVerified)
-      throw AppError.unauthenticated('Your Google email address is not verified');
-
-    const taken = await this.db.authIdentity.findUnique({
-      where: { provider_subject: { provider: 'GOOGLE', subject: profile.sub } },
-    });
-    if (taken) {
-      if (taken.userId === userId) return;
-      throw AppError.conflict('This Google account is already linked to another user');
-    }
-    await this.db.authIdentity.create({
-      data: { userId, provider: 'GOOGLE', subject: profile.sub },
-    });
-    await writeAudit(this.db, {
-      action: 'auth.google_linked',
-      outcome: 'SUCCESS',
-      actorUserId: userId,
-      requestId: meta.requestId,
-    });
   }
 }

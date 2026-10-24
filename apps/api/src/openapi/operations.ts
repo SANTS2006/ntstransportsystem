@@ -234,20 +234,10 @@ export const operations: Record<string, Operation> = {
     optional: true,
     summary: 'Sign in or sign up with Google',
     description:
-      "The client sends the Google Identity Services ID token (`credential`); the server verifies signature, audience, issuer and expiry and keys the identity on Google's `sub`. Existing verified email accounts are never auto-linked (409). Disabled (404) unless a Google client ID is configured. Only available when GOOGLE_CLIENT_ID is configured.",
+      "The client sends the Google Identity Services ID token (`credential`); the server verifies signature, audience, issuer and expiry and keys the identity on Google's `sub`. An existing account with the same confirmed email is signed in and remembers the Google account; it must still use the right sign-in page (the main page for platform staff, otherwise its own company's page). A new account can only be made on a company's page. Disabled (404) unless a Google client ID is configured. Only available when GOOGLE_CLIENT_ID is configured.",
     tag: 'Auth',
     access: 'public',
     body: authBodies.credentialSchema,
-    ok: 200,
-  },
-  'POST /api/v1/auth/google/link': {
-    optional: true,
-    summary: 'Link a Google account to the signed-in user',
-    description:
-      'Accounts that have a password must re-enter it. Only available when GOOGLE_CLIENT_ID is configured.',
-    tag: 'Auth',
-    access: 'session',
-    body: authBodies.googleLinkSchema,
     ok: 200,
   },
   'POST /api/v1/auth/logout': {
@@ -1231,6 +1221,7 @@ export const operations: Record<string, Operation> = {
     tag: 'Passengers',
     access: 'public',
     query: [
+      { name: 'tenantId', description: 'Only this company', format: 'uuid' },
       { name: 'date', description: 'Service date (company local date)', format: 'date' },
       { name: 'from', description: 'Origin city (partial match)' },
       { name: 'to', description: 'Destination city (partial match)' },
@@ -1751,7 +1742,10 @@ export const operations: Record<string, Operation> = {
     summary: 'Open job postings of active companies',
     tag: 'Recruitment',
     access: 'public',
-    query: [{ name: 'q', description: 'Search in the title' }],
+    query: [
+      { name: 'q', description: 'Search in the title' },
+      { name: 'tenantId', description: 'Only this company', format: 'uuid' },
+    ],
     ok: 200,
   },
   'GET /api/v1/public/jobs/{tenantId}/{id}': {

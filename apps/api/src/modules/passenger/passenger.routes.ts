@@ -22,6 +22,7 @@ const dateStr = z.string().refine((v) => {
 }, 'Use a valid YYYY-MM-DD date');
 
 const searchQuery = z.object({
+  tenantId: z.uuid().optional(),
   from: trim.min(1).max(80).optional(),
   to: trim.min(1).max(80).optional(),
   date: dateStr,

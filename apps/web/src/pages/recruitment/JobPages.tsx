@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCompanyPublic } from '../../lib/company-public';
 import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useState } from 'react';
@@ -43,14 +44,19 @@ interface Job {
 }
 
 export function JobBoardPage() {
+  const company = useCompanyPublic();
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
   const jobs = useQuery({
-    queryKey: ['public-jobs', search],
+    queryKey: ['public-jobs', company?.id ?? null, search],
     queryFn: ({ signal }) =>
-      api<{ jobs: Job[] }>(`/public/jobs${search ? `?q=${encodeURIComponent(search)}` : ''}`, {
-        signal,
-      }),
+      api<{ jobs: Job[] }>(
+        `/public/jobs?${new URLSearchParams({
+          ...(search ? { q: search } : {}),
+          ...(company ? { tenantId: company.id } : {}),
+        }).toString()}`,
+        { signal },
+      ),
   });
   return (
     <div className="mx-auto w-[90%] space-y-5">
@@ -74,7 +80,7 @@ export function JobBoardPage() {
         {jobs.data?.jobs.map((j) => (
           <li key={j.id}>
             <Link
-              to={`/jobs/${j.tenantId}/${j.id}`}
+              to={company ? `/${company.slug}/jobs/${j.id}` : `/jobs/${j.tenantId}/${j.id}`}
               className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
             >
               <span className="block font-medium">{j.title}</span>
@@ -92,7 +98,9 @@ export function JobBoardPage() {
 }
 
 export function JobDetailPage() {
-  const { tenantId, id } = useParams();
+  const { tenantId: tenantParam, id } = useParams();
+  const company = useCompanyPublic();
+  const tenantId = company?.id ?? tenantParam;
   const links = useCompanyLinks(tenantId);
   const { user } = useAuth();
   const toast = useToast();
@@ -214,7 +222,10 @@ export function JobDetailPage() {
         </Card>
       ) : (
         <Alert tone="info">
-          <Link className="font-medium font-medium" to={links.signIn(`/jobs/${tenantId}/${id}`)}>
+          <Link
+            className="font-medium font-medium"
+            to={links.signIn(company ? `/${company.slug}/jobs/${id}` : `/jobs/${tenantId}/${id}`)}
+          >
             Sign in
           </Link>{' '}
           or{' '}

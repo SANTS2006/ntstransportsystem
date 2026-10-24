@@ -1,4 +1,5 @@
 import { AlertTriangle, ArrowRight, Bus, Clock } from 'lucide-react';
+import { useCompanyPublic } from '../../lib/company-public';
 import { Link } from 'react-router';
 import { clockTime, duration, initials, money, moneyParts } from '../../lib/format';
 import { Badge } from '../ui/Card';
@@ -25,6 +26,7 @@ export const FEW_SEATS = 5;
 
 /** One departure: who runs it, when, where from and to, how many seats are left, and the price. */
 export function TripResultCard({ t }: { t: TripCardData }) {
+  const company = useCompanyPublic();
   const price = moneyParts(t.fareMinor, t.currency);
   const soldOut = t.seatsLeft <= 0;
   const few = !soldOut && t.seatsLeft <= FEW_SEATS;
@@ -106,7 +108,14 @@ export function TripResultCard({ t }: { t: TripCardData }) {
               </Badge>
             )}
             {!soldOut && (
-              <Link to={`/trips/${t.tenantId}/${t.tripId}`} className={linkButton('primary')}>
+              <Link
+                to={
+                  company
+                    ? `/${company.slug}/trips/${t.tripId}`
+                    : `/trips/${t.tenantId}/${t.tripId}`
+                }
+                className={linkButton('primary')}
+              >
                 Choose seats
                 <ArrowRight aria-hidden="true" className="size-4" strokeWidth={1.8} />
               </Link>

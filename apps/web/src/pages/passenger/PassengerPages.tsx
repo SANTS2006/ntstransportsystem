@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCompanyPublic } from '../../lib/company-public';
 import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
 import { Accessibility, Bus, Clock, Lock } from 'lucide-react';
@@ -89,7 +90,9 @@ export { TripSearchPage } from './TripSearchPage';
 // ---- Choose seats and book -------------------------------------------------------------------
 
 export function TripBookPage() {
-  const { tenantId, tripId } = useParams();
+  const { tenantId: tenantParam, tripId } = useParams();
+  const company = useCompanyPublic();
+  const tenantId = company?.id ?? tenantParam;
   const navigate = useNavigate();
   const { user } = useAuth();
   const [picked, setPicked] = useState<string[]>([]);
@@ -165,7 +168,10 @@ export function TripBookPage() {
     return (
       <div className="mx-auto w-[90%] space-y-4">
         <Alert tone="error">This trip is no longer available for online booking.</Alert>
-        <Link className="text-brand-700 font-medium" to="/trips">
+        <Link
+          className="text-brand-700 font-medium"
+          to={company ? `/${company.slug}/trips` : '/trips'}
+        >
           Back to search
         </Link>
       </div>
@@ -438,7 +444,9 @@ export function TripBookPage() {
             <Alert tone="info">
               <Link
                 className="font-medium font-medium"
-                to={links.signIn(`/trips/${tenantId}/${tripId}`)}
+                to={links.signIn(
+                  company ? `/${company.slug}/trips/${tripId}` : `/trips/${tenantId}/${tripId}`,
+                )}
               >
                 Sign in
               </Link>{' '}

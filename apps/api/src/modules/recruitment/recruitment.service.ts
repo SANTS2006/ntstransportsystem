@@ -388,11 +388,12 @@ export class RecruitmentService {
     };
   }
 
-  async listOpen(q?: string) {
+  async listOpen(q?: string, tenantId?: string) {
     const rows = await withDb(this.db, { platform: true }, (tx) =>
       tx.jobPosting.findMany({
         where: {
           ...this.openWhere(),
+          ...(tenantId ? { tenantId } : {}),
           ...(q ? { title: { contains: q, mode: 'insensitive' as const } } : {}),
         },
         include: { tenant: { select: { name: true } } },

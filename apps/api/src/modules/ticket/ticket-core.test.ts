@@ -26,7 +26,12 @@ describe('ticket QR token', () => {
     const other = '33333333-3333-4333-8333-333333333333';
     expect(parseTicketToken(key, [v, other, tic, sig].join('.'))).toBeNull(); // moved to another company
     expect(parseTicketToken(key, [v, ten, other, sig].join('.'))).toBeNull(); // another ticket
-    expect(parseTicketToken(key, [v, ten, tic, sig!.slice(0, -2) + 'AA'].join('.'))).toBeNull();
+    expect(
+      parseTicketToken(
+        key,
+        [v, ten, tic, sig!.slice(0, -2) + (sig!.endsWith('AA') ? 'BB' : 'AA')].join('.'),
+      ),
+    ).toBeNull();
     expect(parseTicketToken(key, [v, ten, tic].join('.'))).toBeNull();
     expect(parseTicketToken(key, ['t2', ten, tic, sig].join('.'))).toBeNull();
     expect(parseTicketToken(deriveTicketKey(randomBytes(32).toString('base64')), t)).toBeNull();

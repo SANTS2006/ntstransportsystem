@@ -54,12 +54,18 @@ export class PassengerService {
   }
 
   /** Public search. Only trips that can actually be bought online are returned. */
-  async search(q: { from?: string | undefined; to?: string | undefined; date: string }) {
+  async search(q: {
+    tenantId?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+    date: string;
+  }) {
     const now = new Date();
     return withDb(this.db, { platform: true }, async (tx) => {
       const trips = await tx.trip.findMany({
         where: {
           ...this.sellableTripFilter(now),
+          ...(q.tenantId ? { tenantId: q.tenantId } : {}),
           serviceDate: new Date(`${q.date}T00:00:00.000Z`),
           route: {
             ...this.sellableTripFilter(now).route,

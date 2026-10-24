@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthLayout } from './components/layout/AuthLayout';
+import { CompanyPublicLayout } from './components/layout/CompanyPublicLayout';
 import { AppShell, PublicLayout, RequireAuth } from './components/layout/Layouts';
 import { PageLoader } from './components/ui/Spinner';
 
@@ -111,6 +112,7 @@ const ProfilePage = lazy(() =>
   import('./pages/app/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 );
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
+const CompanyHome = lazy(() => import('./pages/company-public/CompanyHome'));
 const PlatformAuditPage = lazy(() =>
   import('./pages/platform/PlatformAuditPage').then((m) => ({ default: m.PlatformAuditPage })),
 );
@@ -247,6 +249,17 @@ export const router = createBrowserRouter([
       { path: 'profile', element: s(<ProfilePage />) },
       { path: 'security', element: s(<SecurityPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
+    ],
+  },
+  {
+    path: '/:slug',
+    element: <CompanyPublicLayout />,
+    children: [
+      { index: true, element: s(<CompanyHome />) },
+      { path: 'trips', element: s(<TripSearchPage />) },
+      { path: 'trips/:tripId', element: s(<TripBookPage />) },
+      { path: 'jobs', element: s(<JobBoardPage />) },
+      { path: 'jobs/:id', element: s(<JobDetailPage />) },
     ],
   },
   { path: '/dashboard', element: <Navigate to="/app" replace /> },

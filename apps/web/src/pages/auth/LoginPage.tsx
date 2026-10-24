@@ -183,10 +183,10 @@ export default function LoginPage() {
               Create an account
             </Link>
           </p>
-          <OrDivider />
-          <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
         </>
       )}
+      <OrDivider />
+      <GoogleButton text="signin_with" onCredential={(c) => google.mutate(c)} />
     </AuthCard>
   );
 }

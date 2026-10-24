@@ -39,14 +39,16 @@ export interface CompanyBrand {
 function Brand({
   company,
   onDark = false,
+  home,
 }: {
   company?: CompanyBrand | undefined;
   onDark?: boolean;
+  home?: string | undefined;
 }) {
   const name = company?.name ?? 'NTS Transport';
   return (
     <Link
-      to={company ? '.' : '/'}
+      to={home ?? (company ? '.' : '/')}
       aria-label={`${name} home`}
       className="flex min-w-0 items-center gap-2.5"
     >
@@ -123,6 +125,39 @@ export function Avatar({
   );
 }
 
+function CompanyFooter({ company, base }: { company: CompanyBrand; base: string }) {
+  const link = 'text-sm font-medium text-slate-700 hover:text-brand-700 dark:text-slate-300';
+  return (
+    <footer className="mt-16 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="mx-auto flex w-[90%] flex-wrap items-center justify-between gap-4 py-8">
+        <div>
+          <p className="font-semibold">{company.name}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Book seats and find jobs with {company.name}. Powered by NTS Transport.
+          </p>
+        </div>
+        <nav aria-label="Company" className="flex flex-wrap gap-x-6 gap-y-2">
+          <Link className={link} to={`${base}/trips`}>
+            Find a trip
+          </Link>
+          <Link className={link} to={`${base}/jobs`}>
+            Jobs
+          </Link>
+          <Link className={link} to={`${base}/login`}>
+            Sign in
+          </Link>
+          <Link className={link} to={`${base}/register`}>
+            Create account
+          </Link>
+        </nav>
+      </div>
+      <div className="border-t border-slate-100 py-4 text-center text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
+        © {new Date().getFullYear()} {company.name}
+      </div>
+    </footer>
+  );
+}
+
 function PublicFooter() {
   return (
     <footer className="mt-16 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -179,12 +214,20 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
       : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
   }`;
 
-export function PublicLayout() {
+export function PublicLayout({
+  company,
+  base = '',
+}: {
+  /** Set on a company's own public site: its name and logo replace the system's. */
+  company?: CompanyBrand;
+  /** The company's web address, e.g. /acme-coaches; empty on the system-wide pages. */
+  base?: string;
+}) {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const links = [
-    { to: '/trips', label: 'Find a trip' },
-    { to: '/jobs', label: 'Jobs' },
+    { to: `${base}/trips`, label: 'Find a trip' },
+    { to: `${base}/jobs`, label: 'Jobs' },
   ];
   return (
     <div className="flex min-h-dvh flex-col">
@@ -192,7 +235,7 @@ export function PublicLayout() {
       <MaintenanceBanner />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
         <div className="mx-auto flex w-[90%] items-center justify-between gap-3 py-2.5">
-          <Brand />
+          <Brand company={company} home={base || undefined} />
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
               <NavLink key={l.to} to={l.to} className={navLink}>
@@ -216,9 +259,19 @@ export function PublicLayout() {
               </>
             ) : (
               <>
-                <Link className={linkButton('primary')} to={signInPath(null)}>
+                <Link
+                  className={linkButton(base ? 'secondary' : 'primary')}
+                  to={base ? `${base}/login` : signInPath(null)}
+                >
                   Sign in
                 </Link>
+                {base && (
+                  <span className="hidden sm:block">
+                    <Link className={linkButton('primary')} to={`${base}/register`}>
+                      Create account
+                    </Link>
+                  </span>
+                )}
               </>
             )}
             <button
@@ -243,8 +296,17 @@ export function PublicLayout() {
               </NavLink>
             ))}
             {!user && (
-              <NavLink to={signInPath(null)} className={navLink} onClick={() => setOpen(false)}>
+              <NavLink
+                to={base ? `${base}/login` : signInPath(null)}
+                className={navLink}
+                onClick={() => setOpen(false)}
+              >
                 Sign in
+              </NavLink>
+            )}
+            {!user && base && (
+              <NavLink to={`${base}/register`} className={navLink} onClick={() => setOpen(false)}>
+                Create account
               </NavLink>
             )}
           </nav>
@@ -253,7 +315,7 @@ export function PublicLayout() {
       <main id="main" className="mx-auto w-[90%] flex-1 py-8 sm:py-10">
         <Outlet />
       </main>
-      <PublicFooter />
+      {company ? <CompanyFooter company={company} base={base} /> : <PublicFooter />}
     </div>
   );
 }

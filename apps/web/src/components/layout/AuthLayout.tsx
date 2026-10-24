@@ -46,7 +46,7 @@ function HeroPanel({ company }: { company?: PublicCompany | undefined }) {
   return (
     <aside className="relative hidden flex-col justify-between gap-6 overflow-hidden px-8 pt-10 lg:flex xl:px-16 xl:pt-12">
       <div>
-        <Link to="/" aria-label="NTS Transport home" className="inline-block">
+        <Link to={company ? `/${company.slug}` : '/'} aria-label="Home" className="inline-block">
           {company ? (
             company.logoUrl ? (
               <img
@@ -173,7 +173,7 @@ export function AuthLayout() {
           className="relative flex min-w-0 flex-col items-center justify-center gap-4 px-4 pb-8 pt-16 sm:gap-5 sm:px-8"
         >
           <ThemeToggle className="absolute right-4 top-4" />
-          <Link to="/" aria-label="NTS Transport home" className="lg:hidden">
+          <Link to={company ? `/${company.slug}` : '/'} aria-label="Home" className="lg:hidden">
             {company ? (
               company.logoUrl ? (
                 <img

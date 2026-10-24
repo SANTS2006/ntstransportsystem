@@ -266,15 +266,47 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       expect(await db.user.count({ where: { email: p.email } })).toBe(0);
     });
 
-    it('never auto-links to an existing verified account', async () => {
+    it('signs in to an existing confirmed account with the same email and remembers Google', async () => {
       const u = await signedInUser();
       const p = profile({ email: u.email });
       const res = await api()
         .post('/api/v1/auth/google')
-        .send({ companySlug: SLUG, credential: ctx.google.issue(p) });
-      expect(res.status).toBe(409);
-      expect(cookie(res, 'sid')).toBeUndefined();
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
+        .expect(200);
+      expect(cookie(res, 'sid')).toBeTruthy();
+      expect(await db.authIdentity.count({ where: { subject: p.sub } })).toBe(1);
+      // The next time it is the Google account that is recognised.
+      await api()
+        .post('/api/v1/auth/google')
+        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
+        .expect(200);
+    });
+
+    it('keeps Google to the right sign-in page', async () => {
+      const u = await signedInUser();
+      const p = profile({ email: u.email });
+      // An ordinary account is not let in on the main (platform administrator) page.
+      const main = await api()
+        .post('/api/v1/auth/google')
+        .send({ credential: ctx.google.issue(p) })
+        .expect(403);
+      expect(main.body.error.code).toBe('WRONG_SIGN_IN_PAGE');
       expect(await db.authIdentity.count({ where: { subject: p.sub } })).toBe(0);
+      // A new account cannot be created on the main page either.
+      await api()
+        .post('/api/v1/auth/google')
+        .send({ credential: ctx.google.issue(profile()) })
+        .expect(403);
+      // A platform administrator signs in with Google on the main page.
+      const admin = await signedInUser();
+      const adminRow = await db.user.findUniqueOrThrow({ where: { email: admin.email } });
+      await db.platformRoleAssignment.create({
+        data: { userId: adminRow.id, role: 'SUPER_ADMIN' },
+      });
+      await api()
+        .post('/api/v1/auth/google')
+        .send({ credential: ctx.google.issue(profile({ email: admin.email })) })
+        .expect(200);
     });
 
     it('takes over an unverified password account and removes the squatter password', async () => {
@@ -296,45 +328,9 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
         .expect(401);
     });
 
-    it('links Google from a signed-in session after re-entering the password', async () => {
-      const u = await signedInUser();
-      const p = profile({ email: `${uniq('other')}@example.test` });
-      const credential = ctx.google.issue(p);
-      await u
-        .authed('post', '/google/link')
-        .send({ companySlug: SLUG, credential, currentPassword: 'wrong-password-123' })
-        .expect(403);
-      await u
-        .authed('post', '/google/link')
-        .send({ companySlug: SLUG, credential, currentPassword: PASSWORD })
-        .expect(200);
-      await api()
-        .post('/api/v1/auth/google')
-        .send({ companySlug: SLUG, credential: ctx.google.issue(p) })
-        .expect(200);
-    });
-
-    it('refuses to link a Google account already linked to someone else', async () => {
-      const first = await signedInUser();
-      const second = await signedInUser();
-      const p = profile();
-      await first
-        .authed('post', '/google/link')
-        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
-        .expect(200);
-      await second
-        .authed('post', '/google/link')
-        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
-        .expect(409);
-    });
-
     it('requires MFA after Google sign-in when the account has it', async () => {
       const u = await enrolledUser();
-      const p = profile({ email: `${uniq('mg')}@example.test` });
-      await u
-        .authed('post', '/google/link')
-        .send({ companySlug: SLUG, credential: ctx.google.issue(p), currentPassword: PASSWORD })
-        .expect(200);
+      const p = profile({ email: u.email });
       const res = await api()
         .post('/api/v1/auth/google')
         .send({ companySlug: SLUG, credential: ctx.google.issue(p) })

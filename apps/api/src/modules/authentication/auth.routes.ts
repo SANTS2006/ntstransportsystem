@@ -63,9 +63,6 @@ const credentialSchema = z.object({
   /** The company page the button is on; absent on the main page. */
   companySlug: companySlugSchema.optional(),
 });
-const googleLinkSchema = credentialSchema.extend({
-  currentPassword: z.string().max(128).optional(),
-});
 const disableMfaSchema = z.object({ code: mfaCode, password: z.string().max(128).optional() });
 const codeOnlySchema = z.object({ code: mfaCode });
 
@@ -191,11 +188,6 @@ export function authRouter({
           credentialSchema.parse(req.body).companySlug,
         ),
       );
-    });
-    r.post('/google/link', requireAuth, limiter('google-link', 10), async (req, res) => {
-      const body = googleLinkSchema.parse(req.body);
-      await google.link(me(req).userId, body.credential, body.currentPassword, meta(req));
-      res.json({ message: 'Google account linked' });
     });
   }
 
@@ -349,7 +341,6 @@ export const requestSchemas = {
   resetPhoneSchema,
   mfaVerifySchema,
   credentialSchema,
-  googleLinkSchema,
   disableMfaSchema,
   codeOnlySchema,
 };

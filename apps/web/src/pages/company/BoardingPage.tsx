@@ -1,9 +1,10 @@
-import { CheckCircle2, ScanLine, XCircle } from 'lucide-react';
+import { Camera, CameraOff, CheckCircle2, ScanLine, XCircle } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListTools } from '../../components/ui/ListTools';
 import { useEffect, useRef, useState } from 'react';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
+import { CameraScanner } from '../../components/ui/CameraScanner';
 import { Badge, Card } from '../../components/ui/Card';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api, ApiError } from '../../lib/api';
@@ -32,6 +33,29 @@ interface Manifest {
 }
 type Outcome = { kind: 'ok'; text: string } | { kind: 'refused'; text: string };
 
+/** A short beep and buzz, so the person scanning knows the answer without looking. */
+function signal(ok: boolean) {
+  try {
+    navigator.vibrate?.(ok ? 80 : [120, 80, 120]);
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const tone = ctx.createOscillator();
+    const gain = ctx.createGain();
+    tone.frequency.value = ok ? 1046 : 220;
+    tone.type = ok ? 'sine' : 'square';
+    gain.gain.value = 0.08;
+    tone.connect(gain).connect(ctx.destination);
+    tone.start();
+    tone.stop(ctx.currentTime + (ok ? 0.12 : 0.35));
+    tone.onended = () => void ctx.close();
+  } catch {
+    /* sound and vibration are extras */
+  }
+}
+
 const REASON_HELP: Record<string, string> = {
   ALREADY_BOARDED: 'Do not let them board again.',
   VOID: 'Send them to the ticket office.',
@@ -57,6 +81,9 @@ export function BoardingPage() {
   const [value, setValue] = useState('');
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [camera, setCamera] = useState(false);
+  /** The same code seen again within a few seconds is the same ticket still in front of the camera. */
+  const lastSeen = useRef<{ text: string; at: number } | null>(null);
 
   const manifest = useQuery({
     queryKey: ['company', tenantId, 'manifest', tripId],
@@ -77,6 +104,7 @@ export function BoardingPage() {
       );
     },
     onSuccess: async (r) => {
+      signal(true);
       setOutcome({
         kind: 'ok',
         text: `Welcome aboard: ${r.ticket.passengerName}, seat ${r.ticket.seat}`,
@@ -84,6 +112,7 @@ export function BoardingPage() {
       await qc.invalidateQueries({ queryKey: ['company', tenantId, 'manifest', tripId] });
     },
     onError: (e) => {
+      signal(false);
       const reason =
         e instanceof ApiError ? (e.details as { reason?: string } | undefined)?.reason : undefined;
       setOutcome({
@@ -93,9 +122,18 @@ export function BoardingPage() {
     },
     onSettled: () => {
       setValue('');
-      input.current?.focus();
+      if (!camera) input.current?.focus();
     },
   });
+  const onCameraCode = (raw: string) => {
+    const text = raw.trim();
+    const now = Date.now();
+    const last = lastSeen.current;
+    if (!text || scan.isPending) return;
+    if (last && last.text === text && now - last.at < 20_000) return;
+    lastSeen.current = { text, at: now };
+    scan.mutate(text);
+  };
   useEffect(() => {
     if (tripId) input.current?.focus();
   }, [tripId]);
@@ -164,6 +202,35 @@ export function BoardingPage() {
           )}
 
           <Card title="Scan or enter a ticket">
+            <div className="mb-4 space-y-3">
+              {camera ? (
+                <>
+                  <CameraScanner onDetect={onCameraCode} />
+                  <div className="flex justify-center">
+                    <Button variant="secondary" onClick={() => setCamera(false)}>
+                      <CameraOff aria-hidden="true" className="size-4" strokeWidth={1.8} />
+                      Stop the camera
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <Button
+                  className="min-h-14 w-full text-base sm:w-auto"
+                  onClick={() => {
+                    setOutcome(null);
+                    lastSeen.current = null;
+                    setCamera(true);
+                  }}
+                >
+                  <Camera aria-hidden="true" className="size-5" strokeWidth={1.8} />
+                  Scan tickets with the camera
+                </Button>
+              )}
+              <p className="text-xs text-slate-500">
+                Point the camera at the ticket&apos;s QR code or barcode: it is checked straight
+                away, and the camera stays on for the next passenger.
+              </p>
+            </div>
             <form
               className="flex flex-wrap items-end gap-3"
               onSubmit={(e) => {

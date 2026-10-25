@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { linkButton } from '../../components/ui/Button';
@@ -27,6 +27,39 @@ interface BookingSummary {
   destination: { city: string };
   departureAt: string;
   tripStatus: string;
+}
+
+/** A barcode of the ticket code, for scanners and cameras that read barcodes. Drawn in the browser. */
+function Barcode({ code }: { code: string }) {
+  const ref = useRef<SVGSVGElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void import('jsbarcode')
+      .then(({ default: JsBarcode }) => {
+        if (!live || !ref.current) return;
+        JsBarcode(ref.current, code, {
+          format: 'CODE128',
+          displayValue: false,
+          height: 48,
+          margin: 6,
+          background: '#ffffff',
+        });
+        setReady(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [code]);
+  return (
+    <svg
+      ref={ref}
+      role="img"
+      aria-label={`Barcode of ticket code ${code}`}
+      className={`h-14 w-full max-w-64 rounded bg-white ${ready ? '' : 'invisible'}`}
+    />
+  );
 }
 
 /** Renders the signed token as an SVG QR code in the browser; the token never leaves the page. */
@@ -151,14 +184,15 @@ export function MyTicketsPage() {
                     <p className="text-sm text-slate-600 dark:text-slate-400">
                       Code <span className="font-mono font-semibold">{t.code}</span>
                     </p>
+                    {!gone && <Barcode code={t.code} />}
                   </div>
                 </li>
               );
             })}
           </ul>
           <p className="text-xs text-slate-500">
-            Show the QR code to the driver when boarding. If it will not scan, read out the code.
-            Each ticket works once.
+            Show the QR code or the barcode to the driver when boarding. If neither will scan, read
+            out the code. Each ticket works once.
           </p>
         </>
       )}

@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import bwipjs from 'bwip-js/node';
 import QRCode from 'qrcode';
 
 export interface DocTicket {
@@ -98,11 +99,16 @@ export async function renderTicketsPdf(d: DocData): Promise<Buffer> {
     }
     const x = doc.page.width - 36 - 150;
     doc.image(png, x, doc.page.height - 36 - 150 - 30, { width: 150, height: 150 });
+    if (t.status !== 'VOID') {
+      // A barcode of the ticket code as well, for barcode scanners.
+      const bars = await bwipjs.toBuffer({ bcid: 'code128', text: t.code, scale: 3, height: 12 });
+      doc.image(bars, 36, doc.page.height - 36 - 70 - 30, { width: 200, height: 60 });
+    }
     doc
       .fontSize(8)
       .fillColor('#64748b')
       .text(
-        'Show this QR code when boarding. Valid for this trip and seat only. Each ticket can be used once.',
+        'Show the QR code or the barcode when boarding. Valid for this trip and seat only. Each ticket can be used once.',
         36,
         doc.page.height - 36 - 24,
         { width: doc.page.width - 72 },

@@ -922,7 +922,9 @@ try {
   console.log(
     `Done: Sierra Express Coaches (/${SLUG}) with ${PEOPLE.length} accounts, ${trips.length} trips, ${bookings.length} bookings and ${tickets.length} tickets.`,
   );
-  console.log(`Sign-in details are in .test-data.${target}.json at the project root (git-ignored).`);
+  console.log(
+    `Sign-in details are in .test-data.${target}.json at the project root (git-ignored).`,
+  );
 } catch (err) {
   // Leave nothing half made: the company (and everything under it) and its test accounts go.
   console.error('Seeding failed; removing what was created so it can simply be run again.');

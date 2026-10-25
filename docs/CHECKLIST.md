@@ -318,3 +318,11 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Verification-code email is sent in the company's brand and links to the company page.
 - [x] Company colours: a company with only a main colour gets a lighter shade of it as its second colour (sidebar sign-out and picture placeholder), never the system orange.
 - [x] Security page wraps long device names, QR code, code form and recovery codes on small screens; global rules stop text, fields, buttons and media from overflowing; dialogs have a shadow and no border.
+
+## Company-scoped recovery, duplicate-request safety, hardening
+
+- [x] Password reset, reset by text, and code resend are scoped to the page that asked: a company's page serves only the people who signed up on it and its own staff; the main page serves platform administrators only. Anyone else gets the same generic answer and nothing is sent (audited as DENIED `wrong_page`). Platform administrators cannot request from a company page. The link and look are that company's.
+- [x] Repeated writes: every write carries an `Idempotency-Key`; the server (`platform/idempotency.ts`) runs a repeated request once and replays the answer (waiting repeats join the first; server errors are not remembered). The browser also merges identical writes still in flight, and re-sends a write dropped by a bad connection (never sign-in/sign-up calls) with the same key.
+- [x] Slow links: offline banner, instant "you are offline" instead of a spinner, cached screens shown while offline, backed-off query retries, service worker caches built files.
+- [x] Flood control on the whole API (reads and writes counted apart, shared via Redis when set) and an hourly cap on platform e-mail; the large JSON body for platform e-mail is accepted only with a session cookie; subject line is flattened to one line.
+- [x] Fixed: two sign-ups for one address at once no longer fail with a server error; terminating an employee also ends their access to the company (owners excepted); platform e-mail audit runs in platform scope.

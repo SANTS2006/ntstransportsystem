@@ -208,7 +208,7 @@ describe.skipIf(!TEST_DB_URL)('notifications from the outbox (database)', () => 
     expect(k.mailer.to(k.owner_email)).toHaveLength(0); // the owner made the booking on the counter
     const m = k.mailer.to('fanta@example.test')[0]!;
     expect(m.data).toMatchObject({ seats: '1, 2' });
-    expect(m.data.link).toMatch(new RegExp(`^https://app\.test/[a-z0-9-]+/bookings/${b.id}$`));
+    expect(m.data.link).toMatch(new RegExp(`^https://app[.]test/[a-z0-9-]+/bookings/${b.id}$`));
     expect(m.data.reference).toMatch(/^[0-9A-Z]{10}$/);
     // Nothing is sent twice by a second pass.
     expect((await k.drain()).claimed).toBe(0);

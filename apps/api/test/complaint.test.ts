@@ -273,7 +273,7 @@ describe.skipIf(!TEST_DB_URL)('complaints and trip ratings (database)', () => {
     const toPassenger = mailer.sent.filter((m) => m.template === 'complaint-reply');
     expect(toPassenger).toHaveLength(1);
     expect(toPassenger[0]!.data.link).toMatch(
-      new RegExp(`^https://app\.test/[a-z0-9-]+/complaints/${made.id}$`),
+      new RegExp(`^https://app[.]test/[a-z0-9-]+/complaints/${made.id}$`),
     );
     expect(JSON.stringify(mailer.sent)).not.toContain('077123456');
     expect(JSON.stringify(mailer.sent)).not.toContain('refunded');

@@ -242,6 +242,7 @@ export function buildOpenApi(
                     'EMAIL_NOT_VERIFIED',
                     'PASSWORD_CHANGE_REQUIRED',
                     'WRONG_SIGN_IN_PAGE',
+                    'ROLE_NOT_ACTIVE',
                     'INTERNAL_ERROR',
                   ],
                 },

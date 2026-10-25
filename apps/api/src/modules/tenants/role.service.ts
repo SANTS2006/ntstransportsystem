@@ -21,7 +21,7 @@ export class RoleService {
     const roles = await withDb(this.db, this.ctx(s), (tx) =>
       tx.role.findMany({
         where: { tenantId: s.tenantId },
-        include: { permissions: true, _count: { select: { memberships: true } } },
+        include: { permissions: true, _count: { select: { heldBy: true } } },
         orderBy: { createdAt: 'asc' },
       }),
     );
@@ -30,7 +30,7 @@ export class RoleService {
       key: r.key,
       name: r.name,
       isSystem: r.isSystem,
-      members: r._count.memberships,
+      members: r._count.heldBy,
       permissions: r.permissions.map((p) => p.permission).sort(),
     }));
   }
@@ -117,7 +117,7 @@ export class RoleService {
       if (!role) throw AppError.notFound();
       if (role.isSystem) throw AppError.forbidden('System roles cannot be deleted');
       const inUse =
-        (await tx.membership.count({ where: { roleId } })) +
+        (await tx.membershipRole.count({ where: { roleId } })) +
         (await tx.invitation.count({ where: { roleId } }));
       if (inUse > 0) throw AppError.conflict('This role is still assigned or referenced');
       await tx.role.delete({ where: { id: roleId } });

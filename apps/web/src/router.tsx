@@ -43,11 +43,14 @@ const CompanyLayout = lazy(() =>
 const CompanyOverview = lazy(() =>
   import('./pages/company/CompanyPages').then((m) => ({ default: m.CompanyOverview })),
 );
-const TeamPage = lazy(() =>
-  import('./pages/company/CompanyPages').then((m) => ({ default: m.TeamPage })),
+const CompanyStaffPage = lazy(() =>
+  import('./pages/company/CompanyPages').then((m) => ({ default: m.StaffPage })),
+);
+const UsersPage = lazy(() =>
+  import('./pages/company/AccessPages').then((m) => ({ default: m.UsersPage })),
 );
 const RolesPage = lazy(() =>
-  import('./pages/company/CompanyPages').then((m) => ({ default: m.RolesPage })),
+  import('./pages/company/AccessPages').then((m) => ({ default: m.RolesPage })),
 );
 const ActivityPage = lazy(() =>
   import('./pages/company/CompanyPages').then((m) => ({ default: m.ActivityPage })),
@@ -112,6 +115,12 @@ const ProfilePage = lazy(() =>
   import('./pages/app/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 );
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
+const TermsPage = lazy(() =>
+  import('./pages/legal/LegalPages').then((m) => ({ default: m.TermsPage })),
+);
+const PrivacyPage = lazy(() =>
+  import('./pages/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })),
+);
 const CompanyHome = lazy(() => import('./pages/company-public/CompanyHome'));
 const PlatformAuditPage = lazy(() =>
   import('./pages/platform/PlatformAuditPage').then((m) => ({ default: m.PlatformAuditPage })),
@@ -168,6 +177,8 @@ function RootRedirect() {
 export const router = createBrowserRouter([
   // The system itself has no public site: each company has its own at /<web-address-name>.
   { path: '/', element: <RootRedirect /> },
+  { path: '/terms', element: s(<TermsPage />) },
+  { path: '/privacy', element: s(<PrivacyPage />) },
   {
     path: '/pay/return',
     element: (
@@ -224,7 +235,8 @@ export const router = createBrowserRouter([
       { path: 'branding', element: s(<BrandingPage />) },
       { path: 'profile', element: s(<ProfilePage />) },
       { path: 'security', element: s(<SecurityPage />) },
-      { path: 'members', element: s(<TeamPage />) },
+      { path: 'members', element: s(<CompanyStaffPage />) },
+      { path: 'users', element: s(<UsersPage />) },
       { path: 'roles', element: s(<RolesPage />) },
       { path: 'audit', element: s(<ActivityPage />) },
       { path: 'locations', element: s(<LocationsPage />) },

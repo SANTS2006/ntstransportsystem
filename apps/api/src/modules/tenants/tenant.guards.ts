@@ -43,7 +43,7 @@ export function uuidParam(req: Request, name: string): string {
  */
 export function tenantScope(
   db: Db,
-  opts: { allowStatuses?: readonly TenantStatus[] } = {},
+  opts: { allowStatuses?: readonly TenantStatus[]; allowPassengerMode?: boolean } = {},
 ): RequestHandler {
   const allowed = opts.allowStatuses ?? ['ACTIVE'];
   return async (req, _res, next) => {
@@ -58,6 +58,16 @@ export function tenantScope(
       }),
     );
     if (!membership) return next(AppError.notFound());
+    // Acting as a passenger: nothing of the staff roles is reachable until they switch back.
+    if (membership.passengerMode && !opts.allowPassengerMode) {
+      return next(
+        new AppError(
+          403,
+          'ROLE_NOT_ACTIVE',
+          'You are using the Passenger role. Switch to a company role to use this.',
+        ),
+      );
+    }
     if (!allowed.includes(membership.tenant.status)) {
       return next(AppError.forbidden('This company is not currently active'));
     }
@@ -124,6 +134,33 @@ export function platformGuard(db: Db, allowed: readonly PlatformRole[]): Request
       );
     }
     req.platform = { userId, roles };
+    next();
+  };
+}
+
+/**
+ * The passenger features (bookings, tickets, complaints, job applications) belong to the Passenger
+ * role. A staff member who is acting as one of their company roles must switch to Passenger first.
+ * Ordinary accounts and staff who are acting as passengers pass straight through.
+ */
+export function passengerRoleGuard(db: Db): RequestHandler {
+  return async (req, _res, next) => {
+    if (!req.auth) return next(); // the route's own sign-in check answers
+    const userId = req.auth.userId;
+    const acting = await withDb(db, { userId }, (tx) =>
+      tx.membership.count({
+        where: { userId, status: 'ACTIVE', passengerMode: false, tenant: { status: 'ACTIVE' } },
+      }),
+    );
+    if (acting > 0) {
+      return next(
+        new AppError(
+          403,
+          'ROLE_NOT_ACTIVE',
+          'You are acting as a company role. Switch to the Passenger role to use this.',
+        ),
+      );
+    }
     next();
   };
 }

@@ -216,6 +216,7 @@ model Role {
   tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   memberships Membership[]
+  heldBy      MembershipRole[]
   invitations Invitation[]
   locations   Location[]
   vehicles    Vehicle[]
@@ -240,19 +241,21 @@ model RolePermission {
 }
 
 model Membership {
-  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String           @map("tenant_id") @db.Uuid
-  userId    String           @map("user_id") @db.Uuid
-  roleId    String           @map("role_id") @db.Uuid
-  status    MembershipStatus @default(INVITED)
-  invitedBy String?          @map("invited_by") @db.Uuid
-  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  roleId        String           @map("role_id") @db.Uuid
+  status        MembershipStatus @default(INVITED)
+  passengerMode Boolean          @default(false) @map("passenger_mode")
+  invitedBy     String?          @map("invited_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Composite FK: the role must belong to the same tenant as the membership.
-  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id])
+  role   Role             @relation(fields: [tenantId, roleId], references: [tenantId, id])
+  roles  MembershipRole[]
 
   @@unique([tenantId, userId])
   @@index([userId])
@@ -1361,4 +1364,20 @@ model StopFare {
   @@unique([routeId, fromLocationId, toLocationId])
   @@index([tenantId, routeId])
   @@map("stop_fares")
+}
+
+/// Every role a staff member holds in a company. memberships.role_id is the one they act as now.
+model MembershipRole {
+  membershipId String   @map("membership_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [tenantId, roleId], references: [tenantId, id])
+
+  @@id([membershipId, roleId])
+  @@index([tenantId])
+  @@index([roleId])
+  @@map("membership_roles")
 }

@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataTable } from '../../components/ui/DataTable';
+import { StaffRolesDialog, type RoleRow } from './AccessPages';
 import { ModalCard } from '../../components/ui/ModalCard';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,6 +22,7 @@ import {
   ScanLine,
   Ticket,
   UserPlus,
+  UserRound,
   Users,
   Wallet,
   Waypoints,
@@ -35,11 +37,11 @@ import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell, type NavItem } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card, StatusBadge } from '../../components/ui/Card';
+import { Badge, Card, StatusBadge } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { PageLoader, Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
+import { ApiError, api } from '../../lib/api';
 import { email } from '../../lib/schemas';
 import { AccessContext, can, useCompany, type CompanyAccess } from './company-context';
 import { CompanyPulse } from './CompanyPulse';
@@ -83,6 +85,10 @@ export function CompanyLayout() {
         <Spinner size="lg" label="Loading company" />
       </div>
     );
+  // Acting as a passenger: this area is closed until they switch back to a company role.
+  if (q.error instanceof ApiError && q.error.code === 'ROLE_NOT_ACTIVE') {
+    return <Navigate to="/app" replace />;
+  }
   if (q.error || !q.data) {
     // Non-members and unknown companies look identical (404) by design.
     return (
@@ -111,9 +117,10 @@ export function CompanyLayout() {
     add(can(a, 'fleet.read'), 'Network', 'seat-layouts', 'Seat layouts', Armchair);
     add(can(a, 'booking.read'), 'Sales', 'bookings', 'Bookings', Ticket);
     add(can(a, 'payment.manage'), 'Sales', 'payments', 'Payments', Wallet);
-    add(can(a, 'membership.read'), 'People', 'members', 'Team', Users);
+    add(can(a, 'membership.read'), 'People', 'members', 'Staff', Users);
+    add(can(a, 'membership.read'), 'People', 'users', 'Users', UserRound);
     add(can(a, 'role.read'), 'People', 'roles', 'Roles', KeyRound);
-    add(can(a, 'hr.read'), 'People', 'staff', 'Staff', IdCard);
+    add(can(a, 'hr.read'), 'People', 'staff', 'Employees', IdCard);
     add(can(a, 'recruitment.manage'), 'People', 'recruitment', 'Recruitment', UserPlus);
     add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
     add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
@@ -246,17 +253,10 @@ interface Member {
   displayName: string;
   status: string;
   role: { id: string; key: string; name: string };
+  roles: { id: string; key: string; name: string }[];
+  passengerMode: boolean;
 }
-interface RoleRow {
-  id: string;
-  key: string;
-  name: string;
-  isSystem: boolean;
-  members: number;
-  permissions: string[];
-}
-
-export function TeamPage() {
+export function StaffPage() {
   const { tenantId, access } = useCompany();
   const { user } = useAuth();
   const toast = useToast();
@@ -280,6 +280,7 @@ export function TeamPage() {
       ),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
+  const [rolesFor, setRolesFor] = useState<Member | null>(null);
   const ask = useConfirm();
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/tenants/${tenantId}/memberships/${id}`, { method: 'DELETE' }),
@@ -289,18 +290,6 @@ export function TeamPage() {
     },
     onError: (e) => toast(e instanceof Error ? e.message : 'Could not remove member', 'error'),
   });
-  const changeRole = useMutation({
-    mutationFn: (v: { id: string; roleKey: string }) =>
-      api(`/tenants/${tenantId}/memberships/${v.id}`, {
-        method: 'PATCH',
-        body: { roleKey: v.roleKey },
-      }),
-    onSuccess: async () => {
-      toast('Role updated', 'success');
-      await refresh();
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Could not change role', 'error'),
-  });
   const cancelInvite = useMutation({
     mutationFn: (id: string) => api(`/tenants/${tenantId}/invitations/${id}`, { method: 'DELETE' }),
     onSuccess: refresh,
@@ -308,11 +297,26 @@ export function TeamPage() {
 
   return (
     <div className="w-full space-y-6">
-      <h1 className="text-2xl font-semibold">Team</h1>
+      <div>
+        <h1 className="text-2xl">Staff</h1>
+        <p className="text-sm text-slate-700 dark:text-slate-300">
+          The people who work for your company. A staff member can hold several roles and switch
+          between them, and between those roles and the passenger role.
+        </p>
+      </div>
       {can(access, 'membership.invite') && (
         <InviteForm roles={roles.data?.roles ?? []} onInvited={refresh} />
       )}
-      <Card title="Members">
+      <StaffRolesDialog
+        member={rolesFor}
+        allRoles={roles.data?.roles ?? []}
+        onClose={() => setRolesFor(null)}
+        onChanged={async () => {
+          await refresh();
+          setRolesFor((cur) => cur);
+        }}
+      />
+      <Card title="Staff members">
         {members.isPending && <PageLoader label="Loading team" />}
         {members.error && (
           <ErrorAlert error={members.error} onRetry={() => void members.refetch()} />
@@ -320,7 +324,7 @@ export function TeamPage() {
         <DataTable
           rows={(members.data?.memberships ?? []).filter((x) => x.status === 'ACTIVE')}
           rowKey={(x) => x.id}
-          empty="No team members yet."
+          empty="No staff yet. Invite someone to add them."
           columns={[
             {
               key: 'person',
@@ -342,28 +346,28 @@ export function TeamPage() {
               ),
             },
             {
-              key: 'role',
-              header: 'Role',
-              cell: (x) =>
-                can(access, 'membership.invite') && roles.data && x.userId !== user?.id ? (
-                  <select
-                    aria-label={`Role for ${x.displayName}`}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-                    value={x.role.key}
-                    disabled={changeRole.isPending}
-                    onChange={(e) => changeRole.mutate({ id: x.id, roleKey: e.target.value })}
-                  >
-                    {roles.data.roles.map((r) => (
-                      <option key={r.id} value={r.key}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span>{x.role.name}</span>
-                ),
+              key: 'roles',
+              header: 'Roles',
+              cell: (x) => (
+                <div className="flex flex-wrap gap-1.5">
+                  {x.roles.map((r) => (
+                    <Badge
+                      key={r.id}
+                      tone={r.id === x.role.id && !x.passengerMode ? 'green' : 'slate'}
+                      icon={null}
+                    >
+                      {r.name}
+                    </Badge>
+                  ))}
+                  {x.passengerMode && (
+                    <Badge tone="amber" icon={null}>
+                      Acting as passenger
+                    </Badge>
+                  )}
+                </div>
+              ),
             },
-            ...(can(access, 'membership.revoke')
+            ...(can(access, 'membership.revoke') || can(access, 'membership.invite')
               ? [
                   {
                     key: 'actions',
@@ -371,24 +375,33 @@ export function TeamPage() {
                     kind: 'actions' as const,
                     cell: (x: Member) =>
                       x.userId === user?.id ? null : (
-                        <Button
-                          variant="danger"
-                          loading={revoke.isPending && revoke.variables === x.id}
-                          loadingText="Removing…"
-                          onClick={async () => {
-                            if (
-                              await ask({
-                                title: `Remove ${x.displayName}?`,
-                                message: 'They lose access to this company straight away.',
-                                confirmLabel: 'Remove',
-                                danger: true,
-                              })
-                            )
-                              revoke.mutate(x.id);
-                          }}
-                        >
-                          Remove
-                        </Button>
+                        <>
+                          {can(access, 'membership.invite') && (
+                            <Button variant="secondary" onClick={() => setRolesFor(x)}>
+                              Roles
+                            </Button>
+                          )}
+                          {can(access, 'membership.revoke') && (
+                            <Button
+                              variant="danger"
+                              loading={revoke.isPending && revoke.variables === x.id}
+                              loadingText="Removing…"
+                              onClick={async () => {
+                                if (
+                                  await ask({
+                                    title: `Remove ${x.displayName}?`,
+                                    message: 'They lose access to this company straight away.',
+                                    confirmLabel: 'Remove',
+                                    danger: true,
+                                  })
+                                )
+                                  revoke.mutate(x.id);
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </>
                       ),
                   },
                 ]
@@ -501,46 +514,6 @@ function InviteForm({ roles, onInvited }: { roles: RoleRow[]; onInvited: () => P
 }
 
 // ---- Roles -----------------------------------------------------------------------------------
-
-export function RolesPage() {
-  const { tenantId } = useCompany();
-  const q = useQuery({
-    queryKey: ['company', tenantId, 'roles'],
-    queryFn: ({ signal }) =>
-      api<{ roles: RoleRow[]; catalog: string[] }>(`/tenants/${tenantId}/roles`, { signal }),
-  });
-  return (
-    <div className="w-full space-y-4">
-      <h1 className="text-2xl font-semibold">Roles & permissions</h1>
-      {q.isPending && <PageLoader label="Loading roles" />}
-      {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-      {q.data?.roles.map((r) => (
-        <Card
-          key={r.id}
-          title={r.name}
-          action={
-            r.isSystem ? (
-              <span className="text-xs text-slate-500">System role (locked)</span>
-            ) : (
-              <span className="text-xs text-slate-500">{r.members} member(s)</span>
-            )
-          }
-        >
-          <ul className="flex flex-wrap gap-2">
-            {r.permissions.map((p) => (
-              <li
-                key={p}
-                className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs dark:bg-slate-800"
-              >
-                {p}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ))}
-    </div>
-  );
-}
 
 // ---- Activity --------------------------------------------------------------------------------
 

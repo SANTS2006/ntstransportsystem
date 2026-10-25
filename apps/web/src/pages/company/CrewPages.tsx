@@ -101,7 +101,7 @@ export function StaffPage() {
 
   return (
     <div className="w-full space-y-6">
-      <Title>Staff</Title>
+      <Title>Employees</Title>
       {manage && (
         <ModalCard title="Add an employee" open={adding816} onOpenChange={setAdding816}>
           <form

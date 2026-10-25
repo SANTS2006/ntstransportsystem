@@ -60,6 +60,7 @@ import { PlatformReportService } from './modules/report/platform-report.service.
 import { PlatformAuditService } from './modules/audit/platform-audit.service.js';
 import { BrandingService } from './modules/branding/branding.service.js';
 import { brandingRouter } from './modules/branding/branding.routes.js';
+import { passengerRoleGuard } from './modules/tenants/tenant.guards.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
 import { RoleService } from './modules/tenants/role.service.js';
 import { TenantService } from './modules/tenants/tenant.service.js';
@@ -146,6 +147,8 @@ export function createApp({
 
   const v1 = Router();
   v1.use(originGuard(env));
+  // Passenger features belong to the Passenger role: staff acting as a company role switch first.
+  if (db) v1.use(['/passenger', '/applicant'], passengerRoleGuard(db));
   if (db && mailer) {
     const box = env.MFA_ENCRYPTION_KEY ? new SecretBox(env.MFA_ENCRYPTION_KEY) : undefined;
     const mfa = box ? new MfaService(db, box, 'NTS Transport') : undefined;

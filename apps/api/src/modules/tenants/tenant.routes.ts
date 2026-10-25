@@ -48,6 +48,8 @@ const inviteSchema = z
   .object({ email: z.string().trim().toLowerCase().pipe(z.email().max(254)), roleKey })
   .strict();
 const changeRoleSchema = z.object({ roleKey }).strict();
+const addRoleSchema = z.object({ roleId: z.uuid() }).strict();
+const switchRoleSchema = z.object({ role: z.union([z.literal('passenger'), z.uuid()]) }).strict();
 const createRoleSchema = z
   .object({
     key: roleKey,
@@ -114,6 +116,22 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
     },
   );
 
+  r.post(
+    '/tenants/:tenantId/me/switch-role',
+    requireAuth,
+    tenantScope(db, { allowPassengerMode: true }),
+    async (req, res) => {
+      const { role } = switchRoleSchema.parse(req.body);
+      await members.switchRole(
+        scope(req).userId,
+        scope(req).tenantId,
+        role === 'passenger' ? 'passenger' : { roleId: role },
+        req.id,
+      );
+      res.status(204).end();
+    },
+  );
+
   r.get(
     '/tenants/:tenantId/profile',
     requireAuth,
@@ -137,6 +155,23 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
 
   t.get('/memberships', perm('membership.read'), async (req, res) => {
     res.json({ memberships: await members.list(scope(req), pageQuery(req)) });
+  });
+  t.get('/users', perm('membership.read'), async (req, res) => {
+    const q = z.string().trim().max(80).optional().parse(req.query.q);
+    res.json(await members.listUsers(scope(req), q || undefined, pageQuery(req)));
+  });
+  t.post('/memberships/:id/roles', perm('membership.invite'), async (req, res) => {
+    await members.addRole(
+      scope(req),
+      uuidParam(req, 'id'),
+      addRoleSchema.parse(req.body).roleId,
+      req.id,
+    );
+    res.status(204).end();
+  });
+  t.delete('/memberships/:id/roles/:roleId', perm('membership.invite'), async (req, res) => {
+    await members.removeRole(scope(req), uuidParam(req, 'id'), uuidParam(req, 'roleId'), req.id);
+    res.status(204).end();
   });
   t.patch('/memberships/:id', perm('membership.invite'), async (req, res) => {
     await audit.guard(req, 'membership.change_role_denied', () =>
@@ -218,6 +253,8 @@ export const requestSchemas = {
   profileSchema,
   inviteSchema,
   changeRoleSchema,
+  addRoleSchema,
+  switchRoleSchema,
   createRoleSchema,
   setPermissionsSchema,
   acceptSchema,

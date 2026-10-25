@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase,
+  Check,
   Building2,
   LogOut,
   Menu,
@@ -404,6 +405,88 @@ function groupNav(nav: NavItem[]): { name: string | null; items: NavItem[] }[] {
 }
 
 /** The round picture at the top right: opens a small menu with the profile, security and sign out. */
+interface MyCompany {
+  tenantId: string;
+  name: string;
+  membershipStatus: string;
+  role: { id: string; key: string; name: string };
+  roles: { id: string; key: string; name: string }[];
+  passengerMode: boolean;
+}
+
+/**
+ * "Switch role": the roles this person holds in their company, and the Passenger role every staff
+ * member has. Picking one closes everything that belongs to the others.
+ */
+function RoleSwitcher({ onDone }: { onDone: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const mine = useQuery({
+    queryKey: ['tenants', 'mine'],
+    enabled: Boolean(user) && (user?.platformRoles.length ?? 0) === 0,
+    queryFn: ({ signal }) => api<{ tenants: MyCompany[] }>('/tenants/mine', { signal }),
+  });
+  const switchTo = useMutation({
+    mutationFn: (v: { tenantId: string; role: string }) =>
+      api(`/tenants/${v.tenantId}/me/switch-role`, { method: 'POST', body: { role: v.role } }),
+    onSuccess: async (_d, v) => {
+      // Everything on screen belonged to the old role: forget it and open the new role's area.
+      await qc.invalidateQueries();
+      onDone();
+      void navigate(v.role === 'passenger' ? '/app' : `/c/${v.tenantId}`, { replace: true });
+    },
+  });
+  const staff = (mine.data?.tenants ?? []).filter(
+    (t) => t.membershipStatus === 'ACTIVE' && t.roles?.length > 0,
+  );
+  if (staff.length === 0) return null;
+  const item = (active: boolean) =>
+    `flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm ${
+      active
+        ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-slate-800 dark:text-brand-500'
+        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+    }`;
+  return (
+    <div className="px-1 py-1">
+      <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        Switch role
+      </p>
+      {staff.map((t) => (
+        <div key={t.tenantId} className="space-y-0.5">
+          {staff.length > 1 && (
+            <p className="truncate px-2 pt-1 text-xs text-slate-600 dark:text-slate-400">
+              {t.name}
+            </p>
+          )}
+          {[{ id: 'passenger', name: 'Passenger' }, ...t.roles].map((r) => {
+            const active =
+              r.id === 'passenger' ? t.passengerMode : !t.passengerMode && r.id === t.role.id;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                disabled={switchTo.isPending}
+                className={item(active)}
+                onClick={() => {
+                  if (!active) switchTo.mutate({ tenantId: t.tenantId, role: r.id });
+                  else onDone();
+                }}
+              >
+                {r.name}
+                {active && <Check aria-hidden="true" className="size-4" strokeWidth={2} />}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+      <div className="my-1 h-px bg-slate-100 dark:bg-slate-800" />
+    </div>
+  );
+}
+
 function ProfileMenu({ account, onSignOut }: { account: string; onSignOut: () => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -449,6 +532,7 @@ function ProfileMenu({ account, onSignOut }: { account: string; onSignOut: () =>
             </div>
           </div>
           <div className="my-1 h-px bg-slate-100 dark:bg-slate-800" />
+          <RoleSwitcher onDone={() => setOpen(false)} />
           <Link
             role="menuitem"
             to={`${account}/profile`}
@@ -716,14 +800,21 @@ export function AppShell() {
     queryKey: ['tenants', 'mine'],
     enabled: Boolean(user) && !isPlatform,
     queryFn: ({ signal }) =>
-      api<{ tenants: { tenantId: string; name: string; membershipStatus: string }[] }>(
-        '/tenants/mine',
-        { signal },
-      ),
+      api<{
+        tenants: {
+          tenantId: string;
+          name: string;
+          membershipStatus: string;
+          passengerMode: boolean;
+        }[];
+      }>('/tenants/mine', { signal }),
   });
   if (isPlatform) return <Navigate to="/platform" replace />;
   if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
-  const staff = (mine.data?.tenants ?? []).filter((t) => t.membershipStatus === 'ACTIVE');
+  // Staff who are acting as passengers stay here; the rest go to the company they act for.
+  const staff = (mine.data?.tenants ?? []).filter(
+    (t) => t.membershipStatus === 'ACTIVE' && !t.passengerMode,
+  );
   if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}`} replace />;
   if (staff.length > 1) {
     return (

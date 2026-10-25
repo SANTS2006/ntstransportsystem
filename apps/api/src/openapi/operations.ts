@@ -392,6 +392,43 @@ export const operations: Record<string, Operation> = {
     permission: 'SUPER_ADMIN | OPERATIONS',
     ok: 204,
   },
+  'GET /api/v1/tenants/{tenantId}/users': {
+    summary: "The company's registered users (its passengers)",
+    description: 'Everyone who signed up on this company page, with whether they are also staff.',
+    tag: 'Companies',
+    access: T,
+    permission: 'membership.read',
+    paged: true,
+    query: [{ name: 'q', description: 'Name, email or phone contains this text' }],
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/memberships/{id}/roles': {
+    summary: 'Give a staff member one more role',
+    description:
+      'They keep the roles they hold and can switch between them. You can only give a role whose permissions you hold yourself.',
+    tag: 'Companies',
+    access: T,
+    permission: 'membership.invite',
+    body: tenant.addRoleSchema,
+    ok: 204,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/memberships/{id}/roles/{roleId}': {
+    summary: 'Take a role away from a staff member',
+    description: 'A staff member keeps at least one role, and a company keeps at least one owner.',
+    tag: 'Companies',
+    access: T,
+    permission: 'membership.invite',
+    ok: 204,
+  },
+  'POST /api/v1/tenants/{tenantId}/me/switch-role': {
+    summary: 'Switch the role I am acting as',
+    description:
+      '"passenger" or the id of a role I hold. From then on only that role permissions apply: the company workspace is closed while acting as a passenger, and passenger features are closed while acting as a company role.',
+    tag: 'Companies',
+    access: 'session',
+    body: tenant.switchRoleSchema,
+    ok: 204,
+  },
   'GET /api/v1/tenants/mine': {
     summary: 'My companies',
     tag: 'Companies',

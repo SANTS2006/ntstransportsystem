@@ -124,7 +124,11 @@ export class TenantService {
     const rows = await withDb(this.db, { userId }, (tx) =>
       tx.membership.findMany({
         where: { userId, status: { in: ['ACTIVE', 'INVITED'] } },
-        include: { tenant: true, role: true },
+        include: {
+          tenant: true,
+          role: true,
+          roles: { include: { role: { select: { id: true, key: true, name: true } } } },
+        },
         orderBy: { createdAt: 'asc' },
       }),
     );
@@ -134,7 +138,9 @@ export class TenantService {
       slug: m.tenant.slug,
       status: m.tenant.status,
       membershipStatus: m.status,
-      role: { key: m.role.key, name: m.role.name },
+      role: { id: m.role.id, key: m.role.key, name: m.role.name },
+      roles: m.roles.map((r) => r.role).sort((a, b) => a.name.localeCompare(b.name)),
+      passengerMode: m.passengerMode,
     }));
   }
 

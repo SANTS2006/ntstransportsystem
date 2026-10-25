@@ -55,7 +55,11 @@ export class MembershipService {
     const rows = await withDb(this.db, this.ctx(s), (tx) =>
       tx.membership.findMany({
         where: { tenantId: s.tenantId },
-        include: { user: { select: { email: true, displayName: true } }, role: true },
+        include: {
+          user: { select: { email: true, displayName: true } },
+          role: true,
+          roles: { include: { role: { select: { id: true, key: true, name: true } } } },
+        },
         orderBy: { createdAt: 'asc' },
         take: page.limit,
         skip: page.offset,
@@ -67,6 +71,8 @@ export class MembershipService {
       email: m.user.email,
       displayName: m.user.displayName,
       status: m.status,
+      roles: m.roles.map((r) => r.role).sort((a, b) => a.name.localeCompare(b.name)),
+      passengerMode: m.passengerMode,
       role: { id: m.role.id, key: m.role.key, name: m.role.name },
       createdAt: m.createdAt,
     }));
@@ -205,6 +211,195 @@ export class MembershipService {
     return { email: input.email, newAccount: result.isNew };
   }
 
+  /** Holders of the owner role cannot be left with none. */
+  private async assertOwnerRemains(tx: Tx, tenantId: string, membershipId: string) {
+    const others = await tx.membership.count({
+      where: {
+        tenantId,
+        status: 'ACTIVE',
+        id: { not: membershipId },
+        roles: { some: { role: { key: 'owner' } } },
+      },
+    });
+    if (others < 1) throw AppError.conflict('A company must keep at least one owner');
+  }
+
+  /** Gives a staff member one more role. They keep what they hold and can switch to it. */
+  async addRole(s: TenantScope, membershipId: string, roleId: string, requestId?: string) {
+    await withDb(this.db, this.ctx(s), async (tx) => {
+      const target = await tx.membership.findFirst({
+        where: { id: membershipId, tenantId: s.tenantId, status: 'ACTIVE' },
+        include: { roles: { include: { role: { include: { permissions: true } } } } },
+      });
+      if (!target) throw AppError.notFound();
+      if (target.userId === s.userId) throw AppError.forbidden('You cannot change your own roles');
+      // Someone who holds a role above yours cannot be edited by you.
+      for (const held of target.roles) {
+        assertCanGrant(
+          s,
+          held.role.permissions.map((p) => p.permission),
+        );
+        if (held.role.key === 'owner' && s.roleKey !== 'owner') throw AppError.forbidden();
+      }
+      const role = await this.roleWithPermissions(tx, s.tenantId, { id: roleId });
+      this.assertMayAssign(s, role);
+      if (target.roles.some((r) => r.roleId === role.id)) {
+        throw AppError.conflict('They already hold this role');
+      }
+      await tx.membershipRole.create({
+        data: { membershipId: target.id, roleId: role.id, tenantId: s.tenantId },
+      });
+      await writeAudit(tx, {
+        action: 'membership.role_added',
+        outcome: 'SUCCESS',
+        tenantId: s.tenantId,
+        actorUserId: s.userId,
+        targetType: 'membership',
+        targetId: target.id,
+        requestId,
+        summary: { role: role.key },
+      });
+    });
+  }
+
+  /** Takes one role away. They must keep at least one, and a company must keep an owner. */
+  async removeRole(s: TenantScope, membershipId: string, roleId: string, requestId?: string) {
+    await withDb(this.db, this.ctx(s), async (tx) => {
+      const target = await tx.membership.findFirst({
+        where: { id: membershipId, tenantId: s.tenantId, status: 'ACTIVE' },
+        include: { roles: { include: { role: { include: { permissions: true } } } } },
+      });
+      if (!target) throw AppError.notFound();
+      if (target.userId === s.userId) throw AppError.forbidden('You cannot change your own roles');
+      for (const held of target.roles) {
+        assertCanGrant(
+          s,
+          held.role.permissions.map((p) => p.permission),
+        );
+        if (held.role.key === 'owner' && s.roleKey !== 'owner') throw AppError.forbidden();
+      }
+      const going = target.roles.find((r) => r.roleId === roleId);
+      if (!going) throw AppError.notFound();
+      if (target.roles.length <= 1) {
+        throw AppError.conflict('A staff member must keep at least one role');
+      }
+      if (going.role.key === 'owner') await this.assertOwnerRemains(tx, s.tenantId, target.id);
+      // If it is the role they are acting as, they carry on as another one they hold.
+      if (target.roleId === roleId) {
+        const next = target.roles.find((r) => r.roleId !== roleId)!;
+        await tx.membership.update({ where: { id: target.id }, data: { roleId: next.roleId } });
+      }
+      await tx.membershipRole.delete({
+        where: { membershipId_roleId: { membershipId: target.id, roleId } },
+      });
+      await writeAudit(tx, {
+        action: 'membership.role_removed',
+        outcome: 'SUCCESS',
+        tenantId: s.tenantId,
+        actorUserId: s.userId,
+        targetType: 'membership',
+        targetId: target.id,
+        requestId,
+        summary: { role: going.role.key },
+      });
+    });
+  }
+
+  /**
+   * The person switches which role they are acting as: the Passenger role, or one of the staff
+   * roles they hold. From the next request only that role's permissions apply.
+   */
+  async switchRole(
+    userId: string,
+    tenantId: string,
+    target: 'passenger' | { roleId: string },
+    requestId?: string,
+  ) {
+    return withDb(this.db, { userId, tenantId }, async (tx) => {
+      const m = await tx.membership.findFirst({
+        where: { tenantId, userId, status: 'ACTIVE' },
+        include: { roles: true },
+      });
+      if (!m) throw AppError.notFound();
+      if (target === 'passenger') {
+        await tx.membership.update({ where: { id: m.id }, data: { passengerMode: true } });
+      } else {
+        if (!m.roles.some((r) => r.roleId === target.roleId)) {
+          throw AppError.forbidden('You do not hold that role');
+        }
+        await tx.membership.update({
+          where: { id: m.id },
+          data: { roleId: target.roleId, passengerMode: false },
+        });
+      }
+      await writeAudit(tx, {
+        action: 'membership.role_switched',
+        outcome: 'SUCCESS',
+        tenantId,
+        actorUserId: userId,
+        targetType: 'membership',
+        targetId: m.id,
+        requestId,
+        summary: { to: target === 'passenger' ? 'passenger' : target.roleId },
+      });
+    });
+  }
+
+  /** Everyone who signed up on this company's page (its passengers), staff included. */
+  async listUsers(s: TenantScope, q: string | undefined, page: { limit: number; offset: number }) {
+    const where = {
+      homeTenantId: s.tenantId,
+      ...(q
+        ? {
+            OR: [
+              { displayName: { contains: q, mode: 'insensitive' as const } },
+              { email: { contains: q, mode: 'insensitive' as const } },
+              { phone: { contains: q } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await Promise.all([
+      this.db.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: page.limit,
+        skip: page.offset,
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          phone: true,
+          status: true,
+          createdAt: true,
+          emailVerifiedAt: true,
+          phoneVerifiedAt: true,
+        },
+      }),
+      this.db.user.count({ where }),
+    ]);
+    const staff = await withDb(this.db, this.ctx(s), (tx) =>
+      tx.membership.findMany({
+        where: { tenantId: s.tenantId, status: 'ACTIVE', userId: { in: rows.map((r) => r.id) } },
+        select: { userId: true },
+      }),
+    );
+    const staffIds = new Set(staff.map((m) => m.userId));
+    return {
+      total,
+      users: rows.map((u) => ({
+        id: u.id,
+        name: u.displayName,
+        email: u.email,
+        phone: u.phone,
+        status: u.status,
+        verified: Boolean(u.emailVerifiedAt ?? u.phoneVerifiedAt),
+        joinedAt: u.createdAt,
+        isStaff: staffIds.has(u.id),
+      })),
+    };
+  }
+
   async listInvitations(s: TenantScope) {
     const rows = await withDb(this.db, this.ctx(s), (tx) =>
       tx.invitation.findMany({
@@ -280,7 +475,7 @@ export class MembershipService {
           status: 'ACTIVE',
           invitedBy: inv.invitedBy,
         },
-        update: { roleId: inv.roleId, status: 'ACTIVE' },
+        update: { roleId: inv.roleId, status: 'ACTIVE', passengerMode: false },
       });
       await writeAudit(tx, {
         action: 'membership.invitation_accepted',
@@ -296,7 +491,9 @@ export class MembershipService {
   }
 
   private async activeOwnerCount(tx: Tx, tenantId: string) {
-    return tx.membership.count({ where: { tenantId, status: 'ACTIVE', role: { key: 'owner' } } });
+    return tx.membership.count({
+      where: { tenantId, status: 'ACTIVE', roles: { some: { role: { key: 'owner' } } } },
+    });
   }
 
   async changeRole(s: TenantScope, membershipId: string, roleKey: string, requestId?: string) {
@@ -324,7 +521,14 @@ export class MembershipService {
       ) {
         throw AppError.conflict('A company must keep at least one owner');
       }
-      await tx.membership.update({ where: { id: target.id }, data: { roleId: next.id } });
+      await tx.membership.update({
+        where: { id: target.id },
+        data: { roleId: next.id, passengerMode: false },
+      });
+      // "Change role" replaces everything they held with this one role.
+      await tx.membershipRole.deleteMany({
+        where: { membershipId: target.id, NOT: { roleId: next.id } },
+      });
       await writeAudit(tx, {
         action: 'membership.role_changed',
         outcome: 'SUCCESS',

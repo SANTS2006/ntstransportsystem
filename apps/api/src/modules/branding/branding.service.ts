@@ -61,6 +61,8 @@ export const RESERVED_SLUGS = new Set([
   'reset-password-phone',
   'accept-invitation',
   'change-password',
+  'terms',
+  'privacy',
   'dashboard',
   'assets',
   'health',

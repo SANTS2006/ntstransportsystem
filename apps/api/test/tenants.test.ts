@@ -462,6 +462,166 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     });
   });
 
+  describe('several roles and switching between them', () => {
+    const roleId = (tenantId: string, key: string) => roleIdOf(tenantId, key);
+
+    it('gives a staff member more than one role, and only the role they act as applies', async () => {
+      const { tenant, owner } = await activeCompany('multi-role');
+      const staff = await addMember(tenant.id, 'dispatcher', 'multi-staff');
+      const membership = await membershipOf(tenant.id, staff.userId);
+      const sales = await roleId(tenant.id, 'sales_agent');
+      const dispatcher = await roleId(tenant.id, 'dispatcher');
+
+      // The owner gives them a second role; they cannot do it to themselves.
+      await owner
+        .call('post', `/tenants/${tenant.id}/memberships/${membership.id}/roles`)
+        .send({ roleId: sales })
+        .expect(204);
+      await owner
+        .call('post', `/tenants/${tenant.id}/memberships/${membership.id}/roles`)
+        .send({ roleId: sales })
+        .expect(409);
+      await staff
+        .call('post', `/tenants/${tenant.id}/memberships/${membership.id}/roles`)
+        .send({ roleId: sales })
+        .expect(403);
+      const listed = await owner.call('get', `/tenants/${tenant.id}/memberships`).expect(200);
+      const row = listed.body.memberships.find((m: { id: string }) => m.id === membership.id);
+      expect(row.roles.map((r: { key: string }) => r.key).sort()).toEqual([
+        'dispatcher',
+        'sales_agent',
+      ]);
+
+      // Acting as dispatcher: trips yes, bookings no.
+      await staff.call('get', `/tenants/${tenant.id}/trips`).expect(200);
+      await staff.call('get', `/tenants/${tenant.id}/bookings`).expect(403);
+
+      // Switch to sales agent: bookings yes, and the dispatcher-only features are closed.
+      await staff
+        .call('post', `/tenants/${tenant.id}/me/switch-role`)
+        .send({ role: sales })
+        .expect(204);
+      await staff.call('get', `/tenants/${tenant.id}/bookings`).expect(200);
+      await staff.call('get', `/tenants/${tenant.id}/memberships`).expect(403);
+      const me = await staff.call('get', `/tenants/${tenant.id}/me`).expect(200);
+      expect(me.body.role.key).toBe('sales_agent');
+
+      // A role they do not hold cannot be switched to.
+      await staff
+        .call('post', `/tenants/${tenant.id}/me/switch-role`)
+        .send({ role: await roleId(tenant.id, 'admin') })
+        .expect(403);
+
+      // While acting as a company role, passenger features are closed ...
+      const closed = await staff.call('get', '/passenger/bookings').expect(403);
+      expect(closed.body.error.code).toBe('ROLE_NOT_ACTIVE');
+      // ... and acting as a passenger closes the whole company workspace.
+      await staff
+        .call('post', `/tenants/${tenant.id}/me/switch-role`)
+        .send({ role: 'passenger' })
+        .expect(204);
+      await staff.call('get', '/passenger/bookings').expect(200);
+      const shut = await staff.call('get', `/tenants/${tenant.id}/bookings`).expect(403);
+      expect(shut.body.error.code).toBe('ROLE_NOT_ACTIVE');
+      const mine = await staff.call('get', '/tenants/mine').expect(200);
+      expect(mine.body.tenants[0]).toMatchObject({ passengerMode: true });
+      expect(mine.body.tenants[0].roles).toHaveLength(2);
+
+      // Back to a role, then take roles away: the last one stays.
+      await staff
+        .call('post', `/tenants/${tenant.id}/me/switch-role`)
+        .send({ role: dispatcher })
+        .expect(204);
+      await owner
+        .call('delete', `/tenants/${tenant.id}/memberships/${membership.id}/roles/${dispatcher}`)
+        .expect(204);
+      // They were acting as the dispatcher, so they carry on as the sales agent.
+      const after = await staff.call('get', `/tenants/${tenant.id}/me`).expect(200);
+      expect(after.body.role.key).toBe('sales_agent');
+      await owner
+        .call('delete', `/tenants/${tenant.id}/memberships/${membership.id}/roles/${sales}`)
+        .expect(409);
+    });
+
+    it('keeps at least one owner when roles are taken away', async () => {
+      const { tenant, owner } = await activeCompany('one-owner');
+      const ownerRole = await roleId(tenant.id, 'owner');
+      const second = await addMember(tenant.id, 'owner', 'second-owner');
+      const secondRow = await membershipOf(tenant.id, second.userId);
+      const ownerRow = await membershipOf(tenant.id, owner.userId);
+      const dispatcher = await roleId(tenant.id, 'dispatcher');
+      // Give the second owner another role, then remove their owner role: allowed, one owner remains.
+      await owner
+        .call('post', `/tenants/${tenant.id}/memberships/${secondRow.id}/roles`)
+        .send({ roleId: dispatcher })
+        .expect(204);
+      await owner
+        .call('delete', `/tenants/${tenant.id}/memberships/${secondRow.id}/roles/${ownerRole}`)
+        .expect(204);
+      // The remaining owner cannot be stripped by anyone else, nor by themselves.
+      await second
+        .call('post', `/tenants/${tenant.id}/memberships/${ownerRow.id}/roles`)
+        .send({ roleId: dispatcher })
+        .expect(403);
+    });
+
+    it('lists the company users and finds them by name', async () => {
+      const { tenant, owner } = await activeCompany('users-list');
+      const marker = uniq('findme');
+      await withDb(db, { platform: true }, async (tx) => {
+        await tx.user.createMany({
+          data: [
+            {
+              displayName: `Ada ${marker}`,
+              email: `${marker}-a@example.test`,
+              homeTenantId: tenant.id,
+            },
+            { displayName: 'Bo Other', email: `${marker}-b@example.test`, homeTenantId: tenant.id },
+          ],
+        });
+      });
+      const all = await owner.call('get', `/tenants/${tenant.id}/users`).expect(200);
+      expect(all.body.users.length).toBeGreaterThanOrEqual(2);
+      const found = await owner
+        .call('get', `/tenants/${tenant.id}/users?q=Ada%20${marker}`)
+        .expect(200);
+      expect(found.body.users).toHaveLength(1);
+      expect(found.body.users[0]).toMatchObject({ name: `Ada ${marker}`, isStaff: false });
+      // Another company's users are not listed, and a plain member without the permission is refused.
+      const other = await activeCompany('users-other');
+      const none = await other.owner
+        .call('get', `/tenants/${other.tenant.id}/users?q=${marker}`)
+        .expect(200);
+      expect(none.body.users).toHaveLength(0);
+      const driver = await addMember(tenant.id, 'driver', 'users-driver');
+      await driver.call('get', `/tenants/${tenant.id}/users`).expect(403);
+    });
+
+    it('lets the owner build a role from permissions, change it, and use it', async () => {
+      const { tenant, owner } = await activeCompany('role-editor');
+      const created = await owner
+        .call('post', `/tenants/${tenant.id}/roles`)
+        .send({
+          key: 'ticket_checker',
+          name: 'Ticket checker',
+          permissions: ['ticket.validate', 'trip.read'],
+        })
+        .expect(201);
+      const id = created.body.id as string;
+      await owner
+        .call('put', `/tenants/${tenant.id}/roles/${id}/permissions`)
+        .send({ permissions: ['ticket.validate'] })
+        .expect(204);
+      const list = await owner.call('get', `/tenants/${tenant.id}/roles`).expect(200);
+      const role = list.body.roles.find((r: { id: string }) => r.id === id);
+      expect(role.permissions).toEqual(['ticket.validate']);
+      expect(list.body.catalog).toContain('ticket.validate');
+      // A person given that role acts with exactly its permissions.
+      const staff = await addMember(tenant.id, 'ticket_checker', 'checker');
+      await staff.call('get', `/tenants/${tenant.id}/trips`).expect(403);
+    });
+  });
+
   describe('tenant isolation over HTTP', () => {
     it('gives non-members the same 404 as for a company that does not exist', async () => {
       const a = await activeCompany('iso-http-a');

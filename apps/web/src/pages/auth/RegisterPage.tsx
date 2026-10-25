@@ -140,7 +140,27 @@ export default function RegisterPage() {
               }}
               className="mt-0.5 size-5 shrink-0 rounded border-slate-300 accent-brand-600"
             />
-            <span>I have read and agree to the NTS Transport terms of use and privacy policy.</span>
+            <span>
+              I have read and agree to the NTS Transport{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-brand-600 hover:text-brand-700"
+              >
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-brand-600 hover:text-brand-700"
+              >
+                Privacy Policy
+              </a>
+              .
+            </span>
           </label>
           {agreeError && (
             <p id="agree-err" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">
@@ -165,16 +185,7 @@ export default function RegisterPage() {
         </Link>
       </p>
       <OrDivider />
-      <GoogleButton
-        text="signup_with"
-        onCredential={(c) => {
-          if (!agreed) {
-            setAgreeError('Tick the box to agree before creating an account.');
-            return;
-          }
-          google.mutate(c);
-        }}
-      />
+      <GoogleButton text="signup_with" onCredential={(c) => google.mutate(c)} />
     </AuthCard>
   );
 }

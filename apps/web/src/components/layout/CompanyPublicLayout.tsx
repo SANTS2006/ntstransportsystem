@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useParams } from 'react-router';
 import { api } from '../../lib/api';
 import { rememberCompany } from '../../lib/company-page';
+import { useDocumentBrand } from '../../lib/document-brand';
 import { CompanyPublicContext, type PublicCompany } from '../../lib/company-public';
 import { brandStyle } from '../../lib/theme';
 import NotFoundPage from '../../pages/NotFoundPage';
@@ -21,6 +22,7 @@ export function CompanyPublicLayout() {
     queryFn: ({ signal }) => api<PublicCompany>(`/public/companies/${slug}`, { signal }),
   });
   const company = found.data;
+  useDocumentBrand(company);
   useEffect(() => {
     if (company) rememberCompany(company.slug);
   }, [company]);

@@ -9,7 +9,7 @@ import { ME_KEY, useAuth } from '../../auth/AuthProvider';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { Field } from '../../components/ui/Field';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -258,9 +258,8 @@ function MfaEnabled({ onChanged }: { onChanged: () => void }) {
           className="w-full max-w-sm space-y-3"
         >
           {disable.error && <ErrorAlert error={disable.error} />}
-          <Field
+          <PasswordField
             label="Password"
-            type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

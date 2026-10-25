@@ -17,7 +17,14 @@ const SKIPPED = new Set([
 
 const FORMAT = 'nts-backup';
 const VERSION = 1;
-const BATCH = 400;
+/**
+ * Rows go to the database in large slices (by size, not count): every statement is a round trip,
+ * and on a slow link the round trips, not the rows, are what take the time.
+ */
+const SLICE_BYTES = 2 * 1024 * 1024;
+const SLICE_ROWS = 20_000;
+/** Rows read per query when making a backup. */
+const CHUNK_ROWS = 5_000;
 /** A restore file larger than this is refused (it is held in memory while it is checked). */
 export const MAX_RESTORE_BYTES = 80 * 1024 * 1024;
 
@@ -31,6 +38,23 @@ export interface RestoreReport {
   createdAt: string;
   tables: { name: string; inFile: number; restored: number }[];
   restored: number;
+  /** Tables in the file that this system's database account may not write to (left as they are). */
+  notWritable: string[];
+}
+
+function* slices(rows: string[]): Generator<string[]> {
+  let cur: string[] = [];
+  let bytes = 0;
+  for (const r of rows) {
+    if (cur.length > 0 && (bytes + r.length > SLICE_BYTES || cur.length >= SLICE_ROWS)) {
+      yield cur;
+      cur = [];
+      bytes = 0;
+    }
+    cur.push(r);
+    bytes += r.length + 1;
+  }
+  if (cur.length > 0) yield cur;
 }
 
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
@@ -94,19 +118,31 @@ export class BackupService {
       while (next < names.length) {
         const name = names[next++]!;
         try {
-          const rows = await withDb(
-            this.db,
-            { platform: true },
-            (tx) =>
-              tx.$queryRawUnsafe<{ j: string }[]>(
-                `SELECT row_to_json(t)::text AS j FROM ${quote(name)} t`,
-              ),
-            { timeoutMs: 120_000 },
-          );
-          parts.set(
-            name,
-            rows.map((r) => `{"t":${JSON.stringify(name)},"r":${r.j}}`),
-          );
+          // Read in chunks, each in its own short transaction, and try a chunk again if the
+          // connection drops: one huge answer is exactly what a slow link fails to deliver.
+          const lines: string[] = [];
+          for (let offset = 0; ; offset += CHUNK_ROWS) {
+            let rows: { j: string }[] = [];
+            for (let attempt = 1; ; attempt++) {
+              try {
+                rows = await withDb(
+                  this.db,
+                  { platform: true },
+                  (tx) =>
+                    tx.$queryRawUnsafe<{ j: string }[]>(
+                      `SELECT row_to_json(t)::text AS j FROM ${quote(name)} t ORDER BY ctid LIMIT ${CHUNK_ROWS} OFFSET ${offset}`,
+                    ),
+                  { timeoutMs: 300_000 },
+                );
+                break;
+              } catch (err) {
+                if (attempt >= 3) throw err;
+              }
+            }
+            for (const r of rows) lines.push(`{"t":${JSON.stringify(name)},"r":${r.j}}`);
+            if (rows.length < CHUNK_ROWS) break;
+          }
+          parts.set(name, lines);
         } catch {
           // A table this role may not read is left out and said so, never silently.
           summary.skipped.push(name);
@@ -170,24 +206,38 @@ export class BackupService {
       createdAt: header.createdAt ?? '',
       tables: [],
       restored: 0,
+      notWritable: [],
     };
     const UNDO = new Error('undo');
+    let current = '';
     try {
       await withDb(
         this.db,
         { platform: true },
         async (tx) => {
           const known = await this.orderedTables(tx);
+          const writable = new Set(
+            (
+              await tx.$queryRaw<{ name: string }[]>`
+                SELECT table_name AS name FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                  AND has_table_privilege(format('%I', table_name), 'INSERT')`
+            ).map((t) => t.name),
+          );
           for (const name of known) {
             const rows = byTable.get(name);
             if (!rows) continue;
+            if (!writable.has(name)) {
+              report.notWritable.push(name);
+              continue;
+            }
+            current = name;
             let restored = 0;
-            for (let i = 0; i < rows.length; i += BATCH) {
-              const json = `[${rows.slice(i, i + BATCH).join(',')}]`;
+            for (const slice of slices(rows)) {
               // `name` comes from the database's own table list, never from the file.
               restored += await tx.$executeRawUnsafe(
                 `INSERT INTO ${quote(name)} SELECT * FROM json_populate_recordset(NULL::${quote(name)}, $1::json) ON CONFLICT DO NOTHING`,
-                json,
+                `[${slice.join(',')}]`,
               );
             }
             report.tables.push({ name, inFile: rows.length, restored });
@@ -207,8 +257,20 @@ export class BackupService {
     } catch (err) {
       if (err !== UNDO) {
         if (err instanceof AppError) throw err;
+        // Say which table and what the database objected to, so the cause can be fixed.
+        const meta = (
+          err as {
+            meta?: { message?: string; driverAdapterError?: { cause?: { message?: string } } };
+          }
+        ).meta;
+        const why = String(
+          meta?.driverAdapterError?.cause?.message ?? meta?.message ?? (err as Error).message ?? '',
+        )
+          .split(String.fromCharCode(10))
+          .find((l) => l.trim())
+          ?.slice(0, 300);
         throw AppError.conflict(
-          'The backup could not be restored: it refers to data that is not here. Nothing was changed.',
+          `The backup could not be restored${current ? ` (table ${current})` : ''}: ${why || 'the database refused it'}. Nothing was changed.`,
         );
       }
     }

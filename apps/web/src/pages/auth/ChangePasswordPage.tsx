@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { AuthCard } from '../../components/layout/Layouts';
 import { ErrorAlert } from '../../components/ui/Alert';
@@ -13,6 +13,7 @@ import { homePath } from '../../lib/app-path';
 /** The first sign-in of an account whose password someone else made: choose your own. */
 export default function ChangePasswordPage() {
   const { user, loading, refresh } = useAuth();
+  const { slug } = useParams();
   const navigate = useNavigate();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -30,7 +31,7 @@ export default function ChangePasswordPage() {
     },
   });
   if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={slug ? `/${slug}/login` : '/login'} replace />;
   if (!user.mustChangePassword) return <Navigate to={homePath(user)} replace />;
 
   const submit = (e: FormEvent) => {

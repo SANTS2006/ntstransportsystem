@@ -14,6 +14,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "platform:grant": "tsx scripts/grant-platform-role.ts",
     "seed:dev": "tsx scripts/dev-seed.ts",
+    "seed:test-data": "tsx scripts/seed-test-data.ts",
     "sms:test": "tsx scripts/sms-test.ts",
     "platform:create-admin": "tsx scripts/create-super-admin.ts",
     "postinstall": "prisma generate",

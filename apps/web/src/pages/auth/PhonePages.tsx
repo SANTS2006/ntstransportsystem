@@ -8,7 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AuthCard } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Field } from '../../components/ui/Field';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { resetPhoneSchema, verifyCodeSchema, type ResetPhoneValues } from '../../lib/schemas';
 
@@ -187,17 +187,15 @@ export function ResetPhonePasswordPage() {
           error={errors.code?.message}
           {...form.register('code')}
         />
-        <Field
+        <PasswordField
           label="New password"
-          type="password"
           autoComplete="new-password"
           hint="At least 12 characters."
           error={errors.password?.message}
           {...form.register('password')}
         />
-        <Field
+        <PasswordField
           label="Confirm new password"
-          type="password"
           autoComplete="new-password"
           error={errors.confirm?.message}
           {...form.register('confirm')}

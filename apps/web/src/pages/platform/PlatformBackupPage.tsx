@@ -13,6 +13,7 @@ interface Report {
   createdAt: string;
   restored: number;
   tables: { name: string; inFile: number; restored: number }[];
+  notWritable?: string[];
 }
 
 const MAX_MB = 80;
@@ -42,6 +43,7 @@ async function failure(res: Response): Promise<ApiError> {
 }
 
 interface JobState {
+  skipped?: string[];
   id: string;
   status: 'running' | 'done' | 'failed';
   error?: string;
@@ -71,7 +73,7 @@ export function PlatformBackupPage() {
   const create = useMutation({
     mutationFn: async () => {
       const { id } = await api<{ id: string }>('/platform/backup', { method: 'POST' });
-      await finish(id);
+      const job = await finish(id);
       const res = await fetch(`/api/v1/platform/backup/jobs/${id}/file`, {
         credentials: 'same-origin',
       });
@@ -88,9 +90,15 @@ export function PlatformBackupPage() {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      return name;
+      return { name, skipped: job.skipped ?? [] };
     },
-    onSuccess: (name) => toast(`Backup saved as ${name}`, 'success'),
+    onSuccess: ({ name, skipped }) =>
+      skipped.length
+        ? toast(
+            `Backup saved as ${name}, but it is incomplete: ${skipped.join(', ')} could not be read. Try again.`,
+            'error',
+          )
+        : toast(`Backup saved as ${name}`, 'success'),
   });
 
   const restore = useMutation({
@@ -239,6 +247,12 @@ export function PlatformBackupPage() {
                 </ul>
               ) : (
                 <p className="text-slate-700 dark:text-slate-300">Nothing is missing.</p>
+              )}
+              {(report.notWritable?.length ?? 0) > 0 && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Left as they are (system settings this console does not change):{' '}
+                  {report.notWritable!.join(', ')}.
+                </p>
               )}
             </div>
           )}

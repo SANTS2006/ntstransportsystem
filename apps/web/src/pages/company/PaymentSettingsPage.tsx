@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { Field } from '../../components/ui/Field';
+import { Field, PasswordField } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -90,13 +90,12 @@ export function PaymentSettingsPage() {
                 error={errors.spaceId?.message}
                 {...form.register('spaceId')}
               />
-              <Field
+              <PasswordField
                 label={
                   q.data.configured
                     ? 'Access token (leave blank to keep the current one)'
                     : 'Access token'
                 }
-                type="password"
                 autoComplete="off"
                 error={errors.apiToken?.message}
                 {...form.register('apiToken')}

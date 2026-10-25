@@ -1,4 +1,4 @@
-import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { Eye, EyeOff, Lock, type LucideIcon } from 'lucide-react';
 import { useId, useState, type ComponentProps, type ReactNode } from 'react';
 
 interface FieldProps extends Omit<ComponentProps<'input'>, 'id'> {
@@ -72,6 +72,7 @@ export function PasswordField(props: Omit<FieldProps, 'type' | 'trailing'>) {
   const [shown, setShown] = useState(false);
   return (
     <Field
+      icon={Lock}
       {...props}
       type={shown ? 'text' : 'password'}
       trailing={

@@ -197,6 +197,7 @@ export const router = createBrowserRouter([
       { path: '/login', element: s(<LoginPage />) },
       { path: '/change-password', element: s(<ChangePasswordPage />) },
       { path: '/:slug/login', element: s(<LoginPage />) },
+      { path: '/:slug/change-password', element: s(<ChangePasswordPage />) },
       { path: '/:slug/register', element: s(<RegisterPage />) },
       { path: '/:slug/forgot-password', element: s(<ForgotPasswordPage />) },
       { path: '/:slug/reset-password', element: s(<ResetPasswordPage />) },

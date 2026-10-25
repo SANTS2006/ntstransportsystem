@@ -15,12 +15,11 @@ const JOB_LABEL: Record<EmployeeRole, string> = {
   OTHER: 'Staff',
 };
 const JOB_OF_ROLE: Record<string, EmployeeRole> = { driver: 'DRIVER', dispatcher: 'DISPATCHER' };
-const ROLE_KEY: Record<EmployeeRole, string> = {
+/** The company role a job gets when none is chosen. Other jobs need the role to be chosen. */
+const ROLE_KEY: Partial<Record<EmployeeRole, string>> = {
   DRIVER: 'driver',
   CONDUCTOR: 'driver',
   DISPATCHER: 'dispatcher',
-  MECHANIC: 'passenger',
-  OTHER: 'passenger',
 };
 
 type EmployeeRole = 'DRIVER' | 'CONDUCTOR' | 'DISPATCHER' | 'MECHANIC' | 'OTHER';
@@ -141,6 +140,10 @@ export class CrewService {
   async createEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
     const job: EmployeeRole =
       input.role ?? (input.roleKey ? (JOB_OF_ROLE[input.roleKey] ?? 'OTHER') : 'OTHER');
+    const roleKey = input.roleKey ?? ROLE_KEY[job];
+    if (input.email && !roleKey) {
+      throw AppError.validation('Choose the role this person signs in with');
+    }
     const created = await this.insertEmployee(s, { ...input, role: job }, requestId);
     if (!input.email || !this.staff) return created;
     try {
@@ -152,7 +155,7 @@ export class CrewService {
           phone: input.phone,
           employeeNumber: input.employeeNumber.trim(),
           job: JOB_LABEL[job],
-          roleKey: input.roleKey ?? ROLE_KEY[job],
+          roleKey: roleKey!,
         },
         requestId,
       );

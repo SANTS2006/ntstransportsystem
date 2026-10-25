@@ -2,6 +2,7 @@ import { BarChart3, Bus, Ticket, Users, type LucideIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { rememberCompany } from '../../lib/company-page';
+import { useDocumentBrand } from '../../lib/document-brand';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import NotFoundPage from '../../pages/NotFoundPage';
 import { PageLoader } from '../ui/Spinner';
@@ -103,6 +104,7 @@ export function AuthLayout() {
     queryFn: ({ signal }) => api<PublicCompany>(`/public/companies/${slug}`, { signal }),
   });
   const company = found.data;
+  useDocumentBrand(company);
   useEffect(() => {
     if (company) rememberCompany(company.slug);
   }, [company]);

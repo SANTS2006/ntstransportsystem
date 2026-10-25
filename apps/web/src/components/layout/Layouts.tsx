@@ -18,6 +18,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { api } from '../../lib/api';
 import { companyPath, signInPath } from '../../lib/company-page';
 import { brandStyle } from '../../lib/theme';
+import { useDocumentBrand } from '../../lib/document-brand';
 import { BlockingOverlay, PageLoader, Spinner } from '../ui/Spinner';
 import { Alert } from '../ui/Alert';
 import { Button, linkButton } from '../ui/Button';
@@ -372,7 +373,12 @@ export function RequireAuth({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (user?.mustChangePassword) return <Navigate to="/change-password" replace />;
+  if (user?.mustChangePassword) {
+    // A first password made by the company (new administrator or staff member) is replaced on
+    // the company's own page, like its sign-in and password pages.
+    const home = user.platformRoles.length === 0 ? user.homeCompany?.slug : undefined;
+    return <Navigate to={home ? `/${home}/change-password` : '/change-password'} replace />;
+  }
   if (!user) {
     const dest = location.pathname + location.search;
     // /app is the default landing page, so a `next` for it would be redundant noise.
@@ -638,6 +644,7 @@ export function DashboardShell({
   children?: ReactNode;
 }) {
   const { user, clear } = useAuth();
+  useDocumentBrand(company);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const signOut = useMutation({

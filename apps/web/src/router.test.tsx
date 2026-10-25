@@ -24,6 +24,7 @@ describe('company addresses', () => {
     expect(where('/acme/jobs').page).toBe('jobs');
     expect(where('/acme/login').page).toBe('/:slug/login');
     expect(where('/acme/forgot-password').page).toBe('/:slug/forgot-password');
+    expect(where('/acme/change-password').page).toBe('/:slug/change-password');
   });
 
   it('sends old addresses to the new ones', () => {

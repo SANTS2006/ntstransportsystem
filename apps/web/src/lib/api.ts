@@ -150,7 +150,7 @@ async function once<T>(path: string, opts: RequestOptions, idempotencyKey?: stri
 }
 
 /** Only same-site relative paths may be used as post-login redirects (blocks open redirects). */
-export function safeNext(raw: string | null | undefined, fallback = '/app/dashboard'): string {
+export function safeNext(raw: string | null | undefined, fallback = '/'): string {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return fallback;
   return raw;
 }

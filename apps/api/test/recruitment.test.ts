@@ -381,7 +381,7 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
 
     const toHr = mailer.sent.filter((m) => m.template === 'application-received');
     expect(toHr.map((m) => m.to).sort()).toEqual([c.ownerEmail, hr.email].sort());
-    expect(toHr[0]!.data.link).toBe(`https://app.test/c/${c.tenantId}/recruitment`);
+    expect(toHr[0]!.data.link).toMatch(/^https:\/\/app\.test\/[a-z0-9-]+\/recruitment$/);
     const toApplicant = mailer.sent.filter((m) => m.template === 'application-update');
     expect(toApplicant.map((m) => m.data.status).sort()).toEqual(['REJECTED', 'SHORTLISTED']);
     expect(toApplicant.every((m) => m.to === a.email)).toBe(true);

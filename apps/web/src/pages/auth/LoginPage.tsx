@@ -44,7 +44,12 @@ export default function LoginPage() {
   // A new sign-in always starts from the person's dashboard, never where an old session stopped
   // (the only exception is returning from a payment).
   const requested = safeNext(params.get('next'), '');
-  const next = requested.startsWith('/pay/') ? requested : safeNext(null);
+  // A company's page leads to that company's dashboard; the main page is for the platform.
+  const next = requested.startsWith('/pay/')
+    ? requested
+    : slug
+      ? `/${slug}/dashboard`
+      : '/platform/dashboard';
 
   const finish = async (res: LoginResponse) => {
     if ('mfaRequired' in res) {

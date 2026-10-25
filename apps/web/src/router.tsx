@@ -313,6 +313,13 @@ export const router = createBrowserRouter([
       { path: 'jobs/:id', element: s(<JobDetailPage />) },
     ],
   },
-  { path: '/dashboard', element: <Navigate to="/app" replace /> },
+  {
+    path: '/dashboard',
+    element: (
+      <RequireAuth>
+        <LegacyRedirect />
+      </RequireAuth>
+    ),
+  },
   { path: '*', element: s(<NotFoundPage />) },
 ]);

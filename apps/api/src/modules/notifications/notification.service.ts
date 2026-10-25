@@ -46,6 +46,14 @@ export class NotificationService {
   }
 
   /** Recipients of this event that were already notified (a retry skips them). */
+  /** The company's own address, e.g. https://app.example/acme-coaches (links in mails open there). */
+  private async root(tenantId: string): Promise<string> {
+    const t = await withDb(this.db, { platform: true }, (tx) =>
+      tx.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } }),
+    );
+    return `${this.appUrl.replace(/\/$/, '')}${t ? `/${t.slug}` : ''}`;
+  }
+
   private async sentKeys(e: ClaimedEvent): Promise<Set<string>> {
     const rows = await withDb(this.db, { tenantId: e.tenantId }, (tx) =>
       tx.notificationDelivery.findMany({
@@ -155,7 +163,7 @@ export class NotificationService {
   }
 
   private static readonly bookingInclude = {
-    tenant: { select: { timezone: true } },
+    tenant: { select: { timezone: true, slug: true } },
     trip: {
       select: {
         departureAt: true,
@@ -186,7 +194,7 @@ export class NotificationService {
       route: `${b.trip.route.origin.city} to ${b.trip.route.destination.city}`,
       departure: when(b.trip.departureAt, b.tenant.timezone),
       seats: b.passengers.map((p) => p.seatLabel).join(', '),
-      link: `${this.appUrl.replace(/\/$/, '')}/app/bookings/${b.id}`,
+      link: `${this.appUrl.replace(/\/$/, '')}/${b.tenant.slug}/bookings/${b.id}`,
     };
   }
 
@@ -306,7 +314,7 @@ export class NotificationService {
     const data = {
       reference: c.booking.reference,
       category: c.category.toLowerCase().replace('_', ' '),
-      link: `${this.appUrl.replace(/\/$/, '')}/c/${e.tenantId}/complaints`,
+      link: `${await this.root(e.tenantId)}/complaints`,
     };
     const sent = await this.sentKeys(e);
     for (const m of staff) {
@@ -333,7 +341,7 @@ export class NotificationService {
     const sent = await this.sentKeys(e);
     await this.deliver(e, sent, `user:${c.userId}`, 'complaint-reply', user.email, {
       reference: c.booking.reference,
-      link: `${this.appUrl.replace(/\/$/, '')}/app/complaints/${c.id}`,
+      link: `${await this.root(e.tenantId)}/complaints/${c.id}`,
     });
   }
 
@@ -370,7 +378,7 @@ export class NotificationService {
     );
     const data = {
       job: a.job.title,
-      link: `${this.appUrl.replace(/\/$/, '')}/c/${e.tenantId}/recruitment`,
+      link: `${await this.root(e.tenantId)}/recruitment`,
     };
     const sent = await this.sentKeys(e);
     for (const m of hr) {
@@ -400,7 +408,7 @@ export class NotificationService {
       job: a.job.title,
       company: a.tenant.name,
       status,
-      link: `${this.appUrl.replace(/\/$/, '')}/app/applications`,
+      link: `${await this.root(e.tenantId)}/applications`,
     });
   }
 
@@ -422,7 +430,7 @@ export class NotificationService {
     const data = {
       reference: b?.reference ?? 'unknown',
       amount: money(num(p.amountMinor), str(p.currency) || 'SLE'),
-      link: `${this.appUrl.replace(/\/$/, '')}/c/${e.tenantId}/bookings`,
+      link: `${await this.root(e.tenantId)}/bookings`,
     };
     const sent = await this.sentKeys(e);
     for (const m of staff) {

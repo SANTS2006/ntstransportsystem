@@ -1,3 +1,4 @@
+import { setAppCompany } from '../../lib/app-path';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -69,10 +70,10 @@ function setup(opts: { uploads: boolean; attachFails?: boolean }) {
   });
   const router = createMemoryRouter(
     [
-      { path: '/app/complaints/new', element: <NewComplaintPage /> },
-      { path: '/app/complaints/:id', element: <p>THREAD OPEN</p> },
+      { path: '/acme/complaints/new', element: <NewComplaintPage /> },
+      { path: '/acme/complaints/:id', element: <p>THREAD OPEN</p> },
     ],
-    { initialEntries: ['/app/complaints/new?booking=b1'] },
+    { initialEntries: ['/acme/complaints/new?booking=b1'] },
   );
   render(
     <QueryClientProvider
@@ -90,6 +91,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+
+setAppCompany('acme');
 
 describe('Report a problem with a voice message', () => {
   it('sends the complaint without typed text, then uploads the recording', async () => {

@@ -10,7 +10,16 @@ let current: string | null = null;
 export function setAppCompany(slug: string | null | undefined): void {
   current = slug ?? null;
 }
+/** Where a signed-in person starts: their company's dashboard, or the platform's. */
+export function homePath(user: {
+  platformRoles?: string[];
+  homeCompany?: { slug: string } | null;
+}): string {
+  if (user.platformRoles?.length) return '/platform/dashboard';
+  return user.homeCompany ? `/${user.homeCompany.slug}/dashboard` : '/dashboard';
+}
+
 export function appRoot(): string {
   const s = current ?? rememberedCompany();
-  return s ? `/${s}` : '/app';
+  return s ? `/${s}` : '';
 }

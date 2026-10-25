@@ -379,7 +379,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return (
       <Navigate
         to={
-          dest === appRoot() || dest === `${appRoot()}/dashboard`
+          dest === '/app' || dest === '/dashboard' || dest.endsWith('/dashboard')
             ? login
             : `${login}?next=${encodeURIComponent(dest)}`
         }

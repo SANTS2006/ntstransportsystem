@@ -14,7 +14,6 @@ import { useFeatures } from '../../lib/features';
 import { checkIdentifier, identifierKind } from '../../lib/identifier';
 import { registerSchema } from '../../lib/schemas';
 import { OrDivider } from './LoginPage';
-import { appRoot } from '../../lib/app-path';
 
 interface Values {
   displayName: string;
@@ -74,7 +73,7 @@ export default function RegisterPage() {
     onSuccess: async (res) => {
       if (res.mfaRequired) return void navigate(`/${slug}/login`);
       await refresh();
-      void navigate(`${appRoot()}/dashboard`, { replace: true });
+      void navigate(`/${slug}/dashboard`, { replace: true });
     },
   });
 

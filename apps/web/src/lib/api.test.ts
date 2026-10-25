@@ -100,10 +100,10 @@ describe('api client', () => {
 describe('safeNext', () => {
   it('allows only same-site relative paths', () => {
     expect(safeNext('/app/security')).toBe('/app/security');
-    expect(safeNext('//evil.example')).toBe('/app/dashboard');
-    expect(safeNext('https://evil.example')).toBe('/app/dashboard');
-    expect(safeNext('/\\evil.example')).toBe('/app/dashboard');
-    expect(safeNext(null)).toBe('/app/dashboard');
+    expect(safeNext('//evil.example')).toBe('/');
+    expect(safeNext('https://evil.example')).toBe('/');
+    expect(safeNext('/\\evil.example')).toBe('/');
+    expect(safeNext(null)).toBe('/');
     expect(safeNext('javascript:alert(1)', '/home')).toBe('/home');
   });
 });

@@ -47,16 +47,16 @@ function Logo({ t }: { t: TenantRow }) {
 /** The two web pages a company has: where its staff and customers sign in and sign up. */
 function PageLinks({ slug }: { slug: string }) {
   const link =
-    'inline-flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-500';
+    'inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-500';
   return (
-    <div className="flex flex-col gap-1 text-sm">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
       <a className={link} href={`/${slug}/login`} target="_blank" rel="noreferrer">
         Sign-in page
-        <ExternalLink aria-hidden="true" className="size-3.5" strokeWidth={1.8} />
+        <ExternalLink aria-hidden="true" className="size-3" strokeWidth={1.8} />
       </a>
       <a className={link} href={`/${slug}/register`} target="_blank" rel="noreferrer">
         Sign-up page
-        <ExternalLink aria-hidden="true" className="size-3.5" strokeWidth={1.8} />
+        <ExternalLink aria-hidden="true" className="size-3" strokeWidth={1.8} />
       </a>
     </div>
   );
@@ -86,8 +86,12 @@ function Actions({
   onAction: (t: TenantRow, a: Action) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button variant="secondary" className="!min-h-9 !px-3 !text-sm" onClick={() => onEdit(t)}>
+    <div className="flex flex-wrap items-center gap-2 md:justify-end">
+      <Button
+        variant="secondary"
+        className="!min-h-9 !px-3 !text-sm whitespace-nowrap"
+        onClick={() => onEdit(t)}
+      >
         <Pencil aria-hidden="true" className="size-3.5" strokeWidth={1.8} />
         Edit
       </Button>
@@ -95,7 +99,7 @@ function Actions({
         <Button
           key={a}
           variant={a === 'approve' || a === 'reactivate' ? 'primary' : 'dangerQuiet'}
-          className="!min-h-9 !px-3 !text-sm"
+          className="!min-h-9 !px-3 !text-sm whitespace-nowrap"
           onClick={() => onAction(t, a)}
         >
           {label(a)}
@@ -117,8 +121,8 @@ export function CompaniesTable({
 }) {
   const date = (iso: string) => new Date(iso).toLocaleDateString();
   return (
-    <ListTools title="Companies">
-      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-level1 md:block dark:border-slate-700 dark:bg-slate-900">
+    <ListTools title="Companies" search={false}>
+      <div className="hidden overflow-x-auto rounded-2xl bg-white shadow-level1 md:block dark:border-slate-700 dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             <tr>
@@ -131,10 +135,7 @@ export function CompaniesTable({
               <th scope="col" className="px-4 py-3">
                 Status
               </th>
-              <th scope="col" className="px-4 py-3">
-                Company pages
-              </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="px-4 py-3 text-right">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -150,10 +151,13 @@ export function CompaniesTable({
                       <p className="truncate text-xs text-slate-500">
                         /{t.slug} · since {date(t.createdAt)}
                       </p>
+                      <div className="mt-1.5">
+                        <PageLinks slug={t.slug} />
+                      </div>
                     </div>
                   </div>
                 </td>
-                <td className="max-w-56 px-4 py-3">
+                <td className="max-w-60 px-4 py-3">
                   <Admins t={t} />
                 </td>
                 <td className="px-4 py-3">
@@ -162,10 +166,7 @@ export function CompaniesTable({
                     {t.defaultCurrency} · {t.timezone}
                   </p>
                 </td>
-                <td className="px-4 py-3">
-                  <PageLinks slug={t.slug} />
-                </td>
-                <td className="px-4 py-3">
+                <td className="min-w-52 px-4 py-3">
                   <Actions t={t} onEdit={onEdit} onAction={onAction} />
                 </td>
               </tr>

@@ -102,7 +102,9 @@ export const requireTenantPermission =
 
 /**
  * Platform administration gate. Requires an explicit platform role (never a tenant membership),
- * an active account, and enrolled MFA. Every denial is audited.
+ * and an active account. Two-step verification is the administrator's own choice (they can turn
+ * it on or off on the Security page); when it is on, sign-in asks for the code. Every denial is
+ * audited.
  */
 export function platformGuard(db: Db, allowed: readonly PlatformRole[]): RequestHandler {
   return async (req, _res, next) => {
@@ -116,22 +118,15 @@ export function platformGuard(db: Db, allowed: readonly PlatformRole[]): Request
     const hasRole = allowed.some((r) => roles.has(r));
     // Same 404 for "no platform role" so the existence of the admin area is not advertised.
     if (!user || user.status !== 'ACTIVE' || roles.size === 0) return next(AppError.notFound());
-    if (!hasRole || !user.mfaEnabled) {
+    if (!hasRole) {
       await writeAudit(db, {
         action: 'platform.access_denied',
         outcome: 'DENIED',
         actorUserId: userId,
         requestId: req.id,
-        summary: {
-          reason: !user.mfaEnabled ? 'mfa_required' : 'insufficient_role',
-          path: req.path,
-        },
+        summary: { reason: 'insufficient_role', path: req.path },
       });
-      return next(
-        user.mfaEnabled
-          ? AppError.forbidden()
-          : AppError.forbidden('Multi-factor authentication is required for platform access'),
-      );
+      return next(AppError.forbidden());
     }
     req.platform = { userId, roles };
     next();

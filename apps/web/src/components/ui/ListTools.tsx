@@ -27,11 +27,14 @@ export function ListTools({
   title,
   children,
   className = '',
+  search = true,
 }: {
   /** Names the export file and the printed page. */
   title: string;
   children: ReactNode;
   className?: string;
+  /** Hide the search box when the page already has its own. */
+  search?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState('');
@@ -119,21 +122,25 @@ export function ListTools({
     <div ref={root} className={`min-w-0 space-y-3 ${className}`}>
       {hasItems && (
         <div className="flex flex-wrap items-center gap-2" data-list-tools>
-          <div className="relative min-w-0 flex-1 basis-48">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500"
-              strokeWidth={1.8}
-            />
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={`Search ${title.toLowerCase()}`}
-              aria-label={`Search ${title}`}
-              className="block min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 dark:border-slate-600 dark:bg-slate-900"
-            />
-          </div>
+          {search ? (
+            <div className="relative min-w-0 flex-1 basis-48">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500"
+                strokeWidth={1.8}
+              />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`Search ${title.toLowerCase()}`}
+                aria-label={`Search ${title}`}
+                className="block min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-slate-500 dark:border-slate-600 dark:bg-slate-900"
+              />
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
           {statuses.length > 1 && (
             <select
               aria-label={`Filter ${title}`}

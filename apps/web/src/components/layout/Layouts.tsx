@@ -90,11 +90,14 @@ function Brand({
 export function Avatar({
   name,
   version,
+  src = '/api/v1/auth/me/avatar',
   accent = false,
   size = 'md',
 }: {
   name: string | undefined;
   version?: number | null | undefined;
+  /** Where the picture is served from (someone else's picture in a company's lists). */
+  src?: string;
   accent?: boolean;
   size?: 'md' | 'lg';
 }) {
@@ -110,7 +113,7 @@ export function Avatar({
   if (version && !broken) {
     return (
       <img
-        src={`/api/v1/auth/me/avatar?v=${version}`}
+        src={`${src}?v=${version}`}
         alt=""
         aria-hidden="true"
         onError={() => setBroken(true)}
@@ -649,7 +652,11 @@ export function DashboardShell({
     onSettled: () => {
       const back = signInPath(user);
       clear();
-      void navigate(back, { replace: true });
+      // A full load of the sign-in page (replacing this history entry) leaves nothing of the
+      // signed-in screens in memory, so Back can only ever reach pages that ask for sign-in again.
+      if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test')
+        window.location.replace(back);
+      else void navigate(back, { replace: true });
     },
   });
   const sidebar = (
@@ -708,7 +715,7 @@ export function DashboardShell({
       </nav>
       <div className="border-t border-white/10 p-4 text-white">
         <div className="flex items-center gap-3">
-          <Avatar name={user?.displayName} accent />
+          <Avatar name={user?.displayName} version={user?.avatarVersion} accent />
           <div className="min-w-0 text-xs">
             <p className="truncate font-medium">{user?.displayName}</p>
             <p className="truncate text-slate-300">{user?.email ?? user?.phone}</p>

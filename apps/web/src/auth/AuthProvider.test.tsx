@@ -77,4 +77,24 @@ describe('AuthProvider', () => {
       timeout: 6000,
     });
   });
+
+  it('signs the page out when it is shown again (Back button) after the session is gone', async () => {
+    document.cookie = 'csrf=abc; path=/';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      json(200, {
+        id: 'u',
+        email: 'a@example.com',
+        displayName: 'A',
+        emailVerifiedAt: 'x',
+        mfaEnabled: false,
+        identities: [],
+        platformRoles: [],
+      }),
+    );
+    renderProbe();
+    await waitFor(() => expect(screen.getByText('user:a@example.com')).toBeInTheDocument());
+    clearCsrf(); // signing out removes this cookie
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(screen.getByText('signed-out')).toBeInTheDocument());
+  });
 });

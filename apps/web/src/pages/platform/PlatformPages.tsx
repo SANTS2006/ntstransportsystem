@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, LayoutDashboard, Mail, Plus, Power, ScrollText } from 'lucide-react';
+import {
+  Building2,
+  DatabaseBackup,
+  LayoutDashboard,
+  Mail,
+  Plus,
+  Power,
+  ScrollText,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -43,6 +51,9 @@ export function PlatformLayout() {
         { to: '/platform/companies', label: 'Companies', icon: Building2, group: 'Platform' },
         { to: '/platform/email', label: 'Email', icon: Mail, group: 'Platform' },
         { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
+        ...(user.platformRoles.includes('SUPER_ADMIN')
+          ? [{ to: '/platform/backup', label: 'Backup', icon: DatabaseBackup, group: 'Platform' }]
+          : []),
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
       ]}
     >

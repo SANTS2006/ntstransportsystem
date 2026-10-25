@@ -192,15 +192,15 @@ describe.skipIf(!TEST_DB_URL)('MFA and Google sign-in (database)', () => {
       expect((await u.authed('get', '/me')).body.mfaEnabled).toBe(false);
     });
 
-    it('forbids platform administrators from disabling MFA', async () => {
+    it('lets platform administrators turn MFA off (it is their own choice)', async () => {
       const u = await enrolledUser();
       const user = await db.user.findUniqueOrThrow({ where: { email: u.email } });
       await db.platformRoleAssignment.create({ data: { userId: user.id, role: 'SUPPORT' } });
       await u
         .authed('post', '/mfa/disable')
         .send({ code: totpCode(u.secret, 1), password: PASSWORD })
-        .expect(403);
-      expect((await u.authed('get', '/me')).body.mfaEnabled).toBe(true);
+        .expect(204);
+      expect((await u.authed('get', '/me')).body.mfaEnabled).toBe(false);
     });
 
     it('requires the CSRF token for enrollment', async () => {

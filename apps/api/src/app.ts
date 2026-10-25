@@ -63,6 +63,8 @@ import { PlatformReportService } from './modules/report/platform-report.service.
 import { PlatformAuditService } from './modules/audit/platform-audit.service.js';
 import { BrandingService } from './modules/branding/branding.service.js';
 import { brandingRouter } from './modules/branding/branding.routes.js';
+import { BackupService } from './modules/backup/backup.service.js';
+import { backupRouter } from './modules/backup/backup.routes.js';
 import { platformEmailRouter } from './modules/notifications/platform-email.routes.js';
 import { passengerRoleGuard } from './modules/tenants/tenant.guards.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
@@ -154,6 +156,12 @@ export function createApp({
 
   const v1 = Router();
   v1.use(originGuard(env));
+  // Nothing signed-in is kept by the browser or a proxy (so Back after sign-out cannot show it).
+  // Routes that are meant to be cached (logos, public lists) set their own header afterwards.
+  v1.use((_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   // Flood control for the whole API: generous for real use (a busy dispatcher), hard on scripts.
   // Reads and writes are counted apart, and the limit holds across instances when Redis is set.
   const flood = (name: string, windowMs: number, max: number, writes: boolean) =>
@@ -229,6 +237,7 @@ export function createApp({
     v1.use(tenantRouter({ db, tenants, members, roles: new RoleService(db) }));
     v1.use(brandingRouter(db, new BrandingService(db)));
     v1.use(platformEmailRouter(db, mailer));
+    v1.use(backupRouter(db, new BackupService(db)));
     v1.use(
       '/platform',
       platformRouter(

@@ -37,6 +37,7 @@ import { z } from 'zod';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell, type NavItem } from '../../components/layout/Layouts';
 import { appRoot } from '../../lib/app-path';
+import { Avatar } from '../../components/layout/Layouts';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, StatusBadge } from '../../components/ui/Card';
@@ -328,12 +329,11 @@ export function StaffPage() {
               kind: 'title',
               cell: (x) => (
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white"
-                  >
-                    {x.displayName.slice(0, 1).toUpperCase()}
-                  </span>
+                  <Avatar
+                    name={x.displayName}
+                    version={x.avatarVersion}
+                    src={`/api/v1/tenants/${tenantId}/people/${x.userId}/avatar`}
+                  />
                   <button
                     type="button"
                     onClick={() => setDetailsFor(x)}
@@ -371,16 +371,6 @@ export function StaffPage() {
                     <Badge tone="amber" icon={null}>
                       Acting as passenger
                     </Badge>
-                  )}
-                  {can(access, 'membership.invite') && (
-                    <button
-                      type="button"
-                      onClick={() => setRolesFor(x)}
-                      className="inline-flex min-h-7 items-center gap-1 rounded-full bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:bg-slate-800 dark:text-brand-500"
-                    >
-                      <Plus aria-hidden="true" className="size-3" strokeWidth={2.2} />
-                      Add role
-                    </button>
                   )}
                 </div>
               ),

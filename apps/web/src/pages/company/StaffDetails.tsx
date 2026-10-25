@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { Avatar } from '../../components/layout/Layouts';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, StatusBadge } from '../../components/ui/Card';
@@ -30,6 +31,7 @@ export interface Member {
   displayName: string;
   status: string;
   createdAt: string;
+  avatarVersion: number | null;
   role: { id: string; key: string; name: string };
   roles: { id: string; key: string; name: string }[];
   passengerMode: boolean;
@@ -229,12 +231,12 @@ export function StaffDetailsDialog({
       {member && (
         <div className="space-y-5">
           <div className="flex items-center gap-4">
-            <span
-              aria-hidden="true"
-              className="grid size-14 shrink-0 place-items-center rounded-full bg-brand-600 text-xl font-bold text-white"
-            >
-              {member.displayName.slice(0, 1).toUpperCase()}
-            </span>
+            <Avatar
+              size="lg"
+              name={member.displayName}
+              version={member.avatarVersion}
+              src={`/api/v1/tenants/${tenantId}/people/${member.userId}/avatar`}
+            />
             <div className="min-w-0">
               <p className="break-words text-lg font-semibold [overflow-wrap:anywhere]">
                 {member.displayName}

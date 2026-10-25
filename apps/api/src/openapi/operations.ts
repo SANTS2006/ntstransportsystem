@@ -393,6 +393,39 @@ export const operations: Record<string, Operation> = {
     permission: 'SUPER_ADMIN | OPERATIONS',
     ok: 204,
   },
+  'POST /api/v1/platform/backup': {
+    summary: 'Start a backup of the platform data',
+    description:
+      'Runs in the background and answers with a job id. Every readable table is included (sessions, tokens, codes and queued notifications are left out). Super administrators only; audited.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN',
+    ok: 202,
+  },
+  'POST /api/v1/platform/backup/restore': {
+    summary: 'Start a check or a restore from a backup file',
+    description:
+      'The body is the backup file; the job runs in the background. `?mode=check` shows what would come back and changes nothing; `?mode=apply` adds the rows that are missing and never changes or deletes an existing row.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN',
+    query: [{ name: 'mode', description: 'check or apply' }],
+    ok: 202,
+  },
+  'GET /api/v1/platform/backup/jobs/{id}': {
+    summary: 'How a backup or restore job is going',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN',
+    ok: 200,
+  },
+  'GET /api/v1/platform/backup/jobs/{id}/file': {
+    summary: 'Download the finished backup file',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN',
+    ok: 200,
+  },
   'GET /api/v1/platform/email/companies': {
     summary: 'Companies that can be e-mailed, with their administrator',
     description:
@@ -411,6 +444,14 @@ export const operations: Record<string, Operation> = {
     permission: 'SUPER_ADMIN | OPERATIONS | SUPPORT',
     body: platformEmailSchema,
     ok: 202,
+  },
+  'GET /api/v1/tenants/{tenantId}/people/{userId}/avatar': {
+    summary: "A staff member's or user's profile picture",
+    description: 'Only for people who belong to this company; others are not found.',
+    tag: 'Companies',
+    access: T,
+    permission: 'membership.read',
+    ok: 200,
   },
   'GET /api/v1/tenants/{tenantId}/users': {
     summary: "The company's registered users (its passengers)",

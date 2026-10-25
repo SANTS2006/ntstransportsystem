@@ -149,6 +149,15 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
   t.get('/memberships', perm('membership.read'), async (req, res) => {
     res.json({ memberships: await members.list(scope(req), pageQuery(req)) });
   });
+  t.get('/people/:userId/avatar', perm('membership.read'), async (req, res) => {
+    const a = await members.avatarOf(scope(req), uuidParam(req, 'userId'));
+    if (!a) throw AppError.notFound('No picture');
+    res.setHeader('Content-Type', a.type);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(a.data);
+  });
   t.get('/users', perm('membership.read'), async (req, res) => {
     const q = z.string().trim().max(80).optional().parse(req.query.q);
     res.json(await members.listUsers(scope(req), q || undefined, pageQuery(req)));

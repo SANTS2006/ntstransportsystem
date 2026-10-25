@@ -341,3 +341,10 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Old addresses (`/app/...`, `/c/<id>/...`, `/<company>/app/...`, and links in old e-mails) redirect to the new ones. Switching role lands on `/<company>/dashboard`.
 - [x] Every navbar shows the company's logo and name (name on large screens only); the platform console shows the system's logo and name the same way.
 - [x] The company's Users list now includes its staff (they hold the passenger role too). Every staff row has "Add role", including the owner's own row; adding a role to yourself is allowed (only a role whose permissions you hold), taking roles from yourself is not.
+
+## Optional 2FA for platform admins, backup and recovery, sign-out and Back
+
+- [x] Two-step verification is the platform administrator's own choice: no longer required to use platform pages, and they can turn it on and off on the Security page (with their password and a code, as for everyone).
+- [x] Companies table tidied: page links sit under the company name, actions line up on the right and no longer wrap.
+- [x] Sign-out and Back: sign-out reloads the sign-in page in place of the old entry, and a page restored by Back/forward or a tab switch signs itself out when the session cookie is gone; API responses are `no-store`.
+- [x] Platform > Backup (super administrators only): download one compressed backup of every readable table (sessions, tokens, codes and queued notifications excluded); recover from a file with "check" (runs the restore and undoes it) or "restore", which only adds back missing rows and never changes or deletes existing ones. All actions audited. Neon point-in-time restore remains the database-level safety net.

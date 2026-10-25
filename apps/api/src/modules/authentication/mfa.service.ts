@@ -142,18 +142,13 @@ export class MfaService {
     return { recoveryCodes };
   }
 
-  /** Requires the password (if one exists) and a valid code. Platform administrators cannot opt out. */
+  /** Requires the password (if one exists) and a valid code. Platform administrators may turn it off too. */
   async disable(
     userId: string,
     input: { password?: string | undefined; code: string },
     requestId?: string,
   ) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
-    if (await this.db.platformRoleAssignment.count({ where: { userId } })) {
-      throw AppError.forbidden(
-        'Multi-factor authentication is mandatory for platform administrators',
-      );
-    }
     if (
       user.passwordHash &&
       !(input.password && (await verifyPassword(user.passwordHash, input.password)))

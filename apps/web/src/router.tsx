@@ -109,6 +109,9 @@ const PlatformOverviewPage = lazy(() =>
 const PlatformEmailPage = lazy(() =>
   import('./pages/platform/PlatformEmailPage').then((m) => ({ default: m.PlatformEmailPage })),
 );
+const PlatformBackupPage = lazy(() =>
+  import('./pages/platform/PlatformBackupPage').then((m) => ({ default: m.PlatformBackupPage })),
+);
 const PlatformMaintenancePage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
 );
@@ -299,6 +302,7 @@ export const router = createBrowserRouter([
       { path: 'profile', element: s(<ProfilePage />) },
       { path: 'security', element: s(<SecurityPage />) },
       { path: 'email', element: s(<PlatformEmailPage />) },
+      { path: 'backup', element: s(<PlatformBackupPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
     ],
   },

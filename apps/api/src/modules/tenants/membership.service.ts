@@ -55,7 +55,14 @@ export class MembershipService {
       tx.membership.findMany({
         where: { tenantId: s.tenantId },
         include: {
-          user: { select: { email: true, displayName: true, phone: true } },
+          user: {
+            select: {
+              email: true,
+              displayName: true,
+              phone: true,
+              avatar: { select: { updatedAt: true } },
+            },
+          },
           role: true,
           roles: { include: { role: { select: { id: true, key: true, name: true } } } },
         },
@@ -101,6 +108,7 @@ export class MembershipService {
       passengerMode: m.passengerMode,
       role: { id: m.role.id, key: m.role.key, name: m.role.name },
       createdAt: m.createdAt,
+      avatarVersion: m.user.avatar ? m.user.avatar.updatedAt.getTime() : null,
     }));
   }
 
@@ -404,6 +412,28 @@ export class MembershipService {
   }
 
   /** Everyone who signed up on this company's page (its passengers), staff included. */
+  /**
+   * A person's picture, for the company's staff and user lists. Only people who belong to this
+   * company (staff, or signed up on its page) can be looked up; anyone else is simply not found.
+   */
+  async avatarOf(s: TenantScope, userId: string) {
+    const [member, home] = await Promise.all([
+      withDb(this.db, this.ctx(s), (tx) =>
+        tx.membership.findFirst({
+          where: { tenantId: s.tenantId, userId, status: 'ACTIVE' },
+          select: { id: true },
+        }),
+      ),
+      this.db.user.findFirst({
+        where: { id: userId, homeTenantId: s.tenantId },
+        select: { id: true },
+      }),
+    ]);
+    if (!member && !home) return null;
+    const a = await this.db.userAvatar.findUnique({ where: { userId } });
+    return a ? { data: Buffer.from(a.data), type: a.contentType } : null;
+  }
+
   async listUsers(s: TenantScope, q: string | undefined, page: { limit: number; offset: number }) {
     // Everyone who signed up on the company page, and every staff member too: staff hold the
     // passenger role as well, so they are users of the company like anyone else.
@@ -443,6 +473,7 @@ export class MembershipService {
           phone: true,
           status: true,
           createdAt: true,
+          avatar: { select: { updatedAt: true } },
           emailVerifiedAt: true,
           phoneVerifiedAt: true,
         },
@@ -459,6 +490,7 @@ export class MembershipService {
         status: u.status,
         verified: Boolean(u.emailVerifiedAt ?? u.phoneVerifiedAt),
         joinedAt: u.createdAt,
+        avatarVersion: u.avatar ? u.avatar.updatedAt.getTime() : null,
         isStaff: staffIds.has(u.id),
       })),
     };

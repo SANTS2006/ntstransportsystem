@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { api, ApiError } from '../lib/api';
 import { setAppCompany } from '../lib/app-path';
 
@@ -53,6 +53,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 60_000,
   });
 
+  // Back/forward and tab switches can show a page kept from before sign-out. The readable `csrf`
+  // cookie exists only while signed in, so when it is gone the person is signed out here too and
+  // the protected page gives way to the sign-in page.
+  useEffect(() => {
+    const recheck = () => {
+      const signedIn = document.cookie.split('; ').some((c) => c.startsWith('csrf='));
+      if (!signedIn && qc.getQueryData(ME_KEY)) {
+        void qc.cancelQueries();
+        qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
+        qc.setQueryData(ME_KEY, null);
+      } else if (signedIn && !qc.getQueryData(ME_KEY)) {
+        void qc.invalidateQueries({ queryKey: ME_KEY });
+      }
+    };
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) recheck();
+    };
+    window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', recheck);
+    return () => {
+      window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', recheck);
+    };
+  }, [qc]);
+
   // The passenger pages live under the company the account belongs to.
   setAppCompany(query.data?.homeCompany?.slug);
   const value = useMemo<AuthState>(
@@ -66,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clear: () => {
         // Nothing of the finished session survives: cached screens, drafts and pending requests.
         void qc.cancelQueries();
-        qc.clear();
+        qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
         qc.setQueryData(ME_KEY, null);
         try {
           sessionStorage.clear();

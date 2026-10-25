@@ -291,10 +291,11 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       await u.call('get', '/platform/tenants').expect(404);
     });
 
-    it('requires MFA for platform access, and audits the denial', async () => {
-      const p = await platformUser('OPERATIONS', false);
-      const res = await p.call('get', '/platform/tenants').expect(403);
-      expect(res.body.error.message).toMatch(/multi-factor/i);
+    it('lets platform staff in without two-step verification, but a role that does not fit is audited', async () => {
+      const p = await platformUser('SUPPORT', false);
+      await p.call('get', '/platform/tenants').expect(200);
+      // SUPPORT may not register companies.
+      await p.call('post', '/platform/tenants').send({}).expect(403);
       const events = await withDb(db, { platform: true }, (tx) =>
         tx.auditLog.findMany({
           where: { action: 'platform.access_denied', actorUserId: p.userId },

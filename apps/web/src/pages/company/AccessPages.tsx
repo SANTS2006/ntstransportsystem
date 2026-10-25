@@ -1,3 +1,4 @@
+import { Avatar } from '../../components/layout/Layouts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Plus, Search, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -386,6 +387,7 @@ interface UserRow {
   verified: boolean;
   joinedAt: string;
   isStaff: boolean;
+  avatarVersion: number | null;
 }
 const PAGE = 25;
 
@@ -448,12 +450,11 @@ export function UsersPage() {
               kind: 'title',
               cell: (u) => (
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white"
-                  >
-                    {u.name.slice(0, 1).toUpperCase()}
-                  </span>
+                  <Avatar
+                    name={u.name}
+                    version={u.avatarVersion}
+                    src={`/api/v1/tenants/${tenantId}/people/${u.id}/avatar`}
+                  />
                   <span className="truncate font-semibold">{u.name}</span>
                 </div>
               ),

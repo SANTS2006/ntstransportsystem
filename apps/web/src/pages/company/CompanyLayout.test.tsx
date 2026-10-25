@@ -27,7 +27,7 @@ function renderCompany(access: unknown, status = 200) {
     [
       {
         path: '/c/:tenantId',
-        element: <CompanyLayout />,
+        element: <CompanyLayout tenantId="11111111-1111-4111-8111-111111111111" />,
         children: [{ index: true, element: <p>OVERVIEW</p> }],
       },
     ],

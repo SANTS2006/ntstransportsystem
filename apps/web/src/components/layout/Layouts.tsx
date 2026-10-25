@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase,
   Check,
-  Building2,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -414,6 +413,7 @@ function groupNav(nav: NavItem[]): { name: string | null; items: NavItem[] }[] {
 /** The round picture at the top right: opens a small menu with the profile, security and sign out. */
 interface MyCompany {
   tenantId: string;
+  slug: string;
   name: string;
   membershipStatus: string;
   role: { id: string; key: string; name: string };
@@ -435,19 +435,14 @@ function RoleSwitcher({ onDone }: { onDone: () => void }) {
     queryFn: ({ signal }) => api<{ tenants: MyCompany[] }>('/tenants/mine', { signal }),
   });
   const switchTo = useMutation({
-    mutationFn: (v: { tenantId: string; role: string }) =>
+    mutationFn: (v: { tenantId: string; slug: string; role: string }) =>
       api(`/tenants/${v.tenantId}/me/switch-role`, { method: 'POST', body: { role: v.role } }),
     onSuccess: async (_d, v) => {
       // Everything on screen belonged to the old role: forget it and open the new role's area.
       await qc.invalidateQueries();
       onDone();
       // The new role starts from its own dashboard, whatever page the old role was on.
-      void navigate(
-        v.role === 'passenger' ? `${appRoot()}/dashboard` : `/c/${v.tenantId}/dashboard`,
-        {
-          replace: true,
-        },
-      );
+      void navigate(`/${v.slug}/dashboard`, { replace: true });
     },
   });
   const staff = (mine.data?.tenants ?? []).filter(
@@ -484,7 +479,7 @@ function RoleSwitcher({ onDone }: { onDone: () => void }) {
                 disabled={switchTo.isPending}
                 className={item(active)}
                 onClick={() => {
-                  if (!active) switchTo.mutate({ tenantId: t.tenantId, role: r.id });
+                  if (!active) switchTo.mutate({ tenantId: t.tenantId, slug: t.slug, role: r.id });
                   else onDone();
                 }}
               >
@@ -774,13 +769,9 @@ export function DashboardShell({
           >
             <Menu className="size-5" />
           </button>
-          {company ? (
-            <div className="min-w-0 flex-1">
-              <Brand company={company} home={`${account}/dashboard`} />
-            </div>
-          ) : (
-            <span className="hidden text-sm font-medium text-slate-500 lg:block">{heading}</span>
-          )}
+          <div className="min-w-0 flex-1">
+            <Brand company={company} home={`${account}/dashboard`} />
+          </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <NotificationBell />
@@ -816,36 +807,13 @@ const appNav = (): NavItem[] => [
 ];
 
 /** A staff member who works for more than one company chooses which to open. */
-const pickerNav = (): NavItem[] => [
-  { to: appRoot(), label: 'My companies', end: true, icon: Building2 },
-];
-
 /**
- * The passenger area. Platform administrators and company staff never see it: they are sent
- * straight to their own area when they sign in, and only ordinary (passenger) accounts stay here.
+ * The passenger area of one company: its name, logo and colours, and only the pages of the person
+ * who is acting as a passenger (a customer, or a staff member who switched to the passenger role).
  */
-export function AppShell() {
-  const { user } = useAuth();
-  const { slug } = useParams();
-  const { pathname } = useLocation();
-  const isPlatform = (user?.platformRoles.length ?? 0) > 0;
-  const home = user?.homeCompany ?? null;
-  const mine = useQuery({
-    queryKey: ['tenants', 'mine'],
-    enabled: Boolean(user) && !isPlatform,
-    queryFn: ({ signal }) =>
-      api<{
-        tenants: {
-          tenantId: string;
-          name: string;
-          membershipStatus: string;
-          passengerMode: boolean;
-        }[];
-      }>('/tenants/mine', { signal }),
-  });
+export function PassengerShell({ slug, name }: { slug: string; name: string }) {
   const brand = useQuery({
-    queryKey: ['public-company', home?.slug],
-    enabled: Boolean(home),
+    queryKey: ['public-company', slug],
     retry: false,
     queryFn: ({ signal }) =>
       api<{
@@ -853,57 +821,55 @@ export function AppShell() {
         logoUrl: string | null;
         primaryColor: string | null;
         accentColor: string | null;
-      }>(`/public/companies/${home!.slug}`, { signal }),
+      }>(`/public/companies/${slug}`, { signal }),
   });
-  if (isPlatform) return <Navigate to="/platform/dashboard" replace />;
-  // Everything in the passenger area belongs to the account's own company: another company's
-  // address, or the plain /app address, leads to the same page under the right company.
-  if (home && slug !== home.slug) {
-    const rest = pathname.replace(/^\/(?:[^/]+\/)?app/, '');
-    return <Navigate to={`/${home.slug}/app${rest || '/dashboard'}`} replace />;
-  }
-  if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
-  // Staff who are acting as passengers stay here; the rest go to the company they act for.
-  const staff = (mine.data?.tenants ?? []).filter(
-    (t) => t.membershipStatus === 'ACTIVE' && !t.passengerMode,
-  );
-  if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}/dashboard`} replace />;
-  if (staff.length > 1) {
-    return (
-      <DashboardShell nav={pickerNav()} heading="Your companies">
-        <div className="w-full space-y-3">
-          <h1 className="text-2xl">Choose a company</h1>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {staff.map((t) => (
-              <li key={t.tenantId}>
-                <Link
-                  to={`/c/${t.tenantId}/dashboard`}
-                  className="block rounded-2xl border border-slate-200 bg-white p-4 font-semibold shadow-level1 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
-                >
-                  {t.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </DashboardShell>
-    );
-  }
   return (
     <DashboardShell
       nav={appNav()}
       heading="Your account"
       account={appRoot()}
-      company={
-        home
-          ? {
-              name: brand.data?.name ?? home.name,
-              logoUrl: brand.data?.logoUrl ?? null,
-              primary: brand.data?.primaryColor ?? null,
-              accent: brand.data?.accentColor ?? null,
-            }
-          : undefined
-      }
+      company={{
+        name: brand.data?.name ?? name,
+        logoUrl: brand.data?.logoUrl ?? null,
+        primary: brand.data?.primaryColor ?? null,
+        accent: brand.data?.accentColor ?? null,
+      }}
     />
+  );
+}
+
+/**
+ * Old addresses (/app/..., /c/<id>/..., /<company>/app/...) lead to the same page under the
+ * company's web address, whatever the person's role.
+ */
+export function LegacyRedirect() {
+  const { user } = useAuth();
+  const { tenantId, slug } = useParams();
+  const { pathname } = useLocation();
+  const isPlatform = (user?.platformRoles.length ?? 0) > 0;
+  const mine = useQuery({
+    queryKey: ['tenants', 'mine'],
+    enabled: Boolean(user) && !isPlatform,
+    queryFn: ({ signal }) =>
+      api<{ tenants: { tenantId: string; slug: string; membershipStatus: string }[] }>(
+        '/tenants/mine',
+        { signal },
+      ),
+  });
+  if (isPlatform) return <Navigate to="/platform/dashboard" replace />;
+  const rest = pathname
+    .replace(/^\/c\/[^/]+/, '')
+    .replace(/^\/[^/]+\/app/, '')
+    .replace(/^\/app/, '');
+  const target = rest && rest !== '/' ? rest : '/dashboard';
+  if (slug) return <Navigate to={`/${slug}${target}`} replace />;
+  if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
+  const own = (mine.data?.tenants ?? []).filter((t) => t.membershipStatus === 'ACTIVE');
+  const hit = (tenantId && own.find((t) => t.tenantId === tenantId)) || null;
+  const slugOf = hit?.slug ?? user?.homeCompany?.slug ?? own[0]?.slug;
+  return slugOf ? (
+    <Navigate to={`/${slugOf}${target}`} replace />
+  ) : (
+    <Navigate to="/login" replace />
   );
 }

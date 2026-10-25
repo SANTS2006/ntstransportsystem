@@ -5,7 +5,7 @@ import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider';
-import { AppShell } from './Layouts';
+import { PassengerShell } from './Layouts';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -13,10 +13,14 @@ const json = (status: number, body: unknown) =>
 const makeRouter = () =>
   createMemoryRouter(
     [
-      { path: '/app', element: <AppShell />, children: [{ index: true, element: <p>HOME</p> }] },
+      {
+        path: '/acme',
+        element: <PassengerShell slug="acme" name="Acme" />,
+        children: [{ index: true, element: <p>HOME</p> }],
+      },
       { path: '/login', element: <p>LOGIN</p> },
     ],
-    { initialEntries: ['/app'] },
+    { initialEntries: ['/acme'] },
   );
 
 afterEach(() => vi.restoreAllMocks());

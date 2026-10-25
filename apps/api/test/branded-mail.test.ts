@@ -229,4 +229,26 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
       .expect(204);
     await request(ctx.app).get('/api/v1/auth/me').set('Cookie', cookies.join('; ')).expect(401);
   });
+
+  it('lists staff among the users of the company, and lets an owner add a role to themselves', async () => {
+    const t = await createTenantWithOwner(db, 'userlist');
+    const owner = await loginClient(ctx.app, db, t.email, t.password);
+    const users = await owner.call('get', `/tenants/${t.tenant.id}/users`).expect(200);
+    const me = users.body.users.find((u: { email: string }) => u.email === t.email);
+    expect(me?.isStaff).toBe(true);
+
+    const membership = (await owner.call('get', `/tenants/${t.tenant.id}/memberships`).expect(200))
+      .body.memberships[0];
+    const dispatcher = (
+      await owner.call('get', `/tenants/${t.tenant.id}/roles`).expect(200)
+    ).body.roles.find((r: { key: string }) => r.key === 'dispatcher');
+    await owner
+      .call('post', `/tenants/${t.tenant.id}/memberships/${membership.id}/roles`)
+      .send({ roleId: dispatcher.id })
+      .expect(204);
+    await owner
+      .call('post', `/tenants/${t.tenant.id}/me/switch-role`)
+      .send({ role: dispatcher.id })
+      .expect(204);
+  });
 });

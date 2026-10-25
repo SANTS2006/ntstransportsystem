@@ -16,6 +16,7 @@ import { Badge, Card, StatTile } from '../../components/ui/Card';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { clockTime, minutesLabel, money } from '../../lib/format';
+import { appRoot } from '../../lib/app-path';
 import { can, useCompany } from './company-context';
 
 interface Board {
@@ -99,21 +100,21 @@ export function CompanyPulse({ timezone }: { timezone: string }) {
     attention.push({
       key: 'refunds',
       text: `${s.refundsOwed.count} payment${s.refundsOwed.count === 1 ? '' : 's'} (${money(s.refundsOwed.amountMinor, 'SLE')}) arrived after the seats were released and must be refunded.`,
-      to: `/c/${tenantId}/bookings`,
+      to: `${appRoot()}/bookings`,
     });
   }
   if (s && s.cancelledAfterPayment.count > 0) {
     attention.push({
       key: 'cancelled',
       text: `${s.cancelledAfterPayment.count} paid booking${s.cancelledAfterPayment.count === 1 ? ' was' : 's were'} cancelled today: check that customers were refunded.`,
-      to: `/c/${tenantId}/bookings`,
+      to: `${appRoot()}/bookings`,
     });
   }
   if (b && b.summary.needingAttention > 0) {
     attention.push({
       key: 'trips',
       text: `${b.summary.needingAttention} trip${b.summary.needingAttention === 1 ? ' needs' : 's need'} attention (missing vehicle or driver, delays, expired documents).`,
-      to: `/c/${tenantId}/dispatch`,
+      to: `${appRoot()}/dispatch`,
     });
   }
 
@@ -198,7 +199,7 @@ export function CompanyPulse({ timezone }: { timezone: string }) {
             action={
               <Link
                 className="text-sm font-medium text-brand-700 font-medium dark:text-brand-500"
-                to={`/c/${tenantId}/dispatch`}
+                to={`${appRoot()}/dispatch`}
               >
                 Dispatch board
               </Link>
@@ -247,19 +248,19 @@ export function CompanyPulse({ timezone }: { timezone: string }) {
           <div className="space-y-2">
             {can(access, 'booking.read') && (
               <Shortcut
-                to={`/c/${tenantId}/bookings`}
+                to={`${appRoot()}/bookings`}
                 icon={Ticket}
                 label="Bookings and counter sales"
               />
             )}
             {can(access, 'trip.read') && (
-              <Shortcut to={`/c/${tenantId}/dispatch`} icon={Radio} label="Dispatch board" />
+              <Shortcut to={`${appRoot()}/dispatch`} icon={Radio} label="Dispatch board" />
             )}
             {can(access, 'ticket.validate') && (
-              <Shortcut to={`/c/${tenantId}/boarding`} icon={Bus} label="Boarding" />
+              <Shortcut to={`${appRoot()}/boarding`} icon={Bus} label="Boarding" />
             )}
             {can(access, 'finance.report.read') && (
-              <Shortcut to={`/c/${tenantId}/reports`} icon={BarChart3} label="Reports" />
+              <Shortcut to={`${appRoot()}/reports`} icon={BarChart3} label="Reports" />
             )}
           </div>
         </Card>

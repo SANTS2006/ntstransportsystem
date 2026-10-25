@@ -58,7 +58,7 @@ export function CompanyDashboard() {
     queryFn: ({ signal }) =>
       api<{ complaints: unknown[] }>(`${base}/complaints?limit=50&status=OPEN`, { signal }),
   });
-  const tiles = companyNav(access, tenantId).filter((n) => !n.to.endsWith('/dashboard'));
+  const tiles = companyNav(access).filter((n) => !n.to.endsWith('/dashboard'));
   const groups = [...new Set(tiles.map((t) => t.group ?? 'More'))];
   const first = user?.displayName.split(/\s+/)[0] ?? '';
 

@@ -334,3 +334,10 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Signing out ends the whole login (every rotated token), clears cached screens and session storage; signing in always starts at the dashboard (only a payment return is resumed).
 - [x] Invitations removed (API routes, accept page, e-mail template, tests). People are added from Staff > Add a staff member, with a Role field (the company's roles, or the standard eight) that sets the role they hold; adding a role needs the permissions the adder holds. Each staff row has an "Add role" control that opens the multi-role dialog.
 - [x] Every listing has a search box, a status filter (from the status labels in its rows) and Export to CSV, Excel or PDF (print) of the rows showing: `ListTools`, used by `DataTable` and wrapped around the system's lists. Exported cells never start with a formula character.
+
+## One address per company
+
+- [x] Everything a company's people see lives directly under its web address, for every role and for passengers: `/<company>/dashboard`, `/<company>/bookings`, `/<company>/members` ... (no `/app`, no `/c/<id>`). Staff get the company workspace; passengers (customers, or staff acting as passengers) get the passenger pages; `bookings` and `complaints` show the right page for the role. Staff Trips moved to `/<company>/trip-manager` because `/<company>/trips` is the public trip search.
+- [x] Old addresses (`/app/...`, `/c/<id>/...`, `/<company>/app/...`, and links in old e-mails) redirect to the new ones. Switching role lands on `/<company>/dashboard`.
+- [x] Every navbar shows the company's logo and name (name on large screens only); the platform console shows the system's logo and name the same way.
+- [x] The company's Users list now includes its staff (they hold the passenger role too). Every staff row has "Add role", including the owner's own row; adding a role to yourself is allowed (only a role whose permissions you hold), taking roles from yourself is not.

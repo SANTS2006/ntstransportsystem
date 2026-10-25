@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate, Outlet, useParams } from 'react-router';
+import { Navigate, Outlet } from 'react-router';
 import { z } from 'zod';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell, type NavItem } from '../../components/layout/Layouts';
@@ -56,18 +56,18 @@ interface Profile {
   defaultCurrency: string;
 }
 /** The sidebar of a company workspace: only what the signed-in role may open. */
-export function companyNav(a: CompanyAccess, tenantId: string): NavItem[] {
+export function companyNav(a: CompanyAccess): NavItem[] {
   const nav: NavItem[] = [
-    { to: `/c/${tenantId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+    { to: `${appRoot()}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
   ];
   if (a.tenantStatus === 'ACTIVE') {
     const add = (ok: boolean, group: string, path: string, label: string, icon: LucideIcon) => {
-      if (ok) nav.push({ to: `/c/${tenantId}/${path}`, label, icon, group });
+      if (ok) nav.push({ to: `${appRoot()}/${path}`, label, icon, group });
     };
     // Grouped the way the sidebar shows them: what happens today, the network, sales, people, insight.
     add(can(a, 'trip.read'), 'Operations', 'dispatch', 'Dispatch', Radio);
     add(can(a, 'route.read'), 'Operations', 'calendar', 'Calendar', CalendarDays);
-    add(can(a, 'trip.read'), 'Operations', 'trips', 'Trips', Route);
+    add(can(a, 'trip.read'), 'Operations', 'trip-manager', 'Trips', Route);
     add(can(a, 'ticket.validate'), 'Operations', 'boarding', 'Boarding', ScanLine);
     add(can(a, 'route.read'), 'Network', 'routes', 'Routes', Waypoints);
     add(can(a, 'route.read'), 'Network', 'locations', 'Locations', MapPin);
@@ -90,8 +90,7 @@ export function companyNav(a: CompanyAccess, tenantId: string): NavItem[] {
 }
 
 /** Loads the caller's role in this company. Navigation is hidden by permission; the API enforces it. */
-export function CompanyLayout() {
-  const { tenantId = '' } = useParams();
+export function CompanyLayout({ tenantId }: { tenantId: string }) {
   const profile = useQuery({
     queryKey: ['company', tenantId, 'profile'],
     queryFn: ({ signal }) => api<Profile>(`/tenants/${tenantId}/profile`, { signal }),
@@ -100,9 +99,9 @@ export function CompanyLayout() {
   const mine = useQuery({
     queryKey: ['tenants', 'mine'],
     queryFn: ({ signal }) =>
-      api<{ tenants: { tenantId: string; membershipStatus: string }[] }>('/tenants/mine', {
-        signal,
-      }),
+      api<{
+        tenants: { tenantId: string; slug: string; name: string; membershipStatus: string }[];
+      }>('/tenants/mine', { signal }),
     retry: false,
   });
   const brand = useQuery({
@@ -134,16 +133,23 @@ export function CompanyLayout() {
   }
   const a = q.data;
   const name = profile.data?.name ?? '';
-  const nav = companyNav(a, tenantId);
-  if ((mine.data?.tenants?.filter((t) => t.membershipStatus === 'ACTIVE').length ?? 0) > 1) {
-    nav.push({ to: appRoot(), label: 'Switch company', icon: ArrowLeft, group: 'Account' });
+  const nav = companyNav(a);
+  for (const t of mine.data?.tenants ?? []) {
+    if (t.membershipStatus === 'ACTIVE' && t.tenantId !== tenantId) {
+      nav.push({
+        to: `/${t.slug}/dashboard`,
+        label: `Switch to ${t.name}`,
+        icon: ArrowLeft,
+        group: 'Account',
+      });
+    }
   }
   return (
     <AccessContext.Provider value={{ tenantId, access: a }}>
       <DashboardShell
         nav={nav}
         heading="Company workspace"
-        account={`/c/${tenantId}`}
+        account={appRoot()}
         company={{
           name: name || 'Company workspace',
           logoUrl: brand.data?.logoUrl ?? null,
@@ -366,7 +372,7 @@ export function StaffPage() {
                       Acting as passenger
                     </Badge>
                   )}
-                  {can(access, 'membership.invite') && x.userId !== user?.id && (
+                  {can(access, 'membership.invite') && (
                     <button
                       type="button"
                       onClick={() => setRolesFor(x)}
@@ -388,13 +394,14 @@ export function StaffPage() {
                   <Button variant="secondary" onClick={() => setDetailsFor(x)}>
                     Details
                   </Button>
+                  {can(access, 'membership.invite') && (
+                    <Button variant="secondary" onClick={() => setRolesFor(x)}>
+                      <Plus aria-hidden="true" className="size-4" strokeWidth={1.8} />
+                      Add role
+                    </Button>
+                  )}
                   {x.userId === user?.id ? null : (
                     <>
-                      {can(access, 'membership.invite') && (
-                        <Button variant="secondary" onClick={() => setRolesFor(x)}>
-                          Roles
-                        </Button>
-                      )}
                       {can(access, 'membership.revoke') && (
                         <Button
                           variant="danger"

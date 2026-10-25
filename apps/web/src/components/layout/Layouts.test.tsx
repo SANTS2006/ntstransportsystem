@@ -4,7 +4,7 @@ import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider';
-import { AppShell, RequireAuth } from './Layouts';
+import { LegacyRedirect, RequireAuth } from './Layouts';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -23,7 +23,7 @@ function renderAt(
   path: string,
   signedIn: boolean,
   platformRoles: string[] = [],
-  companies: { tenantId: string; name: string; membershipStatus: string }[] = [],
+  companies: { tenantId: string; slug: string; name: string; membershipStatus: string }[] = [],
 ) {
   if (signedIn) document.cookie = 'csrf=abc; path=/';
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
@@ -33,15 +33,14 @@ function renderAt(
     [
       { path: '/login', element: <p>LOGIN</p> },
       { path: '/platform/dashboard', element: <p>PLATFORM AREA</p> },
-      { path: '/c/:id/dashboard', element: <p>COMPANY AREA</p> },
+      { path: '/:slug/dashboard', element: <p>COMPANY AREA</p> },
       {
-        path: '/app',
+        path: '/app/*',
         element: (
           <RequireAuth>
-            <AppShell />
+            <LegacyRedirect />
           </RequireAuth>
         ),
-        children: [{ index: true, element: <p>HOME</p> }],
       },
       {
         path: '/private/x',
@@ -70,9 +69,7 @@ afterEach(() => {
   document.cookie = 'csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 });
 
-const linkTexts = () => screen.getAllByRole('link').map((a) => a.textContent);
-
-describe('AppShell', () => {
+describe('legacy addresses', () => {
   it('sends platform staff straight to the platform area, never showing the passenger area', async () => {
     renderAt('/app', true, ['OPERATIONS']);
     await screen.findByText('PLATFORM AREA');
@@ -80,15 +77,24 @@ describe('AppShell', () => {
   });
 
   it('sends company staff straight to their company', async () => {
-    renderAt('/app', true, [], [{ tenantId: 'c1', name: 'Coach Co', membershipStatus: 'ACTIVE' }]);
+    renderAt(
+      '/app',
+      true,
+      [],
+      [{ tenantId: 'c1', slug: 'coach-co', name: 'Coach Co', membershipStatus: 'ACTIVE' }],
+    );
     await screen.findByText('COMPANY AREA');
   });
 
-  it('keeps ordinary passengers in the passenger area, with no company or admin links', async () => {
-    renderAt('/app', true, []);
-    await screen.findByText('HOME');
-    expect(linkTexts()).not.toContain('Platform admin');
-    expect(linkTexts()).not.toContain('My companies');
+  it('sends staff of a company to that company under its web address', async () => {
+    const router = renderAt(
+      '/app',
+      true,
+      [],
+      [{ tenantId: 'c1', slug: 'coach-co', name: 'Coach Co', membershipStatus: 'ACTIVE' }],
+    );
+    await screen.findByText('COMPANY AREA');
+    expect(router.state.location.pathname).toBe('/coach-co/dashboard');
   });
 });
 

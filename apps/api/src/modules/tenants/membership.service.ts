@@ -289,7 +289,8 @@ export class MembershipService {
         include: { roles: { include: { role: { include: { permissions: true } } } } },
       });
       if (!target) throw AppError.notFound();
-      if (target.userId === s.userId) throw AppError.forbidden('You cannot change your own roles');
+      // Adding a role to yourself is fine (it can only be one whose permissions you already hold,
+      // checked below); taking roles away from yourself is not.
       // Someone who holds a role above yours cannot be edited by you.
       for (const held of target.roles) {
         assertCanGrant(
@@ -404,14 +405,27 @@ export class MembershipService {
 
   /** Everyone who signed up on this company's page (its passengers), staff included. */
   async listUsers(s: TenantScope, q: string | undefined, page: { limit: number; offset: number }) {
+    // Everyone who signed up on the company page, and every staff member too: staff hold the
+    // passenger role as well, so they are users of the company like anyone else.
+    const staff = await withDb(this.db, this.ctx(s), (tx) =>
+      tx.membership.findMany({
+        where: { tenantId: s.tenantId, status: 'ACTIVE' },
+        select: { userId: true },
+      }),
+    );
+    const staffIds = new Set(staff.map((m) => m.userId));
     const where = {
-      homeTenantId: s.tenantId,
+      OR: [{ homeTenantId: s.tenantId }, { id: { in: [...staffIds] } }],
       ...(q
         ? {
-            OR: [
-              { displayName: { contains: q, mode: 'insensitive' as const } },
-              { email: { contains: q, mode: 'insensitive' as const } },
-              { phone: { contains: q } },
+            AND: [
+              {
+                OR: [
+                  { displayName: { contains: q, mode: 'insensitive' as const } },
+                  { email: { contains: q, mode: 'insensitive' as const } },
+                  { phone: { contains: q } },
+                ],
+              },
             ],
           }
         : {}),
@@ -435,13 +449,6 @@ export class MembershipService {
       }),
       this.db.user.count({ where }),
     ]);
-    const staff = await withDb(this.db, this.ctx(s), (tx) =>
-      tx.membership.findMany({
-        where: { tenantId: s.tenantId, status: 'ACTIVE', userId: { in: rows.map((r) => r.id) } },
-        select: { userId: true },
-      }),
-    );
-    const staffIds = new Set(staff.map((m) => m.userId));
     return {
       total,
       users: rows.map((u) => ({

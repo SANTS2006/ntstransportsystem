@@ -2,7 +2,8 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { CompanyPublicLayout } from './components/layout/CompanyPublicLayout';
-import { AppShell, RequireAuth } from './components/layout/Layouts';
+import { LegacyRedirect, RequireAuth } from './components/layout/Layouts';
+import { ByMode, Workspace } from './components/layout/Workspace';
 import { rememberedCompany } from './lib/company-page';
 import { PageLoader } from './components/ui/Spinner';
 
@@ -33,9 +34,6 @@ const ResetPasswordPage = lazy(() =>
 );
 const SecurityPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.SecurityPage })),
-);
-const CompanyLayout = lazy(() =>
-  import('./pages/company/CompanyPages').then((m) => ({ default: m.CompanyLayout })),
 );
 const CompanyDashboard = lazy(() =>
   import('./pages/company/CompanyDashboard').then((m) => ({ default: m.CompanyDashboard })),
@@ -212,60 +210,65 @@ export const router = createBrowserRouter([
       { path: '/reset-password-phone', element: s(<ResetPhonePasswordPage />) },
     ],
   },
-  // Passenger pages live under the company the account belongs to: /<company>/app/... The plain
-  // /app address still works for accounts that have no company and redirects the rest.
+  // Old addresses lead to the same page under the company's web address.
   {
-    path: '/:slug/app',
+    path: '/app/*',
     element: (
       <RequireAuth>
-        <AppShell />
+        <LegacyRedirect />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/c/:tenantId/*',
+    element: (
+      <RequireAuth>
+        <LegacyRedirect />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/:slug/app/*',
+    element: (
+      <RequireAuth>
+        <LegacyRedirect />
+      </RequireAuth>
+    ),
+  },
+  {
+    // Everything a company's people see (every role, passengers included) lives directly under the
+    // company's web address: /<company>/dashboard, /<company>/bookings ...
+    path: '/:slug',
+    element: (
+      <RequireAuth>
+        <Workspace />
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'dashboard', element: s(<PassengerDashboard />) },
-      { path: 'bookings', element: s(<MyBookingsPage />) },
+      {
+        path: 'dashboard',
+        element: <ByMode staff={s(<CompanyDashboard />)} passenger={s(<PassengerDashboard />)} />,
+      },
+      { path: 'profile', element: s(<ProfilePage />) },
+      { path: 'security', element: s(<SecurityPage />) },
+      // Passenger pages
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
       { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
       { path: 'applications', element: s(<MyApplicationsPage />) },
-      { path: 'complaints', element: s(<MyComplaintsPage />) },
       { path: 'complaints/new', element: s(<NewComplaintPage />) },
       { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
-      { path: 'security', element: s(<SecurityPage />) },
-      { path: 'profile', element: s(<ProfilePage />) },
-    ],
-  },
-  {
-    path: '/app',
-    element: (
-      <RequireAuth>
-        <AppShell />
-      </RequireAuth>
-    ),
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'dashboard', element: s(<PassengerDashboard />) },
-      { path: 'bookings', element: s(<MyBookingsPage />) },
-      { path: 'bookings/:id', element: s(<MyTicketsPage />) },
-      { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
-      { path: 'applications', element: s(<MyApplicationsPage />) },
-      { path: 'complaints', element: s(<MyComplaintsPage />) },
-      { path: 'complaints/new', element: s(<NewComplaintPage />) },
-      { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
-      { path: 'security', element: s(<SecurityPage />) },
-      { path: 'profile', element: s(<ProfilePage />) },
-    ],
-  },
-  {
-    path: '/c/:tenantId',
-    element: <RequireAuth>{s(<CompanyLayout />)}</RequireAuth>,
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: 'dashboard', element: s(<CompanyDashboard />) },
+      // The same address for both: the company's desk for staff, "my ..." for passengers
+      {
+        path: 'bookings',
+        element: <ByMode staff={s(<BookingsPage />)} passenger={s(<MyBookingsPage />)} />,
+      },
+      {
+        path: 'complaints',
+        element: <ByMode staff={s(<ComplaintsPage />)} passenger={s(<MyComplaintsPage />)} />,
+      },
+      // Staff pages
       { path: 'company', element: s(<CompanyOverview />) },
       { path: 'branding', element: s(<BrandingPage />) },
-      { path: 'profile', element: s(<ProfilePage />) },
-      { path: 'security', element: s(<SecurityPage />) },
       { path: 'members', element: s(<CompanyStaffPage />) },
       { path: 'users', element: s(<UsersPage />) },
       { path: 'roles', element: s(<RolesPage />) },
@@ -273,18 +276,15 @@ export const router = createBrowserRouter([
       { path: 'locations', element: s(<LocationsPage />) },
       { path: 'vehicles', element: s(<VehiclesPage />) },
       { path: 'routes', element: s(<RoutesPage />) },
-      { path: 'trips', element: s(<TripsPage />) },
-      { path: 'bookings', element: s(<BookingsPage />) },
+      { path: 'trip-manager', element: s(<TripsPage />) },
       { path: 'payments', element: s(<PaymentSettingsPage />) },
       { path: 'boarding', element: s(<BoardingPage />) },
-      { path: 'complaints', element: s(<ComplaintsPage />) },
       { path: 'reports', element: s(<ReportsPage />) },
       { path: 'recruitment', element: s(<RecruitmentPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },
       { path: 'maintenance', element: s(<MaintenancePage />) },
-      { path: 'staff', element: <Navigate to="../members" replace /> },
     ],
   },
   {

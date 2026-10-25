@@ -77,7 +77,10 @@ export function ForgotPasswordPage() {
             method: 'POST',
             body: { email: id, ...(base ? { companySlug: base.slice(1) } : {}) },
           })
-        : api('/auth/forgot-password-phone', { method: 'POST', body: { phone: id } });
+        : api('/auth/forgot-password-phone', {
+            method: 'POST',
+            body: { phone: id, ...(base ? { companySlug: base.slice(1) } : {}) },
+          });
     },
     onSuccess: (_r, raw) => {
       const id = raw.trim();
@@ -257,7 +260,11 @@ export function VerifyEmailCodePage() {
   // Sent here from a sign-in that needs a code: ask for one straight away, once.
   const asked = useRef(false);
   const autoResend = useMutation({
-    mutationFn: () => api('/auth/resend-email-code', { method: 'POST', body: { email } }),
+    mutationFn: () =>
+      api('/auth/resend-email-code', {
+        method: 'POST',
+        body: { email, ...(base ? { companySlug: base.slice(1) } : {}) },
+      }),
   });
   const wantsResend = params.get('resend') === '1';
   useEffect(() => {
@@ -312,7 +319,11 @@ export function VerifyEmailCodePage() {
           Confirm email
         </Button>
       </form>
-      <ResendCode path="/auth/resend-email-code" body={{ email }} startNow />
+      <ResendCode
+        path="/auth/resend-email-code"
+        body={{ email, ...(base ? { companySlug: base.slice(1) } : {}) }}
+        startNow
+      />
       <div className="flex justify-between">
         <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Use a different email

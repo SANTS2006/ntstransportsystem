@@ -33,7 +33,11 @@ export const registerPhoneSchema = z.object({
   password: passwordSchema,
   displayName: z.string().trim().min(1).max(100),
 });
-export const phoneOnlySchema = z.object({ phone: phoneSchema });
+/** `companySlug` is the company page the request came from; absent on the main page. */
+export const phoneOnlySchema = z.object({
+  phone: phoneSchema,
+  companySlug: companySlugSchema.optional(),
+});
 export const profileSchema = z
   .object({
     displayName: z.string().trim().min(1).max(100).optional(),
@@ -42,7 +46,10 @@ export const profileSchema = z
   })
   .strict()
   .refine((v) => v.displayName !== undefined || v.phone !== undefined, 'Nothing to change');
-export const emailOnlySchema = z.object({ email: emailSchema });
+export const emailOnlySchema = z.object({
+  email: emailSchema,
+  companySlug: companySlugSchema.optional(),
+});
 export const emailCodeSchema = z.object({
   email: emailSchema,
   code: z

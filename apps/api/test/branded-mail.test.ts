@@ -135,4 +135,36 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
       .send({ tenantId: t.tenant.id, subject: 'a', message: 'b' })
       .expect(404);
   });
+
+  it('sends a password reset only from the page the account belongs to', async () => {
+    const a = await createTenantWithOwner(db, 'scopea');
+    const b = await createTenantWithOwner(db, 'scopeb');
+    const admin = await newClient(ctx.app, db, 'plat-scope');
+    await db.platformRoleAssignment.create({ data: { userId: admin.userId, role: 'SUPPORT' } });
+    const ask = async (email: string, companySlug?: string) => {
+      ctx.mailer.sent.length = 0;
+      await request(ctx.app)
+        .post('/api/v1/auth/forgot-password')
+        .send({ email, ...(companySlug ? { companySlug } : {}) })
+        .expect(202);
+      return ctx.mailer.sent.filter((m) => m.to === email && m.template === 'password-reset');
+    };
+    // A company's own owner on that company's page: sent, and it is that company's.
+    const own = await ask(a.email, a.tenant.slug);
+    expect(own).toHaveLength(1);
+    expect(own[0]?.tenantId).toBe(a.tenant.id);
+    // The same account on another company's page, or on the main page: nothing is sent.
+    expect(await ask(a.email, b.tenant.slug)).toHaveLength(0);
+    expect(await ask(a.email)).toHaveLength(0);
+    // A platform administrator: only from the main page.
+    expect(await ask(admin.email, a.tenant.slug)).toHaveLength(0);
+    const main = await ask(admin.email);
+    expect(main).toHaveLength(1);
+    expect(main[0]?.tenantId).toBeUndefined();
+    // Every answer looked the same (no way to tell who has an account).
+    const unknown = await request(ctx.app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: `nobody-${Date.now()}@example.test`, companySlug: a.tenant.slug });
+    expect(unknown.status).toBe(202);
+  });
 });

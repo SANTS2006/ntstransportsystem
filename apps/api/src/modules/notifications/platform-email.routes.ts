@@ -1,4 +1,5 @@
 import type { Router as ExpressRouter } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { withDb, type Db } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
@@ -51,7 +52,12 @@ const attachment = z
 export const platformEmailSchema = z
   .object({
     tenantId: z.uuid(),
-    subject: z.string().trim().min(1).max(150),
+    subject: z
+      .string()
+      .trim()
+      .min(1)
+      .max(150)
+      .transform((v) => v.replace(/\s+/g, ' ')),
     message: z.string().trim().min(1).max(10_000),
     attachments: z.array(attachment).max(MAX_ATTACHMENTS).default([]),
   })
@@ -63,6 +69,15 @@ const decodedBytes = (b64: string) =>
 export function platformEmailRouter(db: Db, mailer: Mailer): ExpressRouter {
   const r = Router();
   const guard = platformGuard(db, ['SUPER_ADMIN', 'OPERATIONS', 'SUPPORT']);
+  // Mail costs money and reputation: a hard ceiling per hour on top of the general limits.
+  const sendLimit = rateLimit({
+    windowMs: 60 * 60_000,
+    limit: 60,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    handler: (_req, _res, next) =>
+      next(new AppError(429, 'RATE_LIMITED', 'Too many emails sent. Try again later.')),
+  });
 
   // The companies a message can go to, each with the administrator who receives it.
   r.get('/platform/email/companies', requireAuth, guard, async (_req, res) => {
@@ -95,7 +110,7 @@ export function platformEmailRouter(db: Db, mailer: Mailer): ExpressRouter {
     });
   });
 
-  r.post('/platform/email', requireAuth, guard, async (req, res) => {
+  r.post('/platform/email', requireAuth, guard, sendLimit, async (req, res) => {
     if (!req.platform) throw AppError.unauthenticated();
     const input = platformEmailSchema.parse(req.body);
     const total = input.attachments.reduce((n, a) => n + decodedBytes(a.contentBase64), 0);

@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { AppError } from './platform/errors.js';
 import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
 import type { Env } from './config/env.js';
@@ -28,6 +30,7 @@ import { FileService } from './modules/files/file.service.js';
 import { devFilesRouter, fileRouter } from './modules/files/file.routes.js';
 import { randomBytes } from 'node:crypto';
 import { deriveSubkey } from './platform/crypto.js';
+import { idempotency } from './platform/idempotency.js';
 import { LocalDiskStorage, R2Storage, type FileStorage } from './platform/storage.js';
 import { reportRouter } from './modules/report/report.routes.js';
 import { ReportService } from './modules/report/report.service.js';
@@ -140,7 +143,9 @@ export function createApp({
   // Platform e-mail carries attachments (4 MB, a third larger once encoded); only that route may.
   const jsonLarge = express.json({ limit: '7mb', verify: keepRaw });
   app.use((req, res, next) =>
-    req.path === '/api/v1/platform/email' ? jsonLarge(req, res, next) : jsonSmall(req, res, next),
+    req.path === '/api/v1/platform/email' && /(^|;\s*)sid=/.test(req.headers.cookie ?? '')
+      ? jsonLarge(req, res, next)
+      : jsonSmall(req, res, next),
   );
   app.use(cookieParser());
 
@@ -149,6 +154,22 @@ export function createApp({
 
   const v1 = Router();
   v1.use(originGuard(env));
+  // Flood control for the whole API: generous for real use (a busy dispatcher), hard on scripts.
+  // Reads and writes are counted apart, and the limit holds across instances when Redis is set.
+  const flood = (name: string, windowMs: number, max: number, writes: boolean) =>
+    rateLimit({
+      windowMs,
+      limit: max * env.RATE_LIMIT_SCALE,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      skip: (req) => (req.method === 'GET' || req.method === 'HEAD') === writes,
+      ...(rateLimitStores ? { store: rateLimitStores(`api:${name}`) } : {}),
+      passOnStoreError: true,
+      handler: (_req, _res, next) =>
+        next(new AppError(429, 'RATE_LIMITED', 'Too many requests. Please slow down a little.')),
+    });
+  v1.use(flood('read', 60_000, 900, false));
+  v1.use(flood('write', 60_000, 240, true));
   if (db && mailer) {
     const box = env.MFA_ENCRYPTION_KEY ? new SecretBox(env.MFA_ENCRYPTION_KEY) : undefined;
     const mfa = box ? new MfaService(db, box, 'NTS Transport') : undefined;
@@ -185,6 +206,8 @@ export function createApp({
     // The client ID is public (it is in the page Google shows); the browser needs it to draw the button.
     if (verifier && env.GOOGLE_CLIENT_ID) features.googleClientId = env.GOOGLE_CLIENT_ID;
     v1.use(sessionLoader(auth, env));
+    // A write sent twice (double click, retry on a slow link) runs once and gets the same answer.
+    v1.use(idempotency());
     // Passenger features belong to the Passenger role: staff acting as a company role switch first.
     v1.use(['/passenger', '/applicant'], passengerRoleGuard(db));
     // Maintenance switch: its own endpoints first, then the gate in front of everything else.

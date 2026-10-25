@@ -228,6 +228,19 @@ export class CrewService {
           const data = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
           if (Object.keys(data).length === 0) throw AppError.validation('Nothing to update');
           await tx.employee.update({ where: { id }, data });
+          // A person who has left the company can no longer sign in to it (owners are handled by
+          // the owner rules in the staff list, never silently here).
+          if (patch.status === 'TERMINATED' && e.userId && e.userId !== s.userId) {
+            await tx.membership.updateMany({
+              where: {
+                tenantId: s.tenantId,
+                userId: e.userId,
+                status: 'ACTIVE',
+                roles: { none: { role: { key: 'owner' } } },
+              },
+              data: { status: 'REVOKED' },
+            });
+          }
           await this.audit(tx, s, 'hr.employee_updated', 'employee', id, requestId, {
             fields: Object.keys(data).join(','),
           });

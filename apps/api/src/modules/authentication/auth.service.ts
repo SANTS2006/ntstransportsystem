@@ -130,6 +130,42 @@ export class AuthService {
     );
   }
 
+  /**
+   * Whether an account belongs on a sign-in page: the main page takes platform administrators only;
+   * a company's page takes the people who signed up on it and its own staff. Used by every
+   * "send me something" flow (password reset, code resend) so nobody is mailed or texted from a
+   * page their account does not belong to. The caller still answers identically either way.
+   */
+  async belongsOnPage(
+    user: { id: string; homeTenantId: string | null },
+    slug: string | undefined,
+  ): Promise<boolean> {
+    const platform =
+      (await this.db.platformRoleAssignment.count({ where: { userId: user.id } })) > 0;
+    if (!slug) return platform;
+    if (platform) return false;
+    const company = await this.openCompany(slug).catch(() => null);
+    if (!company) return false;
+    if (user.homeTenantId === company.id) return true;
+    const member = await withDb(this.db, { userId: user.id }, (tx) =>
+      tx.membership.findFirst({
+        where: { userId: user.id, tenantId: company.id, status: 'ACTIVE' },
+        select: { id: true },
+      }),
+    );
+    return Boolean(member);
+  }
+
+  private async deniedFlow(action: string, why: string, meta: ReqMeta, userId?: string) {
+    await writeAudit(this.db, {
+      action,
+      outcome: 'DENIED',
+      ...(userId ? { actorUserId: userId } : {}),
+      requestId: meta.requestId,
+      summary: { reason: why },
+    });
+  }
+
   /** Resolves identically whether or not the email is already registered. */
   async register(
     input: { email: string; password: string; displayName: string; companySlug: string },
@@ -146,14 +182,21 @@ export class AuthService {
       });
       return;
     }
-    const user = await this.db.user.create({
-      data: {
-        email: input.email,
-        displayName: input.displayName,
-        passwordHash: await hashPassword(input.password),
-        homeTenantId: company.id,
-      },
-    });
+    let user: { id: string };
+    try {
+      user = await this.db.user.create({
+        data: {
+          email: input.email,
+          displayName: input.displayName,
+          passwordHash: await hashPassword(input.password),
+          homeTenantId: company.id,
+        },
+      });
+    } catch (err) {
+      // Two sign-ups for one address at once (a double click): the second says nothing different.
+      if ((err as { code?: string }).code === 'P2002') return;
+      throw err;
+    }
     await this.sendEmailCode(user.id, input.email, company.id);
     await writeAudit(this.db, {
       action: 'auth.register',
@@ -215,9 +258,14 @@ export class AuthService {
   }
 
   /** Mails another code to an address that signed up and is not confirmed. Never says if it did. */
-  async resendEmailCode(email: string, meta: ReqMeta) {
+  async resendEmailCode(email: string, meta: ReqMeta, companySlug?: string) {
     const user = await this.db.user.findUnique({ where: { email } });
-    if (user && !user.emailVerifiedAt && user.status === 'ACTIVE') {
+    if (
+      user &&
+      !user.emailVerifiedAt &&
+      user.status === 'ACTIVE' &&
+      (await this.belongsOnPage(user, companySlug))
+    ) {
       await this.sendEmailCode(user.id, email, user.homeTenantId);
     }
     await writeAudit(this.db, {
@@ -523,31 +571,29 @@ export class AuthService {
     });
   }
 
-  /** Generic outcome regardless of whether the account exists. */
+  /**
+   * Generic outcome regardless of whether the account exists. The e-mail is sent only when the
+   * account belongs on the page that asked: a company's own page for its customers and staff, the
+   * main page for platform administrators. The link and the look are that page's.
+   */
   async forgotPassword(email: string, meta: ReqMeta, companySlug?: string) {
     const user = await this.db.user.findUnique({ where: { email } });
     if (user?.email && user.status === 'ACTIVE') {
-      const token = await this.issueToken(user.id, 'PASSWORD_RESET', RESET_TTL_MS);
-      // The link goes to the company's own page when the request came from it or the account belongs
-      // to one; platform administrators get the main system page.
-      const named = companySlug ? await this.openCompany(companySlug).catch(() => null) : null;
-      const tenantId = named?.id ?? user.homeTenantId ?? undefined;
-      const slug = tenantId
-        ? await withDb(this.db, { platform: true }, (tx) =>
-            tx.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } }),
-          )
-        : null;
-      const isPlatform =
-        (await this.db.platformRoleAssignment.count({ where: { userId: user.id } })) > 0;
-      const useCompany = Boolean(slug) && !isPlatform;
-      await this.mailer.send({
-        to: user.email,
-        template: 'password-reset',
-        data: {
-          link: `${this.appUrl.replace(/\/$/, '')}${useCompany ? `/${slug!.slug}` : ''}/reset-password?token=${token}`,
-        },
-        ...(useCompany && tenantId ? { tenantId } : {}),
-      });
+      if (await this.belongsOnPage(user, companySlug)) {
+        const company = companySlug ? await this.openCompany(companySlug) : null;
+        const token = await this.issueToken(user.id, 'PASSWORD_RESET', RESET_TTL_MS);
+        await this.mailer.send({
+          to: user.email,
+          template: 'password-reset',
+          data: {
+            link: `${this.appUrl.replace(/\/$/, '')}${companySlug ? `/${companySlug}` : ''}/reset-password?token=${token}`,
+          },
+          ...(company ? { tenantId: company.id } : {}),
+        });
+      } else {
+        await this.deniedFlow('auth.password_reset_requested', 'wrong_page', meta, user.id);
+        return;
+      }
     }
     await writeAudit(this.db, {
       action: 'auth.password_reset_requested',
@@ -672,10 +718,15 @@ export class AuthService {
   }
 
   /** Sends another code to a number that signed up and has not verified yet. Never says if it did. */
-  async resendPhoneCode(phone: string, meta: ReqMeta) {
+  async resendPhoneCode(phone: string, meta: ReqMeta, companySlug?: string) {
     const otp = this.requireOtp();
     const user = await this.db.user.findUnique({ where: { phone } });
-    if (user && !user.phoneVerifiedAt && user.status === 'ACTIVE') {
+    if (
+      user &&
+      !user.phoneVerifiedAt &&
+      user.status === 'ACTIVE' &&
+      (await this.belongsOnPage(user, companySlug))
+    ) {
       await otp.issue(phone, 'REGISTER', user.id);
     }
     await writeAudit(this.db, {
@@ -686,10 +737,14 @@ export class AuthService {
   }
 
   /** Texts a password-reset code to a verified number. Same answer for every number. */
-  async forgotPasswordPhone(phone: string, meta: ReqMeta) {
+  async forgotPasswordPhone(phone: string, meta: ReqMeta, companySlug?: string) {
     const otp = this.requireOtp();
     const user = await this.db.user.findUnique({ where: { phone } });
-    if (user?.phoneVerifiedAt && user.status === 'ACTIVE') {
+    if (
+      user?.phoneVerifiedAt &&
+      user.status === 'ACTIVE' &&
+      (await this.belongsOnPage(user, companySlug))
+    ) {
       await otp.issue(phone, 'PASSWORD_RESET', user.id);
     }
     await writeAudit(this.db, {

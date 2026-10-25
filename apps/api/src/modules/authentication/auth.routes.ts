@@ -125,7 +125,8 @@ export function authRouter({
     limiter('resend-email-code', 10),
     limiter('email-codes', 10, 60 * 60_000),
     async (req, res) => {
-      await auth.resendEmailCode(emailOnlySchema.parse(req.body).email, meta(req));
+      const body = emailOnlySchema.parse(req.body);
+      await auth.resendEmailCode(body.email, meta(req), body.companySlug);
       res
         .status(202)
         .json({ message: 'If the address is waiting to be confirmed, a code has been sent.' });
@@ -146,13 +147,15 @@ export function authRouter({
       res.json({ message: 'Phone number verified' });
     });
     r.post('/resend-phone-code', limiter('resend-phone', 10), sendsText, async (req, res) => {
-      await auth.resendPhoneCode(phoneOnlySchema.parse(req.body).phone, meta(req));
+      const body = phoneOnlySchema.parse(req.body);
+      await auth.resendPhoneCode(body.phone, meta(req), body.companySlug);
       res
         .status(202)
         .json({ message: 'If the number is waiting to be verified, a code has been sent.' });
     });
     r.post('/forgot-password-phone', limiter('forgot-phone', 5), sendsText, async (req, res) => {
-      await auth.forgotPasswordPhone(phoneOnlySchema.parse(req.body).phone, meta(req));
+      const body = phoneOnlySchema.parse(req.body);
+      await auth.forgotPasswordPhone(body.phone, meta(req), body.companySlug);
       res.status(202).json({ message: 'If an account exists, a code has been sent.' });
     });
     r.post('/reset-password-phone', limiter('reset-phone', 10), async (req, res) => {

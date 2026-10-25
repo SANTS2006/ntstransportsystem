@@ -82,7 +82,11 @@ export function VerifyPhonePage() {
   // Coming back from a sign-in that needs a code: ask for one straight away, once.
   const asked = useRef(false);
   const autoResend = useMutation({
-    mutationFn: () => api('/auth/resend-phone-code', { method: 'POST', body: { phone } }),
+    mutationFn: () =>
+      api('/auth/resend-phone-code', {
+        method: 'POST',
+        body: { phone, ...(base ? { companySlug: base.slice(1) } : {}) },
+      }),
   });
   const wantsResend = params.get('resend') === '1';
   useEffect(() => {
@@ -121,7 +125,10 @@ export function VerifyPhonePage() {
           Confirm number
         </Button>
       </form>
-      <ResendCode body={{ phone }} startNow />
+      <ResendCode
+        body={{ phone: phone as string, ...(base ? { companySlug: base.slice(1) } : {}) }}
+        startNow
+      />
       <div className="flex justify-between">
         <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Use a different number

@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router/dom';
 import { AuthProvider } from './auth/AuthProvider';
 import { ConfirmProvider } from './components/ui/Confirm';
 import { InstallPrompt } from './components/ui/InstallPrompt';
+import { OfflineBanner } from './components/ui/OfflineBanner';
 import { ToastProvider } from './components/ui/Toast';
 import { ApiError } from './lib/api';
 import { router } from './router';
@@ -22,6 +23,10 @@ const queryClient: QueryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false, // avoid needless requests on slow or metered connections
+      refetchOnReconnect: true,
+      // Show what is already loaded while offline instead of an endless spinner.
+      networkMode: 'offlineFirst',
+      retryDelay: (n: number) => Math.min(1000 * 2 ** n, 8000),
       retry: (count, err) => err instanceof ApiError && err.retryable && count < 2,
     },
     // Mutations are never retried automatically: a retried booking/payment could duplicate.
@@ -40,6 +45,7 @@ createRoot(root).render(
           <AuthProvider>
             <RouterProvider router={router} />
             <InstallPrompt />
+            <OfflineBanner />
           </AuthProvider>
         </ConfirmProvider>
       </ToastProvider>

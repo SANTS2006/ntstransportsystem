@@ -39,9 +39,56 @@ export interface RequestOptions {
  * the readable `csrf` cookie is echoed in a header (double-submit). Every call has a hard timeout
  * so a loading indicator can never spin forever.
  */
-export async function api<T = void>(path: string, opts: RequestOptions = {}): Promise<T> {
+export function api<T = void>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const method = opts.method ?? 'GET';
+  if (method === 'GET' || opts.file) return send<T>(path, opts);
+  // The same write sent again while the first is still on its way (a second click, Enter pressed
+  // twice) is the same write: both callers get the one answer and the server sees it once.
+  const id = `${method} ${path} ${JSON.stringify(opts.body ?? null)}`;
+  const running = inflight.get(id);
+  if (running) return running as Promise<T>;
+  const p = send<T>(path, opts).finally(() => inflight.delete(id));
+  inflight.set(id, p);
+  return p;
+}
+
+const inflight = new Map<string, Promise<unknown>>();
+const RETRY_DELAYS_MS = [700, 2000];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sends the request. A write carries an Idempotency-Key, so when a slow link drops the answer the
+ * same write is sent again with the same key and the server runs it only once. Sign-in and sign-up
+ * calls are never repeated this way.
+ */
+async function send<T>(path: string, opts: RequestOptions): Promise<T> {
+  const method = opts.method ?? 'GET';
+  const write = method !== 'GET';
+  const key = opts.headers?.['Idempotency-Key'] ?? crypto.randomUUID();
+  const repeatable = write && !path.startsWith('/auth/');
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await once<T>(path, opts, write ? key : undefined);
+    } catch (err) {
+      const again =
+        repeatable &&
+        err instanceof ApiError &&
+        err.status === 0 &&
+        !opts.signal?.aborted &&
+        attempt < RETRY_DELAYS_MS.length;
+      if (!again) throw err;
+      await sleep(RETRY_DELAYS_MS[attempt]!);
+    }
+  }
+}
+
+async function once<T>(path: string, opts: RequestOptions, idempotencyKey?: string): Promise<T> {
   const method = opts.method ?? 'GET';
   const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new ApiError(0, 'NETWORK', 'You are offline. Check your connection and try again.');
+  }
   if (opts.file) {
     headers['content-type'] = opts.file.type;
     headers['x-file-name'] = encodeURIComponent(opts.file.name);

@@ -6,7 +6,7 @@
  *
  * - Test database by default (TEST_DATABASE_URL). The main database only with `--db main --yes`.
  * - Runs once: if the company already exists it stops and changes nothing.
- * - Passwords are generated and written to `.test-data.json` (git-ignored), never printed.
+ * - Passwords are generated and written to `.test-data.<test|main>.json` (git-ignored), never printed.
  * - Mail addresses use the reserved `.test` domain, so nothing is ever delivered to a real person.
  *
  *   npx tsx scripts/seed-test-data.ts                 (test database)
@@ -906,7 +906,7 @@ try {
     });
   });
 
-  const file = resolve(import.meta.dirname, '../../../.test-data.json');
+  const file = resolve(import.meta.dirname, `../../../.test-data.${target}.json`);
   writeFileSync(
     file,
     JSON.stringify(
@@ -922,7 +922,7 @@ try {
   console.log(
     `Done: Sierra Express Coaches (/${SLUG}) with ${PEOPLE.length} accounts, ${trips.length} trips, ${bookings.length} bookings and ${tickets.length} tickets.`,
   );
-  console.log('Sign-in details are in .test-data.json at the project root (git-ignored).');
+  console.log(`Sign-in details are in .test-data.${target}.json at the project root (git-ignored).`);
 } catch (err) {
   // Leave nothing half made: the company (and everything under it) and its test accounts go.
   console.error('Seeding failed; removing what was created so it can simply be run again.');

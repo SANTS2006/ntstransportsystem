@@ -28,7 +28,7 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "argon2": "^0.45.1",
-    "bullmq": "^6.3.17",
+    "bullmq": "^6.4.0",
     "bwip-js": "4.11.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

@@ -1,3 +1,4 @@
+import { ListTools } from '../../components/ui/ListTools';
 import { ExternalLink, Pencil } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/Card';
@@ -116,7 +117,7 @@ export function CompaniesTable({
 }) {
   const date = (iso: string) => new Date(iso).toLocaleDateString();
   return (
-    <>
+    <ListTools title="Companies">
       <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-level1 md:block dark:border-slate-700 dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -198,6 +199,6 @@ export function CompaniesTable({
           </li>
         ))}
       </ul>
-    </>
+    </ListTools>
   );
 }

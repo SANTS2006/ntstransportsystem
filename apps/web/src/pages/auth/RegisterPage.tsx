@@ -14,6 +14,7 @@ import { useFeatures } from '../../lib/features';
 import { checkIdentifier, identifierKind } from '../../lib/identifier';
 import { registerSchema } from '../../lib/schemas';
 import { OrDivider } from './LoginPage';
+import { appRoot } from '../../lib/app-path';
 
 interface Values {
   displayName: string;
@@ -73,7 +74,7 @@ export default function RegisterPage() {
     onSuccess: async (res) => {
       if (res.mfaRequired) return void navigate(`/${slug}/login`);
       await refresh();
-      void navigate('/app/dashboard', { replace: true });
+      void navigate(`${appRoot()}/dashboard`, { replace: true });
     },
   });
 
@@ -96,7 +97,7 @@ export default function RegisterPage() {
   return (
     <AuthCard
       title="Create an account"
-      subtitle="Book trips, or join the company that invited you."
+      subtitle="Create your account to book trips and manage your tickets."
     >
       {(register.error ?? google.error) && <ErrorAlert error={register.error ?? google.error} />}
       <form noValidate onSubmit={submit} className="space-y-4">

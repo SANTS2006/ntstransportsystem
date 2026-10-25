@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataTable } from '../../components/ui/DataTable';
+import { ListTools } from '../../components/ui/ListTools';
 import { StopFaresDialog } from './StopFaresDialog';
 import { ModalCard } from '../../components/ui/ModalCard';
 import { useConfirm } from '../../components/ui/Confirm';
@@ -132,6 +133,7 @@ export function LocationsPage() {
         {q.isPending && <PageLoader label="Loading locations" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <DataTable
+          name="Locations"
           rows={q.data?.locations ?? []}
           rowKey={(l) => l.id}
           empty="No locations yet."
@@ -360,6 +362,7 @@ export function VehiclesPage() {
         {q.isPending && <PageLoader label="Loading vehicles" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
         <DataTable
+          name="Vehicles"
           rows={q.data?.vehicles ?? []}
           rowKey={(v) => v.id}
           empty="No vehicles yet."
@@ -722,90 +725,92 @@ export function RoutesPage() {
       <Card>
         {q.isPending && <PageLoader label="Loading routes" />}
         {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {q.data?.routes.length === 0 && <li className="py-2 text-slate-500">No routes yet.</li>}
-          {q.data?.routes.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">{r.name}</p>
-                <p className="text-xs text-slate-500">
-                  {r.origin} → {r.destination} · {(r.distanceM / 1000).toFixed(1)} km ·{' '}
-                  {r.durationMin} min · {r.stopCount} stop(s)
-                  {r.minSeats && r.minSeats > 1 ? ` · min ${r.minSeats} seats` : ''}
-                  {r.allowedVehicleTypes?.length
-                    ? ` · ${r.allowedVehicleTypes.map((t) => t.replace('_', ' ').toLowerCase()).join(', ')} only`
-                    : ''}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge
-                  status={
-                    r.status === 'DRAFT'
-                      ? 'PENDING'
-                      : r.status === 'PUBLISHED'
-                        ? 'ACTIVE'
-                        : 'DEACTIVATED'
-                  }
-                  label={
-                    r.status === 'DRAFT'
-                      ? 'Draft'
-                      : r.status === 'PUBLISHED'
-                        ? 'Published'
-                        : 'Archived'
-                  }
-                />
-                {manage && r.status === 'DRAFT' && (
-                  <>
+        <ListTools title="Routes">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {q.data?.routes.length === 0 && <li className="py-2 text-slate-500">No routes yet.</li>}
+            {q.data?.routes.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-medium">{r.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {r.origin} → {r.destination} · {(r.distanceM / 1000).toFixed(1)} km ·{' '}
+                    {r.durationMin} min · {r.stopCount} stop(s)
+                    {r.minSeats && r.minSeats > 1 ? ` · min ${r.minSeats} seats` : ''}
+                    {r.allowedVehicleTypes?.length
+                      ? ` · ${r.allowedVehicleTypes.map((t) => t.replace('_', ' ').toLowerCase()).join(', ')} only`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={
+                      r.status === 'DRAFT'
+                        ? 'PENDING'
+                        : r.status === 'PUBLISHED'
+                          ? 'ACTIVE'
+                          : 'DEACTIVATED'
+                    }
+                    label={
+                      r.status === 'DRAFT'
+                        ? 'Draft'
+                        : r.status === 'PUBLISHED'
+                          ? 'Published'
+                          : 'Archived'
+                    }
+                  />
+                  {manage && r.status === 'DRAFT' && (
+                    <>
+                      <Button
+                        loading={
+                          act.isPending &&
+                          act.variables?.id === r.id &&
+                          act.variables.action === 'publish'
+                        }
+                        onClick={() => act.mutate({ id: r.id, action: 'publish' })}
+                      >
+                        Publish
+                      </Button>
+                      <Button
+                        variant="danger"
+                        onClick={async () => {
+                          if (
+                            await ask({
+                              title: 'Delete this draft route?',
+                              message: 'The draft and its stops are removed for good.',
+                              confirmLabel: 'Delete route',
+                              danger: true,
+                            })
+                          )
+                            act.mutate({ id: r.id, action: 'delete' });
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  {manage && r.status === 'PUBLISHED' && (
                     <Button
-                      loading={
-                        act.isPending &&
-                        act.variables?.id === r.id &&
-                        act.variables.action === 'publish'
-                      }
-                      onClick={() => act.mutate({ id: r.id, action: 'publish' })}
-                    >
-                      Publish
-                    </Button>
-                    <Button
-                      variant="danger"
+                      variant="secondary"
                       onClick={async () => {
                         if (
                           await ask({
-                            title: 'Delete this draft route?',
-                            message: 'The draft and its stops are removed for good.',
-                            confirmLabel: 'Delete route',
-                            danger: true,
+                            title: 'Archive this route?',
+                            message: 'It stops being offered for new trips.',
+                            confirmLabel: 'Archive route',
                           })
                         )
-                          act.mutate({ id: r.id, action: 'delete' });
+                          act.mutate({ id: r.id, action: 'archive' });
                       }}
                     >
-                      Delete
+                      Archive
                     </Button>
-                  </>
-                )}
-                {manage && r.status === 'PUBLISHED' && (
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      if (
-                        await ask({
-                          title: 'Archive this route?',
-                          message: 'It stops being offered for new trips.',
-                          confirmLabel: 'Archive route',
-                        })
-                      )
-                        act.mutate({ id: r.id, action: 'archive' });
-                    }}
-                  >
-                    Archive
-                  </Button>
-                )}
-              </div>
-              {r.status === 'PUBLISHED' && <FareEditor routeId={r.id} canEdit={manage} />}
-            </li>
-          ))}
-        </ul>
+                  )}
+                </div>
+                {r.status === 'PUBLISHED' && <FareEditor routeId={r.id} canEdit={manage} />}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );

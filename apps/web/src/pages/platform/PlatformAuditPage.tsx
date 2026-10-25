@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ScrollText } from 'lucide-react';
+import { ListTools } from '../../components/ui/ListTools';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -118,59 +119,61 @@ export function PlatformAuditPage() {
           No events match these filters.
         </p>
       )}
-      <ul className="space-y-3">
-        {q.data?.events.map((e) => (
-          <li
-            key={e.id}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-slate-800 dark:text-brand-500"
-                >
-                  <ScrollText className="size-5" strokeWidth={1.8} />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold capitalize">{actionLabel(e.action)}</p>
-                  <p className="text-xs text-slate-500">{new Date(e.at).toLocaleString()}</p>
+      <ListTools title="Audit log">
+        <ul className="space-y-3">
+          {q.data?.events.map((e) => (
+            <li
+              key={e.id}
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-slate-800 dark:text-brand-500"
+                  >
+                    <ScrollText className="size-5" strokeWidth={1.8} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold capitalize">{actionLabel(e.action)}</p>
+                    <p className="text-xs text-slate-500">{new Date(e.at).toLocaleString()}</p>
+                  </div>
                 </div>
+                <Badge tone={TONE[e.outcome]}>{e.outcome.toLowerCase()}</Badge>
               </div>
-              <Badge tone={TONE[e.outcome]}>{e.outcome.toLowerCase()}</Badge>
-            </div>
-            <dl className="mt-3 grid gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-3 dark:border-slate-800">
-              <div>
-                <dt className="text-xs text-slate-500">Who</dt>
-                <dd className="truncate">
-                  {e.actor
-                    ? `${e.actor.name}${e.actor.contact ? ` (${e.actor.contact})` : ''}`
-                    : 'System / not signed in'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Company</dt>
-                <dd className="truncate">
-                  {e.tenant ? (e.tenant.name ?? e.tenant.id) : 'Platform'}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Target</dt>
-                <dd className="truncate font-mono text-xs">
-                  {e.targetType ? `${e.targetType} ${e.targetId ?? ''}` : '—'}
-                </dd>
-              </div>
-            </dl>
-            {e.summary && Object.keys(e.summary).length > 0 && (
-              <p className="mt-2 break-words text-xs text-slate-600 dark:text-slate-400">
-                {Object.entries(e.summary)
-                  .map(([k, v]) => `${k}: ${String(v)}`)
-                  .join(' · ')}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
+              <dl className="mt-3 grid gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-sm sm:grid-cols-3 dark:border-slate-800">
+                <div>
+                  <dt className="text-xs text-slate-500">Who</dt>
+                  <dd className="truncate">
+                    {e.actor
+                      ? `${e.actor.name}${e.actor.contact ? ` (${e.actor.contact})` : ''}`
+                      : 'System / not signed in'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Company</dt>
+                  <dd className="truncate">
+                    {e.tenant ? (e.tenant.name ?? e.tenant.id) : 'Platform'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Target</dt>
+                  <dd className="truncate font-mono text-xs">
+                    {e.targetType ? `${e.targetType} ${e.targetId ?? ''}` : '—'}
+                  </dd>
+                </div>
+              </dl>
+              {e.summary && Object.keys(e.summary).length > 0 && (
+                <p className="mt-2 break-words text-xs text-slate-600 dark:text-slate-400">
+                  {Object.entries(e.summary)
+                    .map(([k, v]) => `${k}: ${String(v)}`)
+                    .join(' · ')}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </ListTools>
 
       {q.data && total > PAGE && (
         <div className="flex items-center justify-between gap-3">

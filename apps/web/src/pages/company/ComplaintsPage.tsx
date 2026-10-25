@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '../../components/ui/Confirm';
+import { ListTools } from '../../components/ui/ListTools';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -131,34 +132,36 @@ export function ComplaintsPage() {
           {list.isPending && <PageLoader label="Loading complaints" />}
           {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
           {list.data?.complaints.length === 0 && <Alert tone="info">No complaints.</Alert>}
-          <ul className="space-y-2">
-            {list.data?.complaints.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  aria-pressed={openId === c.id}
-                  onClick={() => setOpenId(c.id)}
-                  className={`w-full rounded-xl border p-3 text-left text-sm ${
-                    openId === c.id
-                      ? 'border-brand-600 bg-brand-50 dark:bg-slate-800'
-                      : 'border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="font-medium">{c.subject}</span>
-                    <StatusBadge
-                      status={badge(c.status)}
-                      label={STATUS_LABEL[c.status] ?? c.status}
-                    />
-                  </span>
-                  <span className="mt-1 block text-xs text-slate-500">
-                    {c.customer} · {c.bookingReference} ·{' '}
-                    {c.category.toLowerCase().replace('_', ' ')} · {when(c.updatedAt)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <ListTools title="Complaints">
+            <ul className="space-y-2">
+              {list.data?.complaints.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    aria-pressed={openId === c.id}
+                    onClick={() => setOpenId(c.id)}
+                    className={`w-full rounded-xl border p-3 text-left text-sm ${
+                      openId === c.id
+                        ? 'border-brand-600 bg-brand-50 dark:bg-slate-800'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="font-medium">{c.subject}</span>
+                      <StatusBadge
+                        status={badge(c.status)}
+                        label={STATUS_LABEL[c.status] ?? c.status}
+                      />
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      {c.customer} · {c.bookingReference} ·{' '}
+                      {c.category.toLowerCase().replace('_', ' ')} · {when(c.updatedAt)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </ListTools>
         </div>
 
         <div>

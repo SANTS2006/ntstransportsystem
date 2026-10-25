@@ -7,6 +7,7 @@ import { Card, StatTile } from '../../components/ui/Card';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 import { companyPath } from '../../lib/company-page';
+import { appRoot } from '../../lib/app-path';
 
 interface Booking {
   id: string;
@@ -99,7 +100,7 @@ export function PassengerDashboard() {
         )}
         {next && (
           <Link
-            to={`/app/bookings/${next.id}`}
+            to={`${appRoot()}/bookings/${next.id}`}
             className="flex flex-wrap items-center justify-between gap-3"
           >
             <div className="min-w-0">
@@ -122,9 +123,9 @@ export function PassengerDashboard() {
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {[
-          { to: '/app/bookings', label: 'My bookings', icon: Ticket },
-          { to: '/app/complaints', label: 'My complaints', icon: MessageSquareWarning },
-          { to: '/app/applications', label: 'My job applications', icon: Briefcase },
+          { to: `${appRoot()}/bookings`, label: 'My bookings', icon: Ticket },
+          { to: `${appRoot()}/complaints`, label: 'My complaints', icon: MessageSquareWarning },
+          { to: `${appRoot()}/applications`, label: 'My job applications', icon: Briefcase },
         ].map((t) => (
           <li key={t.to}>
             <Link to={t.to} className={tile}>

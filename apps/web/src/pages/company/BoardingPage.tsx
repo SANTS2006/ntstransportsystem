@@ -1,5 +1,6 @@
 import { CheckCircle2, ScanLine, XCircle } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ListTools } from '../../components/ui/ListTools';
 import { useEffect, useRef, useState } from 'react';
 import { ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -249,30 +250,32 @@ export function BoardingPage() {
                 <p className="sr-only" aria-live="polite">
                   {manifest.data.counts.boarded} of {manifest.data.counts.total} boarded
                 </p>
-                <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-                  {manifest.data.passengers.length === 0 && (
-                    <li className="py-2 text-slate-500">No confirmed tickets on this trip.</li>
-                  )}
-                  {manifest.data.passengers.map((p) => (
-                    <li
-                      key={p.ticketId}
-                      className="flex flex-wrap items-center justify-between gap-3 py-3"
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="tabular grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-base font-bold text-brand-700 dark:bg-slate-800 dark:text-brand-500">
-                          {p.seat}
+                <ListTools title="Passengers">
+                  <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+                    {manifest.data.passengers.length === 0 && (
+                      <li className="py-2 text-slate-500">No confirmed tickets on this trip.</li>
+                    )}
+                    {manifest.data.passengers.map((p) => (
+                      <li
+                        key={p.ticketId}
+                        className="flex flex-wrap items-center justify-between gap-3 py-3"
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="tabular grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-base font-bold text-brand-700 dark:bg-slate-800 dark:text-brand-500">
+                            {p.seat}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{p.name}</span>
+                            <span className="block font-mono text-xs text-slate-500">{p.code}</span>
+                          </span>
                         </span>
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{p.name}</span>
-                          <span className="block font-mono text-xs text-slate-500">{p.code}</span>
-                        </span>
-                      </span>
-                      <Badge tone={p.status === 'BOARDED' ? 'green' : 'slate'}>
-                        {p.status === 'BOARDED' ? 'Boarded' : 'Not yet boarded'}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
+                        <Badge tone={p.status === 'BOARDED' ? 'green' : 'slate'}>
+                          {p.status === 'BOARDED' ? 'Boarded' : 'Not yet boarded'}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </ListTools>
               </>
             )}
           </Card>

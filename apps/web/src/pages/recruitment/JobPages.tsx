@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { companyPath } from '../../lib/company-page';
+import { ListTools } from '../../components/ui/ListTools';
 import { useCompanyPublic } from '../../lib/company-public';
 import { useCompanyLinks } from '../../lib/company-links';
 import { useConfirm } from '../../components/ui/Confirm';
@@ -14,6 +15,7 @@ import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { CvControl } from '../../components/files/FileControls';
+import { appRoot } from '../../lib/app-path';
 
 const ROLE_LABEL: Record<string, string> = {
   DRIVER: 'Driver',
@@ -77,23 +79,25 @@ export function JobBoardPage() {
       {jobs.isPending && <PageLoader label="Loading jobs" />}
       {jobs.error && <ErrorAlert error={jobs.error} onRetry={() => void jobs.refetch()} />}
       {jobs.data?.jobs.length === 0 && <Alert tone="info">No open jobs right now.</Alert>}
-      <ul className="space-y-3">
-        {jobs.data?.jobs.map((j) => (
-          <li key={j.id}>
-            <Link
-              to={company ? `/${company.slug}/jobs/${j.id}` : `/jobs/${j.tenantId}/${j.id}`}
-              className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
-            >
-              <span className="block font-medium">{j.title}</span>
-              <span className="text-sm text-slate-600 dark:text-slate-400">
-                {j.company} · {ROLE_LABEL[j.jobRole] ?? j.jobRole}
-                {j.location ? ` · ${j.location}` : ''}
-                {j.closesOn ? ` · apply by ${j.closesOn}` : ''}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <ListTools title="Jobs">
+        <ul className="space-y-3">
+          {jobs.data?.jobs.map((j) => (
+            <li key={j.id}>
+              <Link
+                to={company ? `/${company.slug}/jobs/${j.id}` : `/jobs/${j.tenantId}/${j.id}`}
+                className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <span className="block font-medium">{j.title}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  {j.company} · {ROLE_LABEL[j.jobRole] ?? j.jobRole}
+                  {j.location ? ` · ${j.location}` : ''}
+                  {j.closesOn ? ` · apply by ${j.closesOn}` : ''}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </ListTools>
     </div>
   );
 }
@@ -135,7 +139,7 @@ export function JobDetailPage() {
     onSuccess: async () => {
       toast('Application sent', 'success');
       await qc.invalidateQueries({ queryKey: ['my-applications'] });
-      void nav('/app/applications');
+      void nav(`${appRoot()}/applications`);
     },
   });
   if (job.isPending) return <PageLoader label="Loading" />;
@@ -286,60 +290,62 @@ export function MyApplicationsPage() {
       {q.data?.applications.length === 0 && (
         <Alert tone="info">You have not applied for any jobs.</Alert>
       )}
-      <ul className="space-y-3">
-        {q.data?.applications.map((a) => (
-          <li
-            key={a.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
-          >
-            <span>
-              <span className="block font-medium">{a.jobTitle}</span>
-              <span className="text-xs text-slate-500">
-                {a.company} · applied {new Date(a.createdAt).toLocaleDateString()}
+      <ListTools title="Applications">
+        <ul className="space-y-3">
+          {q.data?.applications.map((a) => (
+            <li
+              key={a.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+            >
+              <span>
+                <span className="block font-medium">{a.jobTitle}</span>
+                <span className="text-xs text-slate-500">
+                  {a.company} · applied {new Date(a.createdAt).toLocaleDateString()}
+                </span>
               </span>
-            </span>
-            <span className="flex items-center gap-3">
-              <StatusBadge
-                status={
-                  a.status === 'HIRED'
-                    ? 'ACTIVE'
-                    : a.status === 'REJECTED' || a.status === 'WITHDRAWN'
-                      ? 'REJECTED'
-                      : 'PENDING'
-                }
-                label={STATUS_LABEL[a.status] ?? a.status}
-              />
-              {a.status !== 'WITHDRAWN' && (
-                <CvControl
-                  uploadPath={`/applicant/applications/${a.id}/cv`}
-                  linkPath={`/applicant/applications/${a.id}/cv`}
-                  canUpload={a.canWithdraw}
-                  current={a.cv}
+              <span className="flex items-center gap-3">
+                <StatusBadge
+                  status={
+                    a.status === 'HIRED'
+                      ? 'ACTIVE'
+                      : a.status === 'REJECTED' || a.status === 'WITHDRAWN'
+                        ? 'REJECTED'
+                        : 'PENDING'
+                  }
+                  label={STATUS_LABEL[a.status] ?? a.status}
                 />
-              )}
-              {a.canWithdraw && (
-                <Button
-                  variant="ghost"
-                  loading={withdraw.isPending && withdraw.variables === a.id}
-                  onClick={async () => {
-                    if (
-                      await ask({
-                        title: 'Withdraw this application?',
-                        message: 'The company will no longer consider it.',
-                        confirmLabel: 'Withdraw',
-                        danger: true,
-                      })
-                    )
-                      withdraw.mutate(a.id);
-                  }}
-                >
-                  Withdraw
-                </Button>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+                {a.status !== 'WITHDRAWN' && (
+                  <CvControl
+                    uploadPath={`/applicant/applications/${a.id}/cv`}
+                    linkPath={`/applicant/applications/${a.id}/cv`}
+                    canUpload={a.canWithdraw}
+                    current={a.cv}
+                  />
+                )}
+                {a.canWithdraw && (
+                  <Button
+                    variant="ghost"
+                    loading={withdraw.isPending && withdraw.variables === a.id}
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: 'Withdraw this application?',
+                          message: 'The company will no longer consider it.',
+                          confirmLabel: 'Withdraw',
+                          danger: true,
+                        })
+                      )
+                        withdraw.mutate(a.id);
+                    }}
+                  >
+                    Withdraw
+                  </Button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </ListTools>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { api, ApiError } from '../lib/api';
+import { setAppCompany } from '../lib/app-path';
 
 export interface Me {
   id: string;
@@ -52,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: 60_000,
   });
 
+  // The passenger pages live under the company the account belongs to.
+  setAppCompany(query.data?.homeCompany?.slug);
   const value = useMemo<AuthState>(
     () => ({
       user: query.data ?? null,
@@ -61,8 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await qc.invalidateQueries({ queryKey: ME_KEY });
       },
       clear: () => {
+        // Nothing of the finished session survives: cached screens, drafts and pending requests.
+        void qc.cancelQueries();
+        qc.clear();
         qc.setQueryData(ME_KEY, null);
-        qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' }); // drop cached tenant data
+        try {
+          sessionStorage.clear();
+        } catch {
+          /* storage unavailable */
+        }
       },
     }),
     [query.data, query.isPending, query.isError, query.error, qc],

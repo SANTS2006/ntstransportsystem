@@ -11,6 +11,7 @@ import { Field } from '../../components/ui/Field';
 import { PictureInput } from '../../components/ui/PictureInput';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { appRoot } from '../../lib/app-path';
 
 const AVATAR_MAX = 400_000;
 
@@ -136,7 +137,10 @@ export function ProfilePage() {
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Change your password, turn on two-step verification and review where you are signed in.
         </p>
-        <Link className="mt-3 inline-block text-sm font-semibold text-brand-600" to="/app/security">
+        <Link
+          className="mt-3 inline-block text-sm font-semibold text-brand-600"
+          to={`${appRoot()}/security`}
+        >
           Open security settings
         </Link>
       </Card>

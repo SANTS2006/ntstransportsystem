@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ListTools } from './ListTools';
 
 export interface Column<T> {
   key: string;
@@ -18,11 +19,14 @@ export function DataTable<T>({
   rows,
   rowKey,
   empty = 'Nothing to show yet.',
+  name = 'List',
 }: {
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T) => string;
   empty?: string;
+  /** Names the search box and the exported file, e.g. "Vehicles". */
+  name?: string;
 }) {
   if (rows.length === 0) {
     return (
@@ -35,13 +39,18 @@ export function DataTable<T>({
   const actions = columns.filter((c) => c.kind === 'actions');
   const facts = columns.filter((c) => c !== title && c.kind !== 'actions');
   return (
-    <>
+    <ListTools title={name}>
       <div className="hidden overflow-x-auto rounded-2xl bg-white shadow-[var(--shadow-field)] md:block dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             <tr>
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={`px-4 py-3 ${c.className ?? ''}`}>
+                <th
+                  key={c.key}
+                  scope="col"
+                  {...(c.kind === 'actions' ? { 'data-skip-export': true } : {})}
+                  className={`px-4 py-3 ${c.className ?? ''}`}
+                >
                   {c.kind === 'actions' ? <span className="sr-only">{c.header}</span> : c.header}
                 </th>
               ))}
@@ -95,6 +104,6 @@ export function DataTable<T>({
           </li>
         ))}
       </ul>
-    </>
+    </ListTools>
   );
 }

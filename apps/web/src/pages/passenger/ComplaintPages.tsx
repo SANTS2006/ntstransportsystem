@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListTools } from '../../components/ui/ListTools';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -10,6 +11,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { Attachments, useFileUploadsEnabled } from '../../components/files/FileControls';
 import { VoiceRecorder } from '../../components/files/VoiceRecorder';
+import { appRoot } from '../../lib/app-path';
 
 const CATEGORIES = [
   { value: 'DELAY', label: 'Delay' },
@@ -56,7 +58,7 @@ export function MyComplaintsPage() {
       <h1 className="text-2xl font-semibold">My complaints</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         To report a problem, open the booking it is about in{' '}
-        <Link className="font-medium" to="/app/bookings">
+        <Link className="font-medium" to={`${appRoot()}/bookings`}>
           My bookings
         </Link>
         .
@@ -66,24 +68,26 @@ export function MyComplaintsPage() {
       {q.data?.complaints.length === 0 && (
         <Alert tone="info">You have not sent any complaints.</Alert>
       )}
-      <ul className="space-y-3">
-        {q.data?.complaints.map((c) => (
-          <li key={c.id}>
-            <Link
-              to={`/app/complaints/${c.id}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
-            >
-              <span>
-                <span className="block font-medium">{c.subject}</span>
-                <span className="text-xs text-slate-500">
-                  {c.company} · booking {c.bookingReference} · updated {when(c.updatedAt)}
+      <ListTools title="Complaints">
+        <ul className="space-y-3">
+          {q.data?.complaints.map((c) => (
+            <li key={c.id}>
+              <Link
+                to={`${appRoot()}/complaints/${c.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <span>
+                  <span className="block font-medium">{c.subject}</span>
+                  <span className="text-xs text-slate-500">
+                    {c.company} · booking {c.bookingReference} · updated {when(c.updatedAt)}
+                  </span>
                 </span>
-              </span>
-              <StatusBadge status={badge(c.status)} label={STATUS_LABEL[c.status] ?? c.status} />
-            </Link>
-          </li>
-        ))}
-      </ul>
+                <StatusBadge status={badge(c.status)} label={STATUS_LABEL[c.status] ?? c.status} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </ListTools>
     </div>
   );
 }
@@ -134,7 +138,7 @@ export function NewComplaintPage() {
           'error',
         );
       await qc.invalidateQueries({ queryKey: ['passenger-complaints'] });
-      void nav(`/app/complaints/${r.id}`, { replace: true });
+      void nav(`${appRoot()}/complaints/${r.id}`, { replace: true });
     },
   });
   if (!bookingId)
@@ -223,7 +227,10 @@ export function ComplaintThreadPage() {
   const c = q.data;
   return (
     <div className="w-full space-y-4">
-      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/complaints">
+      <Link
+        className="text-sm text-brand-700 font-medium dark:text-brand-500"
+        to={`${appRoot()}/complaints`}
+      >
         My complaints
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">

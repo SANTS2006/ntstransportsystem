@@ -97,7 +97,7 @@ describe('LoginPage', () => {
     release(signedOut());
   });
 
-  it('walks through the MFA step and honours a safe ?next=', async () => {
+  it('walks through the MFA step and starts from the dashboard, not the old page', async () => {
     let signedIn = false;
     const spy = mockApi({
       '/auth/me': () => (signedIn ? me(true) : signedOut()),
@@ -114,7 +114,7 @@ describe('LoginPage', () => {
     await userEvent.type(screen.getByLabelText('Authentication code'), '123456');
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
-    await waitFor(() => expect(screen.getByText('SECURITY')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('DASHBOARD')).toBeInTheDocument());
     const body = JSON.parse(String(callsTo(spy, '/auth/mfa/verify')[0]?.[1]?.body));
     expect(body).toEqual({ challengeToken: 'c'.repeat(43), code: '123456' });
   });

@@ -557,9 +557,16 @@ export class AuthService {
     return { userId: row.userId, mustChangePassword: user.mustChangePassword };
   }
 
+  /** Ends the whole session: this token and every earlier one rotated out of the same login. */
   async logout(sessionToken: string) {
+    const row = await this.db.session.findUnique({
+      where: { refreshTokenHash: hashToken(sessionToken) },
+      select: { familyId: true },
+    });
     await this.db.session.updateMany({
-      where: { refreshTokenHash: hashToken(sessionToken), revokedAt: null },
+      where: row
+        ? { familyId: row.familyId, revokedAt: null }
+        : { refreshTokenHash: hashToken(sessionToken), revokedAt: null },
       data: { revokedAt: this.now() },
     });
   }

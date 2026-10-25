@@ -10,7 +10,7 @@ const join = (...parts: (string | undefined)[]) => parts.filter((p) => p).join('
 
 /**
  * What a notification says inside the app. The inbox is behind sign-in so it may name the trip,
- * unlike e-mail subjects. Account e-mails (verification, password reset, invitations) never
+ * unlike e-mail subjects. Account e-mails (verification, password reset) never
  * appear here. Returns null for templates that have no in-app form.
  */
 export function inboxText(template: MailTemplate, d: Record<string, string>): InboxText | null {

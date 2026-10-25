@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '../../components/ui/Confirm';
+import { ListTools } from '../../components/ui/ListTools';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -235,51 +236,53 @@ export function RecruitmentPage() {
           <Card>
             {jobs.isPending && <PageLoader label="Loading postings" />}
             {jobs.error && <ErrorAlert error={jobs.error} onRetry={() => void jobs.refetch()} />}
-            <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-              {jobs.data?.jobs.length === 0 && (
-                <li className="py-2 text-slate-500">No postings yet.</li>
-              )}
-              {jobs.data?.jobs.map((j) => (
-                <li key={j.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span>
-                    <span className="block font-medium">{j.title}</span>
-                    <span className="text-xs text-slate-500">
-                      {j.jobRole.toLowerCase()} · {j.applications} application(s)
-                      {j.closesOn ? ` · closes ${j.closesOn}` : ''}
+            <ListTools title="Job postings">
+              <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+                {jobs.data?.jobs.length === 0 && (
+                  <li className="py-2 text-slate-500">No postings yet.</li>
+                )}
+                {jobs.data?.jobs.map((j) => (
+                  <li key={j.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span>
+                      <span className="block font-medium">{j.title}</span>
+                      <span className="text-xs text-slate-500">
+                        {j.jobRole.toLowerCase()} · {j.applications} application(s)
+                        {j.closesOn ? ` · closes ${j.closesOn}` : ''}
+                      </span>
                     </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <StatusBadge
-                      status={
-                        j.status === 'OPEN'
-                          ? 'ACTIVE'
-                          : j.status === 'DRAFT'
-                            ? 'PENDING'
-                            : 'REJECTED'
-                      }
-                      label={j.status.charAt(0) + j.status.slice(1).toLowerCase()}
-                    />
-                    {j.status !== 'OPEN' && (
-                      <Button
-                        variant="secondary"
-                        loading={jobAction.isPending && jobAction.variables?.id === j.id}
-                        onClick={() => jobAction.mutate({ id: j.id, action: 'open' })}
-                      >
-                        {j.status === 'DRAFT' ? 'Publish' : 'Reopen'}
-                      </Button>
-                    )}
-                    {j.status !== 'CLOSED' && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => jobAction.mutate({ id: j.id, action: 'close' })}
-                      >
-                        Close
-                      </Button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                    <span className="flex items-center gap-2">
+                      <StatusBadge
+                        status={
+                          j.status === 'OPEN'
+                            ? 'ACTIVE'
+                            : j.status === 'DRAFT'
+                              ? 'PENDING'
+                              : 'REJECTED'
+                        }
+                        label={j.status.charAt(0) + j.status.slice(1).toLowerCase()}
+                      />
+                      {j.status !== 'OPEN' && (
+                        <Button
+                          variant="secondary"
+                          loading={jobAction.isPending && jobAction.variables?.id === j.id}
+                          onClick={() => jobAction.mutate({ id: j.id, action: 'open' })}
+                        >
+                          {j.status === 'DRAFT' ? 'Publish' : 'Reopen'}
+                        </Button>
+                      )}
+                      {j.status !== 'CLOSED' && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => jobAction.mutate({ id: j.id, action: 'close' })}
+                        >
+                          Close
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </ListTools>
           </Card>
         </>
       )}
@@ -318,26 +321,28 @@ export function RecruitmentPage() {
             {apps.isPending && <PageLoader label="Loading applications" />}
             {apps.error && <ErrorAlert error={apps.error} onRetry={() => void apps.refetch()} />}
             {apps.data?.applications.length === 0 && <Alert tone="info">No applications.</Alert>}
-            <ul className="space-y-2">
-              {apps.data?.applications.map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    aria-pressed={openId === a.id}
-                    onClick={() => setOpenId(a.id)}
-                    className={`w-full rounded-xl border p-3 text-left text-sm ${openId === a.id ? 'border-brand-600 bg-brand-50 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700'}`}
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="font-medium">{a.fullName}</span>
-                      <span className="text-xs">{STATUS_LABEL[a.status] ?? a.status}</span>
-                    </span>
-                    <span className="block text-xs text-slate-500">
-                      {a.jobTitle} · {when(a.createdAt)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ListTools title="Applications">
+              <ul className="space-y-2">
+                {apps.data?.applications.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      aria-pressed={openId === a.id}
+                      onClick={() => setOpenId(a.id)}
+                      className={`w-full rounded-xl border p-3 text-left text-sm ${openId === a.id ? 'border-brand-600 bg-brand-50 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-700'}`}
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="font-medium">{a.fullName}</span>
+                        <span className="text-xs">{STATUS_LABEL[a.status] ?? a.status}</span>
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {a.jobTitle} · {when(a.createdAt)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </ListTools>
           </div>
 
           <div>

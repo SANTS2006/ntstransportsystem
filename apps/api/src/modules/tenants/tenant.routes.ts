@@ -44,9 +44,6 @@ const profileSchema = z
 const roleKey = z
   .string()
   .regex(/^[a-z][a-z0-9_]{1,39}$/, 'Lowercase letters, digits, underscores');
-const inviteSchema = z
-  .object({ email: z.string().trim().toLowerCase().pipe(z.email().max(254)), roleKey })
-  .strict();
 const changeRoleSchema = z.object({ roleKey }).strict();
 const addRoleSchema = z.object({ roleId: z.uuid() }).strict();
 const switchRoleSchema = z.object({ role: z.union([z.literal('passenger'), z.uuid()]) }).strict();
@@ -60,7 +57,6 @@ const createRoleSchema = z
 const setPermissionsSchema = z
   .object({ permissions: z.array(z.string().max(80)).max(100) })
   .strict();
-const acceptSchema = z.object({ token: z.string().min(20).max(200) }).strict();
 
 export const pageQuery = (req: Request) => {
   const q = z
@@ -93,9 +89,6 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
   // --- Not tenant-scoped: the caller's own companies. Companies are registered by the platform. ---
   r.get('/tenants/mine', requireAuth, async (req, res) => {
     res.json({ tenants: await tenants.listMine(uid(req)) });
-  });
-  r.post('/invitations/accept', requireAuth, async (req, res) => {
-    res.json(await members.accept(uid(req), acceptSchema.parse(req.body).token, req.id));
   });
 
   // --- Tenant-scoped ---------------------------------------------------------------------------
@@ -191,25 +184,6 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
     res.status(204).end();
   });
 
-  t.get('/invitations', perm('membership.read'), async (req, res) => {
-    res.json({ invitations: await members.listInvitations(scope(req)) });
-  });
-  t.post('/invitations', perm('membership.invite'), async (req, res) => {
-    res
-      .status(201)
-      .json(
-        await audit.guard(req, 'membership.invite_denied', () =>
-          members.invite(scope(req), inviteSchema.parse(req.body), req.id),
-        ),
-      );
-  });
-  t.delete('/invitations/:id', perm('membership.invite'), async (req, res) => {
-    await audit.guard(req, 'membership.invitation_revoke_denied', () =>
-      members.revokeInvitation(scope(req), uuidParam(req, 'id'), req.id),
-    );
-    res.status(204).end();
-  });
-
   t.get('/roles', perm('role.read'), async (req, res) => {
     res.json({ roles: await roles.list(scope(req)), catalog: roles.permissionCatalog() });
   });
@@ -251,11 +225,9 @@ export function tenantRouter({ db, tenants, members, roles }: TenantRouterDeps):
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
   profileSchema,
-  inviteSchema,
   changeRoleSchema,
   addRoleSchema,
   switchRoleSchema,
   createRoleSchema,
   setPermissionsSchema,
-  acceptSchema,
 };

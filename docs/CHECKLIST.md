@@ -326,3 +326,11 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Slow links: offline banner, instant "you are offline" instead of a spinner, cached screens shown while offline, backed-off query retries, service worker caches built files.
 - [x] Flood control on the whole API (reads and writes counted apart, shared via Redis when set) and an hourly cap on platform e-mail; the large JSON body for platform e-mail is accepted only with a session cookie; subject line is flattened to one line.
 - [x] Fixed: two sign-ups for one address at once no longer fail with a server error; terminating an employee also ends their access to the company (owners excepted); platform e-mail audit runs in platform scope.
+
+## Navbar, passenger URLs, staff roles, listing tools
+
+- [x] The top bar of a company's workspace shows the company logo, with its name beside it on large screens only; the sidebar sign-out button and picture placeholder use the company's main colour (the system blue outside a company).
+- [x] Passenger pages live under the account's company: `/<company>/app/...`. `/app/...` and another company's address redirect to the right one; the passenger area wears the company's name, logo and colours.
+- [x] Signing out ends the whole login (every rotated token), clears cached screens and session storage; signing in always starts at the dashboard (only a payment return is resumed).
+- [x] Invitations removed (API routes, accept page, e-mail template, tests). People are added from Staff > Add a staff member, with a Role field (the company's roles, or the standard eight) that sets the role they hold; adding a role needs the permissions the adder holds. Each staff row has an "Add role" control that opens the multi-role dialog.
+- [x] Every listing has a search box, a status filter (from the status labels in its rows) and Export to CSV, Excel or PDF (print) of the rows showing: `ListTools`, used by `DataTable` and wrapped around the system's lists. Exported cells never start with a formula character.

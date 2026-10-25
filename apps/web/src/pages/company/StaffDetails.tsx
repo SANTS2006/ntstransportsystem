@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_TENANT_ROLES } from '@nts/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -38,14 +39,17 @@ export interface Member {
 const selectClass =
   'min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-900';
 const title = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
-const JOBS = ['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER'];
+const DEFAULT_ROLE_OPTIONS = Object.entries(DEFAULT_TENANT_ROLES).map(([key, r]) => ({
+  key,
+  name: r.name,
+}));
 
 // ---- Add a staff member -------------------------------------------------------------------------
 
 const addSchema = z.object({
   employeeNumber: z.string().trim().min(1, 'Enter the staff number').max(30),
   fullName: z.string().trim().min(2, 'Enter the full name').max(120),
-  role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']),
+  roleKey: z.string().min(1, 'Choose a role'),
   email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
   phone: z
     .string()
@@ -57,12 +61,22 @@ type AddValues = z.infer<typeof addSchema>;
 
 /** Adds a person to the team: they get an account and an email with their details and first password. */
 export function AddStaffButton({ onAdded }: { onAdded: () => Promise<unknown> }) {
-  const { tenantId } = useCompany();
+  const { tenantId, access } = useCompany();
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  // The company's own roles when the person may read them; the standard roles otherwise.
+  const roles = useQuery({
+    queryKey: ['company', tenantId, 'roles'],
+    enabled: can(access, 'role.read'),
+    queryFn: ({ signal }) =>
+      api<{ roles: { id: string; key: string; name: string }[] }>(`/tenants/${tenantId}/roles`, {
+        signal,
+      }),
+  });
+  const options = roles.data?.roles ?? DEFAULT_ROLE_OPTIONS;
   const form = useForm<AddValues>({
     resolver: zodResolver(addSchema),
-    defaultValues: { employeeNumber: '', fullName: '', role: 'DRIVER', email: '', phone: '' },
+    defaultValues: { employeeNumber: '', fullName: '', roleKey: '', email: '', phone: '' },
   });
   const create = useMutation({
     mutationFn: (v: AddValues) =>
@@ -111,16 +125,27 @@ export function AddStaffButton({ onAdded }: { onAdded: () => Promise<unknown> })
           {...form.register('phone')}
         />
         <div className="sm:col-span-2">
-          <label htmlFor="staff-job" className="mb-1 block text-sm font-semibold">
-            Job
+          <label htmlFor="staff-role" className="mb-1 block text-sm font-semibold">
+            Role
           </label>
-          <select id="staff-job" className={selectClass} {...form.register('role')}>
-            {JOBS.map((r) => (
-              <option key={r} value={r}>
-                {title(r)}
+          <select
+            id="staff-role"
+            className={selectClass}
+            aria-invalid={errors.roleKey ? true : undefined}
+            {...form.register('roleKey')}
+          >
+            <option value="">Choose…</option>
+            {options.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.name}
               </option>
             ))}
           </select>
+          {errors.roleKey && (
+            <p role="alert" className="mt-1 text-sm text-red-700">
+              {errors.roleKey.message}
+            </p>
+          )}
         </div>
         {create.error && (
           <div className="sm:col-span-2">

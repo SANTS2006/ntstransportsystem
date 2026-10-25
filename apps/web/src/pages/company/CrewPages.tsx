@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ModalCard } from '../../components/ui/ModalCard';
+import { ListTools } from '../../components/ui/ListTools';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -316,97 +317,99 @@ export function MaintenancePage() {
         {records.error && (
           <ErrorAlert error={records.error} onRetry={() => void records.refetch()} />
         )}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {records.data?.records.length === 0 && (
-            <li className="py-2 text-slate-500">No maintenance jobs yet.</li>
-          )}
-          {records.data?.records.map((r) => (
-            <li key={r.id} className="py-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">
-                    {r.vehicle} · {title(r.kind)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {r.description} ·{' '}
-                    {r.completedOn ? `done ${r.completedOn}` : `scheduled ${r.scheduledFor}`}
-                    {r.costMinor !== null ? ` · cost ${(r.costMinor / 100).toFixed(2)}` : ''}
-                  </p>
+        <ListTools title="Maintenance jobs">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {records.data?.records.length === 0 && (
+              <li className="py-2 text-slate-500">No maintenance jobs yet.</li>
+            )}
+            {records.data?.records.map((r) => (
+              <li key={r.id} className="py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">
+                      {r.vehicle} · {title(r.kind)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {r.description} ·{' '}
+                      {r.completedOn ? `done ${r.completedOn}` : `scheduled ${r.scheduledFor}`}
+                      {r.costMinor !== null ? ` · cost ${(r.costMinor / 100).toFixed(2)}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      status={
+                        r.status === 'SCHEDULED'
+                          ? 'PENDING'
+                          : r.status === 'CANCELLED'
+                            ? 'REJECTED'
+                            : 'ACTIVE'
+                      }
+                      label={title(r.status)}
+                    />
+                    {manage && r.status === 'SCHEDULED' && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          loading={
+                            act.isPending &&
+                            act.variables?.id === r.id &&
+                            act.variables.action === 'start'
+                          }
+                          onClick={() => act.mutate({ id: r.id, action: 'start' })}
+                        >
+                          Start work
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => act.mutate({ id: r.id, action: 'cancel' })}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                    {manage && r.status === 'IN_PROGRESS' && (
+                      <Button onClick={() => setCompleting(completing === r.id ? null : r.id)}>
+                        Complete…
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    status={
-                      r.status === 'SCHEDULED'
-                        ? 'PENDING'
-                        : r.status === 'CANCELLED'
-                          ? 'REJECTED'
-                          : 'ACTIVE'
-                    }
-                    label={title(r.status)}
-                  />
-                  {manage && r.status === 'SCHEDULED' && (
-                    <>
-                      <Button
-                        variant="secondary"
-                        loading={
-                          act.isPending &&
-                          act.variables?.id === r.id &&
-                          act.variables.action === 'start'
-                        }
-                        onClick={() => act.mutate({ id: r.id, action: 'start' })}
-                      >
-                        Start work
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => act.mutate({ id: r.id, action: 'cancel' })}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  )}
-                  {manage && r.status === 'IN_PROGRESS' && (
-                    <Button onClick={() => setCompleting(completing === r.id ? null : r.id)}>
-                      Complete…
+                {completing === r.id && (
+                  <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                    <div className="w-40">
+                      <Field
+                        label="Odometer (km)"
+                        type="number"
+                        value={done.odometerKm}
+                        onChange={(e) => setDone((d) => ({ ...d, odometerKm: e.target.value }))}
+                      />
+                    </div>
+                    <div className="w-40">
+                      <Field
+                        label="Cost"
+                        type="number"
+                        step="0.01"
+                        value={done.cost}
+                        onChange={(e) => setDone((d) => ({ ...d, cost: e.target.value }))}
+                      />
+                    </div>
+                    <Button
+                      loading={
+                        act.isPending &&
+                        act.variables?.id === r.id &&
+                        act.variables.action === 'complete'
+                      }
+                      loadingText="Saving…"
+                      onClick={() => act.mutate({ id: r.id, action: 'complete' })}
+                    >
+                      Mark complete
                     </Button>
-                  )}
-                </div>
-              </div>
-              {completing === r.id && (
-                <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
-                  <div className="w-40">
-                    <Field
-                      label="Odometer (km)"
-                      type="number"
-                      value={done.odometerKm}
-                      onChange={(e) => setDone((d) => ({ ...d, odometerKm: e.target.value }))}
-                    />
                   </div>
-                  <div className="w-40">
-                    <Field
-                      label="Cost"
-                      type="number"
-                      step="0.01"
-                      value={done.cost}
-                      onChange={(e) => setDone((d) => ({ ...d, cost: e.target.value }))}
-                    />
-                  </div>
-                  <Button
-                    loading={
-                      act.isPending &&
-                      act.variables?.id === r.id &&
-                      act.variables.action === 'complete'
-                    }
-                    loadingText="Saving…"
-                    onClick={() => act.mutate({ id: r.id, action: 'complete' })}
-                  >
-                    Mark complete
-                  </Button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
         {act.error && <Alert tone="error">{errMsg(act.error)}</Alert>}
       </Card>
     </div>

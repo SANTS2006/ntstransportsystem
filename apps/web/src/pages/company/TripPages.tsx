@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ListTools } from '../../components/ui/ListTools';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -317,54 +318,56 @@ export function TripsPage() {
         {schedules.error && (
           <ErrorAlert error={schedules.error} onRetry={() => void schedules.refetch()} />
         )}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {schedules.data?.schedules.length === 0 && (
-            <li className="py-2 text-slate-500">No schedules yet.</li>
-          )}
-          {schedules.data?.schedules.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">
-                  {s.route} · {s.departureTime}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {formatDays(s.daysOfWeek)} · from {s.validFrom}
-                  {s.validTo ? ` to ${s.validTo}` : ''}
-                  {s.defaultVehicle ? ` · ${s.defaultVehicle}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge
-                  status={s.status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'}
-                  label={s.status === 'ACTIVE' ? 'Active' : 'Paused'}
-                />
-                {manageTrips && s.status === 'ACTIVE' && (
-                  <Button
-                    variant="secondary"
-                    loading={generate.isPending && generate.variables === s.id}
-                    loadingText="Generating…"
-                    onClick={() => generate.mutate(s.id)}
-                  >
-                    Generate {range.from} → {range.to}
-                  </Button>
-                )}
-                {manageRoutes && (
-                  <Button
-                    variant="ghost"
-                    onClick={() =>
-                      setSchedule.mutate({
-                        id: s.id,
-                        action: s.status === 'ACTIVE' ? 'pause' : 'resume',
-                      })
-                    }
-                  >
-                    {s.status === 'ACTIVE' ? 'Pause' : 'Resume'}
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <ListTools title="Schedules">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {schedules.data?.schedules.length === 0 && (
+              <li className="py-2 text-slate-500">No schedules yet.</li>
+            )}
+            {schedules.data?.schedules.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-medium">
+                    {s.route} · {s.departureTime}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDays(s.daysOfWeek)} · from {s.validFrom}
+                    {s.validTo ? ` to ${s.validTo}` : ''}
+                    {s.defaultVehicle ? ` · ${s.defaultVehicle}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge
+                    status={s.status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'}
+                    label={s.status === 'ACTIVE' ? 'Active' : 'Paused'}
+                  />
+                  {manageTrips && s.status === 'ACTIVE' && (
+                    <Button
+                      variant="secondary"
+                      loading={generate.isPending && generate.variables === s.id}
+                      loadingText="Generating…"
+                      onClick={() => generate.mutate(s.id)}
+                    >
+                      Generate {range.from} → {range.to}
+                    </Button>
+                  )}
+                  {manageRoutes && (
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        setSchedule.mutate({
+                          id: s.id,
+                          action: s.status === 'ACTIVE' ? 'pause' : 'resume',
+                        })
+                      }
+                    >
+                      {s.status === 'ACTIVE' ? 'Pause' : 'Resume'}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
 
       <Card title="Trips">
@@ -388,80 +391,84 @@ export function TripsPage() {
         </div>
         {trips.isPending && <PageLoader label="Loading trips" />}
         {trips.error && <ErrorAlert error={trips.error} onRetry={() => void trips.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {trips.data?.trips.length === 0 && (
-            <li className="py-2 text-slate-500">
-              No trips in this range. Generate them from a schedule.
-            </li>
-          )}
-          {trips.data?.trips.map((t) => (
-            <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">{t.route}</p>
-                <p className="text-xs text-slate-500">
-                  {fmt(t.departureAt)} → {fmt(t.arrivalAt)}
-                  {t.delayMinutes ? ` · delayed ${t.delayMinutes} min` : ''}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge
-                  status={
-                    t.status === 'SCHEDULED'
-                      ? 'PENDING'
-                      : t.status === 'CANCELLED'
-                        ? 'REJECTED'
-                        : 'ACTIVE'
-                  }
-                  label={t.status.charAt(0) + t.status.slice(1).toLowerCase().replace('_', ' ')}
-                />
-
-                {manageTrips && (t.status === 'SCHEDULED' || t.status === 'BOARDING') && (
-                  <select
-                    aria-label={`Vehicle for ${t.route} on ${t.serviceDate}`}
-                    className={selectClass}
-                    value={t.vehicleId ?? ''}
-                    disabled={assign.isPending}
-                    onChange={(e) => assign.mutate({ id: t.id, vehicleId: e.target.value || null })}
-                  >
-                    <option value="">No vehicle</option>
-                    {activeVehicles.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.registration}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {!manageTrips && t.vehicle && <span className="text-xs">{t.vehicle}</span>}
-                <Button
-                  variant="ghost"
-                  onClick={() => setOpenCrew(openCrew === t.id ? null : t.id)}
-                >
-                  Crew
-                </Button>
-                {manageTrips &&
-                  nextActions(t.status).map((a) => (
-                    <Button
-                      key={a.to}
-                      variant={a.danger ? 'danger' : 'secondary'}
-                      loading={
-                        setStatus.isPending &&
-                        setStatus.variables?.id === t.id &&
-                        setStatus.variables.status === a.to
-                      }
-                      onClick={() => setStatus.mutate({ id: t.id, status: a.to })}
-                    >
-                      {a.label}
-                    </Button>
-                  ))}
-              </div>
-              {openCrew === t.id && (
-                <div className="w-full">
-                  <CrewPanel tripId={t.id} canManage={manageTrips} open />
+        <ListTools title="Trips">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {trips.data?.trips.length === 0 && (
+              <li className="py-2 text-slate-500">
+                No trips in this range. Generate them from a schedule.
+              </li>
+            )}
+            {trips.data?.trips.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-medium">{t.route}</p>
+                  <p className="text-xs text-slate-500">
+                    {fmt(t.departureAt)} → {fmt(t.arrivalAt)}
+                    {t.delayMinutes ? ` · delayed ${t.delayMinutes} min` : ''}
+                  </p>
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={
+                      t.status === 'SCHEDULED'
+                        ? 'PENDING'
+                        : t.status === 'CANCELLED'
+                          ? 'REJECTED'
+                          : 'ACTIVE'
+                    }
+                    label={t.status.charAt(0) + t.status.slice(1).toLowerCase().replace('_', ' ')}
+                  />
+
+                  {manageTrips && (t.status === 'SCHEDULED' || t.status === 'BOARDING') && (
+                    <select
+                      aria-label={`Vehicle for ${t.route} on ${t.serviceDate}`}
+                      className={selectClass}
+                      value={t.vehicleId ?? ''}
+                      disabled={assign.isPending}
+                      onChange={(e) =>
+                        assign.mutate({ id: t.id, vehicleId: e.target.value || null })
+                      }
+                    >
+                      <option value="">No vehicle</option>
+                      {activeVehicles.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.registration}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {!manageTrips && t.vehicle && <span className="text-xs">{t.vehicle}</span>}
+                  <Button
+                    variant="ghost"
+                    onClick={() => setOpenCrew(openCrew === t.id ? null : t.id)}
+                  >
+                    Crew
+                  </Button>
+                  {manageTrips &&
+                    nextActions(t.status).map((a) => (
+                      <Button
+                        key={a.to}
+                        variant={a.danger ? 'danger' : 'secondary'}
+                        loading={
+                          setStatus.isPending &&
+                          setStatus.variables?.id === t.id &&
+                          setStatus.variables.status === a.to
+                        }
+                        onClick={() => setStatus.mutate({ id: t.id, status: a.to })}
+                      >
+                        {a.label}
+                      </Button>
+                    ))}
+                </div>
+                {openCrew === t.id && (
+                  <div className="w-full">
+                    <CrewPanel tripId={t.id} canManage={manageTrips} open />
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );

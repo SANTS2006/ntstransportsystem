@@ -99,19 +99,18 @@ describe('BrevoMailer', () => {
 describe('mail templates', () => {
   it('escapes untrusted values (company names) in HTML', () => {
     const out = renderMail({
-      template: 'tenant-invitation',
+      template: 'staff-added',
       data: { company: '<script>alert(1)</script> & "Co"', link: 'https://a.example/x?t=1' },
     });
     expect(out.html).not.toContain('<script>');
     expect(out.html).toContain('&lt;script&gt;');
     expect(out.html).toContain('&amp;');
   });
-  it('keeps names and tokens out of subject lines', () => {
+  it('keeps tokens out of subject lines', () => {
     const out = renderMail({
-      template: 'tenant-invitation',
-      data: { company: 'Secret Coaches', link: 'https://a.example/x?token=zzz' },
+      template: 'password-reset',
+      data: { link: 'https://a.example/x?token=zzz' },
     });
-    expect(out.subject).not.toContain('Secret');
     expect(out.subject).not.toContain('zzz');
   });
   it('allows only http(s) links', () => {

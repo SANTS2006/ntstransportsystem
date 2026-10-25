@@ -193,52 +193,6 @@ export function ResetPasswordPage() {
   );
 }
 
-/** Rendered inside RequireAuth: acceptance needs a signed-in, verified account matching the invite. */
-export function AcceptInvitationPage() {
-  const token = useSearchParams()[0].get('token');
-  const accept = useMutation({
-    mutationFn: () =>
-      api<{ tenantId: string; name: string }>('/invitations/accept', {
-        method: 'POST',
-        body: { token },
-      }),
-  });
-  if (!token) {
-    return (
-      <AuthCard title="Invitation">
-        <Alert tone="error">This invitation link is incomplete.</Alert>
-      </AuthCard>
-    );
-  }
-  return (
-    <AuthCard
-      title="Join a company"
-      subtitle="Accept this invitation with the account it was sent to."
-    >
-      {accept.isSuccess ? (
-        <>
-          <Alert tone="success">You have joined {accept.data.name}.</Alert>
-          <Link className={linkClass} to={`/c/${accept.data.tenantId}`}>
-            Open company workspace
-          </Link>
-        </>
-      ) : (
-        <>
-          {accept.error && <ErrorAlert error={accept.error} />}
-          <Button
-            className="w-full"
-            loading={accept.isPending}
-            loadingText="Accepting…"
-            onClick={() => accept.mutate()}
-          >
-            Accept invitation
-          </Button>
-        </>
-      )}
-    </AuthCard>
-  );
-}
-
 const emailCodeShape = /^[A-Za-z0-9]{6}$/;
 
 /** Step two of signing up with an email address: type the 6-character code that was mailed. */

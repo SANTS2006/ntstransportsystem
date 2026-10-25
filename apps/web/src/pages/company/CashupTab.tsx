@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ErrorAlert } from '../../components/ui/Alert';
+import { ListTools } from '../../components/ui/ListTools';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
@@ -87,53 +88,61 @@ export function CashupTab({
             <h3 id="cu-clerk" className="mb-1 text-sm font-semibold">
               Collected, by clerk
             </h3>
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-slate-500">
-                <tr>
-                  <th className="py-2 pr-3">Clerk</th>
-                  <th className="py-2 pr-3">Method</th>
-                  <th className="py-2 pr-3 text-right">Payments</th>
-                  <th className="py-2 text-right">Collected</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {d.byClerk.map((r) => (
-                  <tr key={`${r.userId}:${r.method}:${r.currency}`}>
-                    <td className="py-2 pr-3">{r.name}</td>
-                    <td className="py-2 pr-3">{METHOD_LABEL[r.method] ?? r.method}</td>
-                    <td className="py-2 pr-3 text-right">{r.payments}</td>
-                    <td className="py-2 text-right">{amount(r.amountMinor, r.currency)}</td>
+            <ListTools title="Cash sales by clerk">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-slate-500">
+                  <tr>
+                    <th className="py-2 pr-3">Clerk</th>
+                    <th className="py-2 pr-3">Method</th>
+                    <th className="py-2 pr-3 text-right">Payments</th>
+                    <th className="py-2 text-right">Collected</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {d.byClerk.map((r) => (
+                    <tr key={`${r.userId}:${r.method}:${r.currency}`}>
+                      <td className="py-2 pr-3">{r.name}</td>
+                      <td className="py-2 pr-3">{METHOD_LABEL[r.method] ?? r.method}</td>
+                      <td className="py-2 pr-3 text-right">{r.payments}</td>
+                      <td className="py-2 text-right">{amount(r.amountMinor, r.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ListTools>
           </section>
           <section aria-labelledby="cu-net">
             <h3 id="cu-net" className="mb-1 text-sm font-semibold">
               Totals, by method
             </h3>
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-slate-500">
-                <tr>
-                  <th className="py-2 pr-3">Method</th>
-                  <th className="py-2 pr-3 text-right">Collected</th>
-                  <th className="py-2 pr-3 text-right">Handed back</th>
-                  <th className="py-2 text-right">Net</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {d.net.map((n) => (
-                  <tr key={`${n.method}:${n.currency}`}>
-                    <td className="py-2 pr-3">{METHOD_LABEL[n.method] ?? n.method}</td>
-                    <td className="py-2 pr-3 text-right">{amount(n.collectedMinor, n.currency)}</td>
-                    <td className="py-2 pr-3 text-right">{amount(n.refundedMinor, n.currency)}</td>
-                    <td className="py-2 text-right font-medium">
-                      {amount(n.netMinor, n.currency)}
-                    </td>
+            <ListTools title="Net cash">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-slate-500">
+                  <tr>
+                    <th className="py-2 pr-3">Method</th>
+                    <th className="py-2 pr-3 text-right">Collected</th>
+                    <th className="py-2 pr-3 text-right">Handed back</th>
+                    <th className="py-2 text-right">Net</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {d.net.map((n) => (
+                    <tr key={`${n.method}:${n.currency}`}>
+                      <td className="py-2 pr-3">{METHOD_LABEL[n.method] ?? n.method}</td>
+                      <td className="py-2 pr-3 text-right">
+                        {amount(n.collectedMinor, n.currency)}
+                      </td>
+                      <td className="py-2 pr-3 text-right">
+                        {amount(n.refundedMinor, n.currency)}
+                      </td>
+                      <td className="py-2 text-right font-medium">
+                        {amount(n.netMinor, n.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ListTools>
           </section>
         </>
       )}

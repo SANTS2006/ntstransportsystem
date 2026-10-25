@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataTable } from '../../components/ui/DataTable';
+import { ListTools } from '../../components/ui/ListTools';
 import { StaffRolesDialog, type RoleRow } from './AccessPages';
-import { ModalCard } from '../../components/ui/ModalCard';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,6 +15,7 @@ import {
   KeyRound,
   LayoutDashboard,
   MapPin,
+  Plus,
   MessageSquareWarning,
   Palette,
   Radio,
@@ -35,6 +36,7 @@ import { Navigate, Outlet, useParams } from 'react-router';
 import { z } from 'zod';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell, type NavItem } from '../../components/layout/Layouts';
+import { appRoot } from '../../lib/app-path';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, StatusBadge } from '../../components/ui/Card';
@@ -42,7 +44,6 @@ import { Field } from '../../components/ui/Field';
 import { PageLoader, Spinner } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { ApiError, api } from '../../lib/api';
-import { email } from '../../lib/schemas';
 import { AccessContext, can, useCompany, type CompanyAccess } from './company-context';
 import { AddStaffButton, StaffDetailsDialog, type Member } from './StaffDetails';
 import type { Branding } from './BrandingPage';
@@ -121,7 +122,7 @@ export function CompanyLayout() {
     );
   // Acting as a passenger: this area is closed until they switch back to a company role.
   if (q.error instanceof ApiError && q.error.code === 'ROLE_NOT_ACTIVE') {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={`${appRoot()}/dashboard`} replace />;
   }
   if (q.error || !q.data) {
     // Non-members and unknown companies look identical (404) by design.
@@ -135,7 +136,7 @@ export function CompanyLayout() {
   const name = profile.data?.name ?? '';
   const nav = companyNav(a, tenantId);
   if ((mine.data?.tenants?.filter((t) => t.membershipStatus === 'ACTIVE').length ?? 0) > 1) {
-    nav.push({ to: '/app', label: 'Switch company', icon: ArrowLeft, group: 'Account' });
+    nav.push({ to: appRoot(), label: 'Switch company', icon: ArrowLeft, group: 'Account' });
   }
   return (
     <AccessContext.Provider value={{ tenantId, access: a }}>
@@ -266,14 +267,6 @@ export function StaffPage() {
     enabled: can(access, 'role.read'),
     queryFn: ({ signal }) => api<{ roles: RoleRow[] }>(`/tenants/${tenantId}/roles`, { signal }),
   });
-  const invitations = useQuery({
-    queryKey: ['company', tenantId, 'invitations'],
-    queryFn: ({ signal }) =>
-      api<{ invitations: { id: string; email: string; role: { name: string } }[] }>(
-        `/tenants/${tenantId}/invitations`,
-        { signal },
-      ),
-  });
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
   const [rolesFor, setRolesFor] = useState<Member | null>(null);
   const [detailsFor, setDetailsFor] = useState<Member | null>(null);
@@ -286,11 +279,6 @@ export function StaffPage() {
     },
     onError: (e) => toast(e instanceof Error ? e.message : 'Could not remove member', 'error'),
   });
-  const cancelInvite = useMutation({
-    mutationFn: (id: string) => api(`/tenants/${tenantId}/invitations/${id}`, { method: 'DELETE' }),
-    onSuccess: refresh,
-  });
-
   return (
     <div className="w-full space-y-6">
       <div>
@@ -308,9 +296,6 @@ export function StaffPage() {
           await refresh();
         }}
       />
-      {can(access, 'membership.invite') && (
-        <InviteForm roles={roles.data?.roles ?? []} onInvited={refresh} />
-      )}
       <StaffRolesDialog
         member={rolesFor}
         allRoles={roles.data?.roles ?? []}
@@ -326,9 +311,10 @@ export function StaffPage() {
           <ErrorAlert error={members.error} onRetry={() => void members.refetch()} />
         )}
         <DataTable
+          name="Staff"
           rows={(members.data?.memberships ?? []).filter((x) => x.status === 'ACTIVE')}
           rowKey={(x) => x.id}
-          empty="No staff yet. Invite someone to add them."
+          empty="No staff yet. Add a staff member to begin."
           columns={[
             {
               key: 'person',
@@ -380,6 +366,16 @@ export function StaffPage() {
                       Acting as passenger
                     </Badge>
                   )}
+                  {can(access, 'membership.invite') && x.userId !== user?.id && (
+                    <button
+                      type="button"
+                      onClick={() => setRolesFor(x)}
+                      className="inline-flex min-h-7 items-center gap-1 rounded-full bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:bg-slate-800 dark:text-brand-500"
+                    >
+                      <Plus aria-hidden="true" className="size-3" strokeWidth={2.2} />
+                      Add role
+                    </button>
+                  )}
                 </div>
               ),
             },
@@ -427,107 +423,7 @@ export function StaffPage() {
           ]}
         />
       </Card>
-      {invitations.data && invitations.data.invitations.length > 0 && (
-        <Card title="Pending invitations">
-          <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-            {invitations.data.invitations.map((i) => (
-              <li key={i.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <span className="truncate">
-                  {i.email} <span className="text-xs text-slate-500">({i.role.name})</span>
-                </span>
-                {can(access, 'membership.invite') && (
-                  <Button
-                    variant="ghost"
-                    loading={cancelInvite.isPending && cancelInvite.variables === i.id}
-                    onClick={async () => {
-                      if (
-                        await ask({
-                          title: 'Cancel this invitation?',
-                          message: `${i.email} will not be able to use it.`,
-                          confirmLabel: 'Cancel invitation',
-                          danger: true,
-                        })
-                      )
-                        cancelInvite.mutate(i.id);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
     </div>
-  );
-}
-
-const inviteSchema = z.object({ email, roleKey: z.string().min(1, 'Choose a role') });
-type InviteValues = z.infer<typeof inviteSchema>;
-
-function InviteForm({ roles, onInvited }: { roles: RoleRow[]; onInvited: () => Promise<void> }) {
-  const [adding640, setAdding640] = useState(false);
-  const { tenantId } = useCompany();
-  const toast = useToast();
-  const form = useForm<InviteValues>({
-    resolver: zodResolver(inviteSchema),
-    defaultValues: { email: '', roleKey: roles.find((r) => r.key === 'driver')?.key ?? '' },
-  });
-  const invite = useMutation({
-    mutationFn: (v: InviteValues) =>
-      api(`/tenants/${tenantId}/invitations`, { method: 'POST', body: v }),
-    onSuccess: async () => {
-      toast('Invitation sent', 'success');
-      setAdding640(false);
-      form.reset({ email: '', roleKey: form.getValues('roleKey') });
-      await onInvited();
-    },
-  });
-  const { errors } = form.formState;
-  return (
-    <ModalCard title="Invite someone" open={adding640} onOpenChange={setAdding640}>
-      {invite.error && <ErrorAlert error={invite.error} />}
-      <form
-        noValidate
-        onSubmit={form.handleSubmit((v) => invite.mutate(v))}
-        className="flex flex-wrap items-start gap-3"
-      >
-        <div className="min-w-56 flex-1">
-          <Field
-            label="Email"
-            type="email"
-            error={errors.email?.message}
-            {...form.register('email')}
-          />
-        </div>
-        <div>
-          <label htmlFor="invite-role" className="mb-1 block text-sm font-medium">
-            Role
-          </label>
-          <select
-            id="invite-role"
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-            {...form.register('roleKey')}
-          >
-            <option value="">Choose…</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.key}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          {errors.roleKey && (
-            <p role="alert" className="mt-1 text-xs text-red-700">
-              {errors.roleKey.message}
-            </p>
-          )}
-        </div>
-        <Button type="submit" className="mt-6" loading={invite.isPending} loadingText="Sending…">
-          Send invitation
-        </Button>
-      </form>
-    </ModalCard>
   );
 }
 
@@ -551,27 +447,31 @@ export function ActivityPage() {
       {q.isPending && <PageLoader label="Loading activity" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       <Card>
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {q.data?.events.map((e) => (
-            <li key={e.id} className="flex items-center justify-between gap-3 py-2">
-              <span className="font-mono text-xs">{e.action}</span>
-              <span className="flex items-center gap-3 text-xs text-slate-500">
-                <span
-                  className={
-                    e.outcome === 'SUCCESS' ? '' : 'font-medium text-red-700 dark:text-red-400'
-                  }
-                >
-                  {e.outcome}
+        <ListTools title="Activity">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {q.data?.events.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-3 py-2">
+                <span className="font-mono text-xs">{e.action}</span>
+                <span className="flex items-center gap-3 text-xs text-slate-500">
+                  <span
+                    className={
+                      e.outcome === 'SUCCESS' ? '' : 'font-medium text-red-700 dark:text-red-400'
+                    }
+                  >
+                    {e.outcome}
+                  </span>
+                  {new Date(e.createdAt).toLocaleString()}
                 </span>
-                {new Date(e.createdAt).toLocaleString()}
-              </span>
-            </li>
-          ))}
-          {q.data?.events.length === 0 && <li className="py-2 text-slate-500">No activity yet.</li>}
-        </ul>
+              </li>
+            ))}
+            {q.data?.events.length === 0 && (
+              <li className="py-2 text-slate-500">No activity yet.</li>
+            )}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );
 }
 
-export const CompanyIndexRedirect = () => <Navigate to="/app" replace />;
+export const CompanyIndexRedirect = () => <Navigate to={appRoot()} replace />;

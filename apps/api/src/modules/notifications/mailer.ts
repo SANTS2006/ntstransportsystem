@@ -4,7 +4,6 @@ export type MailTemplate =
   | 'verify-email'
   | 'password-reset'
   | 'password-changed'
-  | 'tenant-invitation'
   | 'company-admin-created'
   | 'staff-added'
   | 'platform-message'

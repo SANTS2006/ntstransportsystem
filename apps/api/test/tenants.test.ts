@@ -14,8 +14,6 @@ import {
   type Client,
 } from './helpers.js';
 
-const tokenFrom = (link?: string) => new URL(link ?? 'http://x').searchParams.get('token') ?? '';
-
 describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => {
   let db: Db;
   let ctx: ReturnType<typeof makeApp>;
@@ -35,7 +33,7 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     return { tenant: t.tenant, owner };
   }
 
-  /** Adds a signed-in member with the given role key, bypassing the invite flow. */
+  /** Adds a signed-in member with the given role key, directly. */
   async function addMember(tenantId: string, roleKey: string, label = roleKey): Promise<Client> {
     const c = await newClient(ctx.app, db, label);
     await withDb(db, { platform: true }, async (tx) => {
@@ -633,12 +631,12 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
         ...ghost.body.error,
         requestId: 'x',
       });
-      for (const path of ['profile', 'roles', 'invitations', 'audit']) {
+      for (const path of ['profile', 'roles', 'audit']) {
         await b.owner.call('get', `/tenants/${a.tenant.id}/${path}`).expect(404);
       }
     });
 
-    it("cannot act on another company's members, roles or invitations by guessing IDs", async () => {
+    it("cannot act on another company's members or roles by guessing IDs", async () => {
       const a = await activeCompany('iso-obj-a');
       const b = await activeCompany('iso-obj-b');
       const aMember = (await a.owner.call('get', `/tenants/${a.tenant.id}/memberships`).expect(200))
@@ -692,8 +690,13 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       const driver = await addMember(tenant.id, 'driver');
       await driver.call('get', `/tenants/${tenant.id}/memberships`).expect(403);
       await driver
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: 'x@example.test', roleKey: 'driver' })
+        .call('post', `/tenants/${tenant.id}/employees`)
+        .send({
+          employeeNumber: 'E1',
+          fullName: 'Nope Nope',
+          role: 'DRIVER',
+          email: 'x@example.test',
+        })
         .expect(403);
       await driver.call('get', `/tenants/${tenant.id}/audit`).expect(403);
       await driver
@@ -746,11 +749,13 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     it('records an escalation attempt and a last-owner refusal, and the rows survive the failed request', async () => {
       const { tenant, owner } = await activeCompany('audit-svc');
       const admin = await addMember(tenant.id, 'admin');
+      const victim = await addMember(tenant.id, 'driver', 'victim');
+      const victimMembership = await membershipOf(tenant.id, victim.userId);
       await admin
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: 'x@example.test', roleKey: 'owner' })
+        .call('patch', `/tenants/${tenant.id}/memberships/${victimMembership.id}`)
+        .send({ roleKey: 'owner' })
         .expect(403);
-      const escalations = await denials(tenant.id, admin.userId, 'membership.invite_denied');
+      const escalations = await denials(tenant.id, admin.userId, 'membership.change_role_denied');
       expect(escalations).toHaveLength(1);
       expect(escalations[0]?.summary).toMatchObject({ reason: 'FORBIDDEN' });
 
@@ -779,80 +784,6 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
     });
   });
 
-  describe('invitations', () => {
-    it('invites, accepts once, and binds acceptance to the invited verified email', async () => {
-      const { tenant, owner } = await activeCompany('invite');
-      const invitee = await newClient(ctx.app, db, 'invitee');
-      const stranger = await newClient(ctx.app, db, 'stranger');
-
-      await owner
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: invitee.email, roleKey: 'dispatcher' })
-        .expect(201);
-      const mail = ctx.mailer.last('tenant-invitation');
-      expect(mail?.to).toBe(invitee.email);
-      expect(mail?.data.company).toBeTruthy();
-      const token = tokenFrom(mail?.data.link);
-
-      // Someone else holding the link cannot use it.
-      await stranger.call('post', '/invitations/accept').send({ token }).expect(400);
-      const ok = await invitee.call('post', '/invitations/accept').send({ token }).expect(200);
-      expect(ok.body.tenantId).toBe(tenant.id);
-      await invitee.call('post', '/invitations/accept').send({ token }).expect(400); // single use
-
-      const mine = (await invitee.call('get', '/tenants/mine').expect(200)).body.tenants;
-      expect(mine[0].role.key).toBe('dispatcher');
-      const stored = await plat((tx) => tx.invitation.findMany({ where: { tenantId: tenant.id } }));
-      expect(stored.some((i) => i.tokenHash === token)).toBe(false); // only a hash is stored
-    });
-
-    it('revoked, superseded and unknown invitations cannot be accepted', async () => {
-      const { tenant, owner } = await activeCompany('invite-revoke');
-      const invitee = await newClient(ctx.app, db, 'invitee2');
-      const send = async () => {
-        const r = await owner
-          .call('post', `/tenants/${tenant.id}/invitations`)
-          .send({ email: invitee.email, roleKey: 'driver' })
-          .expect(201);
-        return {
-          id: r.body.id as string,
-          token: tokenFrom(ctx.mailer.last('tenant-invitation')?.data.link),
-        };
-      };
-      const first = await send();
-      const second = await send(); // supersedes the first
-      await invitee.call('post', '/invitations/accept').send({ token: first.token }).expect(400);
-      await owner.call('delete', `/tenants/${tenant.id}/invitations/${second.id}`).expect(204);
-      await invitee.call('post', '/invitations/accept').send({ token: second.token }).expect(400);
-      await invitee
-        .call('post', '/invitations/accept')
-        .send({ token: 'z'.repeat(43) })
-        .expect(400);
-    });
-
-    it('does not honour an invitation once the company is no longer active', async () => {
-      const { tenant, owner } = await activeCompany('invite-suspended');
-      const invitee = await newClient(ctx.app, db, 'invitee3');
-      await owner
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: invitee.email, roleKey: 'driver' })
-        .expect(201);
-      const token = tokenFrom(ctx.mailer.last('tenant-invitation')?.data.link);
-      await withDb(db, { platform: true }, (tx) =>
-        tx.tenant.update({ where: { id: tenant.id }, data: { status: 'SUSPENDED' } }),
-      );
-      await invitee.call('post', '/invitations/accept').send({ token }).expect(400);
-    });
-
-    it('rejects an invitation to a role that does not exist in this company', async () => {
-      const { tenant, owner } = await activeCompany('invite-badrole');
-      await owner
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: 'a@example.test', roleKey: 'nonexistent' })
-        .expect(404);
-    });
-  });
-
   describe('privilege escalation and safety rules', () => {
     it('stops an administrator granting roles or permissions they do not hold', async () => {
       const { tenant } = await activeCompany('escalate');
@@ -861,12 +792,8 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       const targetMembership = await membershipOf(tenant.id, target.userId);
 
       await admin
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: 'o@example.test', roleKey: 'owner' })
-        .expect(403);
-      await admin
-        .call('post', `/tenants/${tenant.id}/invitations`)
-        .send({ email: 'f@example.test', roleKey: 'finance_officer' })
+        .call('patch', `/tenants/${tenant.id}/memberships/${targetMembership.id}`)
+        .send({ roleKey: 'owner' })
         .expect(403);
       await admin
         .call('patch', `/tenants/${tenant.id}/memberships/${targetMembership.id}`)

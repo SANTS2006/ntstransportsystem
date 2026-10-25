@@ -137,18 +137,6 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
         ),
         text: 'The password on your account was just changed. If this was not you, reset your password immediately and contact support.\n',
       };
-    case 'tenant-invitation': {
-      const link = safeLink(msg.data.link);
-      const company = msg.data.company ?? 'a company';
-      return {
-        subject: 'You have been invited to join a company',
-        html: layout(
-          'You have been invited',
-          `<p>You have been invited to join <strong>${escapeHtml(company)}</strong>. Sign in with this email address to accept. The invitation expires in 7 days.</p>${button(link, 'Accept invitation')}`,
-        ),
-        text: `You have been invited to join ${company}. Sign in with this email address to accept (expires in 7 days):\n${link}\n`,
-      };
-    }
     case 'company-admin-created': {
       const link = safeLink(msg.data.link);
       const company = msg.data.company ?? 'your company';

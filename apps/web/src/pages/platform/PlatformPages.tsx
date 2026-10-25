@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { DashboardShell } from '../../components/layout/Layouts';
+import { appRoot } from '../../lib/app-path';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card } from '../../components/ui/Card';
@@ -26,7 +27,7 @@ export function PlatformLayout() {
     return (
       <div className="mx-auto max-w-md p-8">
         <Alert tone="error">Page not found.</Alert>
-        <Link className="mt-4 inline-block text-sm font-medium" to="/app">
+        <Link className="mt-4 inline-block text-sm font-medium" to={appRoot()}>
           Back to dashboard
         </Link>
       </div>

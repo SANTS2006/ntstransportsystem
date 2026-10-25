@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { PasswordField } from '../../components/ui/Field';
 import { api } from '../../lib/api';
 import { registerSchema } from '../../lib/schemas';
+import { appRoot } from '../../lib/app-path';
 
 /** The first sign-in of an account whose password someone else made: choose your own. */
 export default function ChangePasswordPage() {
@@ -25,12 +26,12 @@ export default function ChangePasswordPage() {
       }),
     onSuccess: async () => {
       await refresh();
-      void navigate('/app/dashboard', { replace: true });
+      void navigate(`${appRoot()}/dashboard`, { replace: true });
     },
   });
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
-  if (!user.mustChangePassword) return <Navigate to="/app" replace />;
+  if (!user.mustChangePassword) return <Navigate to={appRoot()} replace />;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

@@ -59,6 +59,7 @@ export function Badge({
   const Icon = icon === undefined ? t.icon : icon;
   return (
     <span
+      data-badge
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium leading-none ${t.cls}`}
     >
       {Icon && <Icon aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={1.8} />}

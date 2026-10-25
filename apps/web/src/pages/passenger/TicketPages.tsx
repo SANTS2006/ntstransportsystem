@@ -8,6 +8,7 @@ import { linkButton } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Card';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
+import { appRoot } from '../../lib/app-path';
 
 interface Ticket {
   id: string;
@@ -79,7 +80,10 @@ export function MyTicketsPage() {
   const list = tickets.data.tickets;
   return (
     <div className="w-full space-y-5">
-      <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to="/app/bookings">
+      <Link
+        className="text-sm text-brand-700 font-medium dark:text-brand-500"
+        to={`${appRoot()}/bookings`}
+      >
         My bookings
       </Link>
       <div>

@@ -167,4 +167,66 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
       .send({ email: `nobody-${Date.now()}@example.test`, companySlug: a.tenant.slug });
     expect(unknown.status).toBe(202);
   });
+
+  it('gives a new staff member the role chosen, and refuses a role the adder does not hold', async () => {
+    const t = await createTenantWithOwner(db, 'roles');
+    const owner = await loginClient(ctx.app, db, t.email, t.password);
+    const email = `${uniq('disp')}@example.test`;
+    await owner
+      .call('post', `/tenants/${t.tenant.id}/employees`)
+      .send({ employeeNumber: uniq('E'), fullName: 'Dina Patch', roleKey: 'dispatcher', email })
+      .expect(201);
+    const user = await db.user.findUniqueOrThrow({ where: { email } });
+    const held = await plat((tx) =>
+      tx.membership.findFirstOrThrow({
+        where: { tenantId: t.tenant.id, userId: user.id },
+        include: { role: true },
+      }),
+    );
+    expect(held.role.key).toBe('dispatcher');
+
+    // An administrator cannot create an owner.
+    const admin = await newClient(ctx.app, db, 'adm');
+    await plat(async (tx) => {
+      const role = await tx.role.findFirstOrThrow({
+        where: { tenantId: t.tenant.id, key: 'admin' },
+      });
+      await tx.membership.create({
+        data: { tenantId: t.tenant.id, userId: admin.userId, roleId: role.id, status: 'ACTIVE' },
+      });
+    });
+    const number = uniq('E');
+    await admin
+      .call('post', `/tenants/${t.tenant.id}/employees`)
+      .send({
+        employeeNumber: number,
+        fullName: 'Sneaky Owner',
+        roleKey: 'owner',
+        email: `${uniq('own')}@example.test`,
+      })
+      .expect((r) => expect([403, 404]).toContain(r.status));
+    expect(
+      await plat((tx) =>
+        tx.employee.count({ where: { tenantId: t.tenant.id, employeeNumber: number } }),
+      ),
+    ).toBe(0);
+  });
+
+  it('ends the whole session on sign out', async () => {
+    const t = await createTenantWithOwner(db, 'bye');
+    const login = await request(ctx.app)
+      .post('/api/v1/auth/login')
+      .send({ email: t.email, password: t.password, companySlug: t.tenant.slug })
+      .expect(200);
+    const cookies = (login.headers['set-cookie'] as unknown as string[]).map(
+      (c) => c.split(';')[0],
+    );
+    const csrf = cookies.find((c) => c?.startsWith('csrf='))?.slice(5) ?? '';
+    await request(ctx.app)
+      .post('/api/v1/auth/logout')
+      .set('Cookie', cookies.join('; '))
+      .set('x-csrf-token', csrf)
+      .expect(204);
+    await request(ctx.app).get('/api/v1/auth/me').set('Cookie', cookies.join('; ')).expect(401);
+  });
 });

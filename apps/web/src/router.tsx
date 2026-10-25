@@ -31,9 +31,6 @@ const PayMethodPage = lazy(() =>
 const ResetPasswordPage = lazy(() =>
   import('./pages/auth/TokenPages').then((m) => ({ default: m.ResetPasswordPage })),
 );
-const AcceptInvitationPage = lazy(() =>
-  import('./pages/auth/TokenPages').then((m) => ({ default: m.AcceptInvitationPage })),
-);
 const SecurityPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.SecurityPage })),
 );
@@ -213,10 +210,29 @@ export const router = createBrowserRouter([
       { path: '/reset-password', element: s(<ResetPasswordPage />) },
       { path: '/verify-phone', element: s(<VerifyPhonePage />) },
       { path: '/reset-password-phone', element: s(<ResetPhonePasswordPage />) },
-      {
-        path: '/accept-invitation',
-        element: <RequireAuth>{s(<AcceptInvitationPage />)}</RequireAuth>,
-      },
+    ],
+  },
+  // Passenger pages live under the company the account belongs to: /<company>/app/... The plain
+  // /app address still works for accounts that have no company and redirects the rest.
+  {
+    path: '/:slug/app',
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <Navigate to="dashboard" replace /> },
+      { path: 'dashboard', element: s(<PassengerDashboard />) },
+      { path: 'bookings', element: s(<MyBookingsPage />) },
+      { path: 'bookings/:id', element: s(<MyTicketsPage />) },
+      { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
+      { path: 'applications', element: s(<MyApplicationsPage />) },
+      { path: 'complaints', element: s(<MyComplaintsPage />) },
+      { path: 'complaints/new', element: s(<NewComplaintPage />) },
+      { path: 'complaints/:id', element: s(<ComplaintThreadPage />) },
+      { path: 'security', element: s(<SecurityPage />) },
+      { path: 'profile', element: s(<ProfilePage />) },
     ],
   },
   {

@@ -437,6 +437,7 @@ export function UsersPage() {
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && (
         <DataTable
+          name="Users"
           rows={q.data.users}
           rowKey={(u) => u.id}
           empty="No users yet. People appear here when they sign up on your company page."

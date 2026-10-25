@@ -14,6 +14,7 @@ const JOB_LABEL: Record<EmployeeRole, string> = {
   MECHANIC: 'Mechanic',
   OTHER: 'Staff',
 };
+const JOB_OF_ROLE: Record<string, EmployeeRole> = { driver: 'DRIVER', dispatcher: 'DISPATCHER' };
 const ROLE_KEY: Record<EmployeeRole, string> = {
   DRIVER: 'driver',
   CONDUCTOR: 'driver',
@@ -29,7 +30,8 @@ type CrewRole = 'DRIVER' | 'CONDUCTOR';
 export interface EmployeeInput {
   employeeNumber: string;
   fullName: string;
-  role: EmployeeRole;
+  role?: EmployeeRole | undefined;
+  roleKey?: string | undefined;
   phone?: string | undefined;
   /** When given, the person gets a sign-in and a welcome e-mail. */
   email?: string | undefined;
@@ -137,7 +139,9 @@ export class CrewService {
   }
 
   async createEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
-    const created = await this.insertEmployee(s, input, requestId);
+    const job: EmployeeRole =
+      input.role ?? (input.roleKey ? (JOB_OF_ROLE[input.roleKey] ?? 'OTHER') : 'OTHER');
+    const created = await this.insertEmployee(s, { ...input, role: job }, requestId);
     if (!input.email || !this.staff) return created;
     try {
       const { userId } = await this.staff.provisionStaff(
@@ -147,8 +151,8 @@ export class CrewService {
           name: input.fullName.trim(),
           phone: input.phone,
           employeeNumber: input.employeeNumber.trim(),
-          job: JOB_LABEL[input.role],
-          roleKey: ROLE_KEY[input.role],
+          job: JOB_LABEL[job],
+          roleKey: input.roleKey ?? ROLE_KEY[job],
         },
         requestId,
       );
@@ -163,7 +167,11 @@ export class CrewService {
     return created;
   }
 
-  private insertEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
+  private insertEmployee(
+    s: TenantScope,
+    input: EmployeeInput & { role: EmployeeRole },
+    requestId?: string,
+  ) {
     return mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {

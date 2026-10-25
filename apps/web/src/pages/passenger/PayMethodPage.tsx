@@ -8,6 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
+import { appRoot } from '../../lib/app-path';
 
 export type PayMethod = 'ORANGE_MONEY' | 'AFRIMONEY' | 'QMONEY' | 'ONLINE';
 
@@ -91,7 +92,7 @@ export function PayMethodPage() {
     return (
       <div className="w-full space-y-4">
         <Alert tone="error">We could not find that booking.</Alert>
-        <Link className="text-brand-700 font-medium" to="/app/bookings">
+        <Link className="text-brand-700 font-medium" to={`${appRoot()}/bookings`}>
           My bookings
         </Link>
       </div>
@@ -110,7 +111,11 @@ export function PayMethodPage() {
         </Alert>
         <Link
           className="text-brand-700 font-medium"
-          to={booking.status === 'CONFIRMED' ? `/app/bookings/${booking.id}` : '/app/bookings'}
+          to={
+            booking.status === 'CONFIRMED'
+              ? `${appRoot()}/bookings/${booking.id}`
+              : `${appRoot()}/bookings`
+          }
         >
           {booking.status === 'CONFIRMED' ? 'View my tickets' : 'My bookings'}
         </Link>
@@ -240,7 +245,10 @@ export function PayMethodPage() {
         </Card>
       )}
 
-      <Link className="inline-block text-sm text-brand-700 font-medium" to="/app/bookings">
+      <Link
+        className="inline-block text-sm text-brand-700 font-medium"
+        to={`${appRoot()}/bookings`}
+      >
         Pay later from My bookings
       </Link>
     </div>

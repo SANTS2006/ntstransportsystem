@@ -33,7 +33,12 @@ const employeeCreate = z
   .object({
     employeeNumber: trim.min(1).max(30),
     fullName: trim.min(2).max(120),
-    role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']),
+    role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']).optional(),
+    /** The company role the person gets (and signs in as); the job on the record follows from it. */
+    roleKey: z
+      .string()
+      .regex(/^[a-z][a-z0-9_]{1,39}$/)
+      .optional(),
     phone: trim.max(30).optional(),
     email: z.email().max(254).optional(),
     hiredOn: dateStr.optional(),

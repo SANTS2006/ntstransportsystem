@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
 import { api } from '../../lib/api';
 import { companyPath, signInPath } from '../../lib/company-page';
@@ -27,6 +27,7 @@ import { Logo } from './Logo';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationBell } from './NotificationBell';
+import { appRoot } from '../../lib/app-path';
 
 const linkClass = 'text-sm font-medium text-slate-700 hover:text-brand-700 dark:text-slate-300';
 
@@ -42,10 +43,13 @@ function Brand({
   company,
   onDark = false,
   home,
+  alwaysName = false,
 }: {
   company?: CompanyBrand | undefined;
   onDark?: boolean;
   home?: string | undefined;
+  /** Show the name on small screens too (the phone drawer has room for it). */
+  alwaysName?: boolean;
 }) {
   const name = company?.name ?? 'NTS Transport';
   return (
@@ -73,7 +77,7 @@ function Brand({
         <Logo size="md" />
       )}
       <span
-        className={`${company ? 'block' : 'hidden md:block'} min-w-0 truncate text-base font-bold tracking-tight ${
+        className={`${alwaysName ? 'block' : 'hidden md:block'} min-w-0 truncate text-base font-bold tracking-tight ${
           onDark ? 'text-white' : 'text-brand-800 dark:text-slate-100'
         }`}
       >
@@ -119,7 +123,7 @@ export function Avatar({
     <span
       aria-hidden="true"
       className={`grid ${box} shrink-0 place-items-center rounded-full font-semibold ${
-        accent ? 'bg-accent-500 text-brand-900' : 'bg-brand-600 text-white'
+        accent ? 'bg-brand-500 text-white ring-2 ring-white/30' : 'bg-brand-600 text-white'
       }`}
     >
       {initials}
@@ -180,7 +184,7 @@ function PublicFooter() {
               </Link>
             </li>
             <li>
-              <Link className={linkClass} to="/app/bookings">
+              <Link className={linkClass} to={`${appRoot()}/bookings`}>
                 My bookings
               </Link>
             </li>
@@ -250,11 +254,11 @@ export function PublicLayout({
               <>
                 <NotificationBell />
                 <span className="hidden sm:block">
-                  <Link className={linkButton('primary')} to="/app/dashboard">
+                  <Link className={linkButton('primary')} to={`${appRoot()}/dashboard`}>
                     Open dashboard
                   </Link>
                 </span>
-                <Link to="/app" aria-label="My account" className="sm:hidden">
+                <Link to={appRoot()} aria-label="My account" className="sm:hidden">
                   <Avatar name={user.displayName} version={user.avatarVersion} />
                 </Link>
               </>
@@ -370,13 +374,13 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (!user) {
     const dest = location.pathname + location.search;
     // /app is the default landing page, so a `next` for it would be redundant noise.
-    // An invitation link names the company, so the person lands on that company's sign-in page.
+    // A link may name the company, so the person lands on that company's sign-in page.
     const named = new URLSearchParams(location.search).get('company');
     const login = signInPath(null, named && /^[a-z0-9-]{3,40}$/.test(named) ? named : null);
     return (
       <Navigate
         to={
-          dest === '/app' || dest === '/app/dashboard'
+          dest === appRoot() || dest === `${appRoot()}/dashboard`
             ? login
             : `${login}?next=${encodeURIComponent(dest)}`
         }
@@ -438,9 +442,12 @@ function RoleSwitcher({ onDone }: { onDone: () => void }) {
       await qc.invalidateQueries();
       onDone();
       // The new role starts from its own dashboard, whatever page the old role was on.
-      void navigate(v.role === 'passenger' ? '/app/dashboard' : `/c/${v.tenantId}/dashboard`, {
-        replace: true,
-      });
+      void navigate(
+        v.role === 'passenger' ? `${appRoot()}/dashboard` : `/c/${v.tenantId}/dashboard`,
+        {
+          replace: true,
+        },
+      );
     },
   });
   const staff = (mine.data?.tenants ?? []).filter(
@@ -620,7 +627,7 @@ export function DashboardShell({
   heading,
   theme,
   company,
-  account = '/app',
+  account = appRoot(),
   children,
 }: {
   nav: NavItem[];
@@ -653,7 +660,7 @@ export function DashboardShell({
   const sidebar = (
     <>
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <Brand company={company} onDark />
+        <Brand company={company} onDark alwaysName />
         <button
           type="button"
           aria-label="Close menu"
@@ -713,8 +720,8 @@ export function DashboardShell({
           </div>
         </div>
         <Button
-          variant="accent"
-          className="mt-3 w-full"
+          variant="primary"
+          className="mt-3 w-full ring-1 ring-white/25 hover:bg-brand-500"
           loading={signOut.isPending}
           loadingText="Signing out…"
           onClick={() => signOut.mutate()}
@@ -767,7 +774,13 @@ export function DashboardShell({
           >
             <Menu className="size-5" />
           </button>
-          <span className="hidden text-sm font-medium text-slate-500 lg:block">{heading}</span>
+          {company ? (
+            <div className="min-w-0 flex-1">
+              <Brand company={company} home={`${account}/dashboard`} />
+            </div>
+          ) : (
+            <span className="hidden text-sm font-medium text-slate-500 lg:block">{heading}</span>
+          )}
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <NotificationBell />
@@ -784,16 +797,28 @@ export function DashboardShell({
   );
 }
 
-const APP_NAV: NavItem[] = [
-  { to: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/app/bookings', label: 'My bookings', icon: Ticket, group: 'Travel' },
-  { to: '/app/complaints', label: 'My complaints', icon: MessageSquareWarning, group: 'Travel' },
-  { to: '/app/applications', label: 'My job applications', icon: Briefcase, group: 'Travel' },
-  { to: '/app/security', label: 'Security', icon: ShieldCheck, group: 'Account' },
+const appNav = (): NavItem[] => [
+  { to: `${appRoot()}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+  { to: `${appRoot()}/bookings`, label: 'My bookings', icon: Ticket, group: 'Travel' },
+  {
+    to: `${appRoot()}/complaints`,
+    label: 'My complaints',
+    icon: MessageSquareWarning,
+    group: 'Travel',
+  },
+  {
+    to: `${appRoot()}/applications`,
+    label: 'My job applications',
+    icon: Briefcase,
+    group: 'Travel',
+  },
+  { to: `${appRoot()}/security`, label: 'Security', icon: ShieldCheck, group: 'Account' },
 ];
 
 /** A staff member who works for more than one company chooses which to open. */
-const PICKER_NAV: NavItem[] = [{ to: '/app', label: 'My companies', end: true, icon: Building2 }];
+const pickerNav = (): NavItem[] => [
+  { to: appRoot(), label: 'My companies', end: true, icon: Building2 },
+];
 
 /**
  * The passenger area. Platform administrators and company staff never see it: they are sent
@@ -801,7 +826,10 @@ const PICKER_NAV: NavItem[] = [{ to: '/app', label: 'My companies', end: true, i
  */
 export function AppShell() {
   const { user } = useAuth();
+  const { slug } = useParams();
+  const { pathname } = useLocation();
   const isPlatform = (user?.platformRoles.length ?? 0) > 0;
+  const home = user?.homeCompany ?? null;
   const mine = useQuery({
     queryKey: ['tenants', 'mine'],
     enabled: Boolean(user) && !isPlatform,
@@ -815,7 +843,25 @@ export function AppShell() {
         }[];
       }>('/tenants/mine', { signal }),
   });
+  const brand = useQuery({
+    queryKey: ['public-company', home?.slug],
+    enabled: Boolean(home),
+    retry: false,
+    queryFn: ({ signal }) =>
+      api<{
+        name: string;
+        logoUrl: string | null;
+        primaryColor: string | null;
+        accentColor: string | null;
+      }>(`/public/companies/${home!.slug}`, { signal }),
+  });
   if (isPlatform) return <Navigate to="/platform/dashboard" replace />;
+  // Everything in the passenger area belongs to the account's own company: another company's
+  // address, or the plain /app address, leads to the same page under the right company.
+  if (home && slug !== home.slug) {
+    const rest = pathname.replace(/^\/(?:[^/]+\/)?app/, '');
+    return <Navigate to={`/${home.slug}/app${rest || '/dashboard'}`} replace />;
+  }
   if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
   // Staff who are acting as passengers stay here; the rest go to the company they act for.
   const staff = (mine.data?.tenants ?? []).filter(
@@ -824,7 +870,7 @@ export function AppShell() {
   if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}/dashboard`} replace />;
   if (staff.length > 1) {
     return (
-      <DashboardShell nav={PICKER_NAV} heading="Your companies">
+      <DashboardShell nav={pickerNav()} heading="Your companies">
         <div className="w-full space-y-3">
           <h1 className="text-2xl">Choose a company</h1>
           <ul className="grid gap-3 sm:grid-cols-2">
@@ -843,5 +889,21 @@ export function AppShell() {
       </DashboardShell>
     );
   }
-  return <DashboardShell nav={APP_NAV} heading="Your account" />;
+  return (
+    <DashboardShell
+      nav={appNav()}
+      heading="Your account"
+      account={appRoot()}
+      company={
+        home
+          ? {
+              name: brand.data?.name ?? home.name,
+              logoUrl: brand.data?.logoUrl ?? null,
+              primary: brand.data?.primaryColor ?? null,
+              accent: brand.data?.accentColor ?? null,
+            }
+          : undefined
+      }
+    />
+  );
 }

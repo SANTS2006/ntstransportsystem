@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Star, Users, Wallet } from 'lucide-react';
+import { ListTools } from '../../components/ui/ListTools';
 import { useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Card, StatTile } from '../../components/ui/Card';
@@ -173,41 +174,43 @@ export function ReportsPage() {
                 <p className="mb-2 text-xs text-slate-500">
                   Counted on the day each booking was paid, in {sales.data.timezone}.
                 </p>
-                <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-3">{by === 'day' ? 'Date' : 'Route'}</th>
-                      <th className="py-2 pr-3 text-right">Bookings</th>
-                      <th className="py-2 pr-3 text-right">Seats</th>
-                      <th className="py-2 text-right">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {sales.data.rows.length === 0 && (
+                <ListTools title="Report">
+                  <table className="w-full text-left text-sm">
+                    <thead className="text-xs text-slate-500">
                       <tr>
-                        <td className="py-2 text-slate-500" colSpan={4}>
-                          No sales in this period.
-                        </td>
+                        <th className="py-2 pr-3">{by === 'day' ? 'Date' : 'Route'}</th>
+                        <th className="py-2 pr-3 text-right">Bookings</th>
+                        <th className="py-2 pr-3 text-right">Seats</th>
+                        <th className="py-2 text-right">Revenue</th>
                       </tr>
-                    )}
-                    {sales.data.rows.map((r) => (
-                      <tr key={r.key}>
-                        <td className="py-2 pr-3">{r.key}</td>
-                        <td className="py-2 pr-3 text-right">{r.bookings}</td>
-                        <td className="py-2 pr-3 text-right">{r.seats}</td>
-                        <td className="py-2 text-right">{money(r.revenueMinor)}</td>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                      {sales.data.rows.length === 0 && (
+                        <tr>
+                          <td className="py-2 text-slate-500" colSpan={4}>
+                            No sales in this period.
+                          </td>
+                        </tr>
+                      )}
+                      {sales.data.rows.map((r) => (
+                        <tr key={r.key}>
+                          <td className="py-2 pr-3">{r.key}</td>
+                          <td className="py-2 pr-3 text-right">{r.bookings}</td>
+                          <td className="py-2 pr-3 text-right">{r.seats}</td>
+                          <td className="py-2 text-right">{money(r.revenueMinor)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="font-medium">
+                      <tr>
+                        <td className="pt-3 pr-3">Total</td>
+                        <td className="pt-3 pr-3 text-right">{sales.data.totals.bookings}</td>
+                        <td className="pt-3 pr-3 text-right">{sales.data.totals.seats}</td>
+                        <td className="pt-3 text-right">{money(sales.data.totals.revenueMinor)}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="font-medium">
-                    <tr>
-                      <td className="pt-3 pr-3">Total</td>
-                      <td className="pt-3 pr-3 text-right">{sales.data.totals.bookings}</td>
-                      <td className="pt-3 pr-3 text-right">{sales.data.totals.seats}</td>
-                      <td className="pt-3 text-right">{money(sales.data.totals.revenueMinor)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </tfoot>
+                  </table>
+                </ListTools>
               </>
             )}
           </div>
@@ -226,46 +229,48 @@ export function ReportsPage() {
                     Showing the first 500 trips. Choose a shorter period to see the rest.
                   </Alert>
                 )}
-                <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-3">Departure</th>
-                      <th className="py-2 pr-3">Route</th>
-                      <th className="py-2 pr-3 text-right">Sold / seats</th>
-                      <th className="py-2 pr-3 text-right">Boarded</th>
-                      <th className="py-2 pr-3 text-right">Occupancy</th>
-                      <th className="py-2 text-right">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {occ.data.trips.length === 0 && (
+                <ListTools title="Report by route">
+                  <table className="w-full text-left text-sm">
+                    <thead className="text-xs text-slate-500">
                       <tr>
-                        <td className="py-2 text-slate-500" colSpan={6}>
-                          No trips in this period.
-                        </td>
+                        <th className="py-2 pr-3">Departure</th>
+                        <th className="py-2 pr-3">Route</th>
+                        <th className="py-2 pr-3 text-right">Sold / seats</th>
+                        <th className="py-2 pr-3 text-right">Boarded</th>
+                        <th className="py-2 pr-3 text-right">Occupancy</th>
+                        <th className="py-2 text-right">Revenue</th>
                       </tr>
-                    )}
-                    {occ.data.trips.map((t) => (
-                      <tr key={t.tripId}>
-                        <td className="py-2 pr-3">
-                          {new Date(t.departureAt).toLocaleString([], {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </td>
-                        <td className="py-2 pr-3">{t.route}</td>
-                        <td className="py-2 pr-3 text-right">
-                          {t.sold} / {t.capacity}
-                        </td>
-                        <td className="py-2 pr-3 text-right">{t.boarded}</td>
-                        <td className="py-2 pr-3 text-right">
-                          {t.occupancyPct === null ? '—' : `${t.occupancyPct}%`}
-                        </td>
-                        <td className="py-2 text-right">{money(t.revenueMinor)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                      {occ.data.trips.length === 0 && (
+                        <tr>
+                          <td className="py-2 text-slate-500" colSpan={6}>
+                            No trips in this period.
+                          </td>
+                        </tr>
+                      )}
+                      {occ.data.trips.map((t) => (
+                        <tr key={t.tripId}>
+                          <td className="py-2 pr-3">
+                            {new Date(t.departureAt).toLocaleString([], {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                          <td className="py-2 pr-3">{t.route}</td>
+                          <td className="py-2 pr-3 text-right">
+                            {t.sold} / {t.capacity}
+                          </td>
+                          <td className="py-2 pr-3 text-right">{t.boarded}</td>
+                          <td className="py-2 pr-3 text-right">
+                            {t.occupancyPct === null ? '—' : `${t.occupancyPct}%`}
+                          </td>
+                          <td className="py-2 text-right">{money(t.revenueMinor)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ListTools>
               </>
             )}
           </div>

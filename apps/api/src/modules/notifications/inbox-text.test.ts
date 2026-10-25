@@ -25,12 +25,7 @@ describe('inboxText', () => {
   });
 
   it('has no in-app form for account e-mails', () => {
-    for (const t of [
-      'verify-email',
-      'password-reset',
-      'password-changed',
-      'tenant-invitation',
-    ] as const) {
+    for (const t of ['verify-email', 'password-reset', 'password-changed'] as const) {
       expect(inboxText(t, { link: 'https://app.test/x' })).toBeNull();
     }
   });

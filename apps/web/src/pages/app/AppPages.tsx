@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useConfirm } from '../../components/ui/Confirm';
+import { ListTools } from '../../components/ui/ListTools';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -60,48 +61,50 @@ export function SecurityPage() {
         {sessions.error && (
           <ErrorAlert error={sessions.error} onRetry={() => void sessions.refetch()} />
         )}
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-          {sessions.data?.sessions.map((s) => (
-            <li
-              key={s.id}
-              className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="break-words [overflow-wrap:anywhere] line-clamp-2">
-                  {s.userAgent ?? 'Unknown device'}
-                </p>
-                <p className="text-xs text-slate-500 [overflow-wrap:anywhere]">
-                  Last active {new Date(s.lastUsedAt).toLocaleString()}
-                </p>
-              </div>
-              {s.current ? (
-                <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  This device
-                </span>
-              ) : (
-                <Button
-                  variant="secondary"
-                  className="w-full shrink-0 sm:w-auto"
-                  loading={revoke.isPending && revoke.variables === s.id}
-                  loadingText="Signing out…"
-                  onClick={async () => {
-                    if (
-                      await ask({
-                        title: 'Sign out this device?',
-                        message: 'That session is signed out straight away.',
-                        confirmLabel: 'Sign out device',
-                        danger: true,
-                      })
-                    )
-                      revoke.mutate(s.id);
-                  }}
-                >
-                  Sign out
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <ListTools title="Sessions">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+            {sessions.data?.sessions.map((s) => (
+              <li
+                key={s.id}
+                className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="break-words [overflow-wrap:anywhere] line-clamp-2">
+                    {s.userAgent ?? 'Unknown device'}
+                  </p>
+                  <p className="text-xs text-slate-500 [overflow-wrap:anywhere]">
+                    Last active {new Date(s.lastUsedAt).toLocaleString()}
+                  </p>
+                </div>
+                {s.current ? (
+                  <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    This device
+                  </span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    className="w-full shrink-0 sm:w-auto"
+                    loading={revoke.isPending && revoke.variables === s.id}
+                    loadingText="Signing out…"
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: 'Sign out this device?',
+                          message: 'That session is signed out straight away.',
+                          confirmLabel: 'Sign out device',
+                          danger: true,
+                        })
+                      )
+                        revoke.mutate(s.id);
+                    }}
+                  >
+                    Sign out
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );

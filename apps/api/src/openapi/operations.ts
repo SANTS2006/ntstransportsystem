@@ -455,14 +455,6 @@ export const operations: Record<string, Operation> = {
     access: 'session',
     ok: 200,
   },
-  'POST /api/v1/invitations/accept': {
-    summary: 'Accept a company invitation',
-    description: "The signed-in account's verified email must match the invited address.",
-    tag: 'Companies',
-    access: 'session',
-    body: tenant.acceptSchema,
-    ok: 200,
-  },
   'GET /api/v1/tenants/{tenantId}/me': {
     summary: 'My role and permissions in this company',
     description:
@@ -522,30 +514,6 @@ export const operations: Record<string, Operation> = {
     tag: 'Team and roles',
     access: T,
     permission: 'membership.revoke',
-    ok: 204,
-  },
-  'GET /api/v1/tenants/{tenantId}/invitations': {
-    summary: 'List pending invitations',
-    tag: 'Team and roles',
-    access: T,
-    permission: 'membership.read',
-    ok: 200,
-  },
-  'POST /api/v1/tenants/{tenantId}/invitations': {
-    summary: 'Invite someone',
-    description:
-      "Single-use, expiring (7 days). The role must not exceed the inviter's own permissions.",
-    tag: 'Team and roles',
-    access: T,
-    permission: 'membership.invite',
-    body: tenant.inviteSchema,
-    ok: 201,
-  },
-  'DELETE /api/v1/tenants/{tenantId}/invitations/{id}': {
-    summary: 'Cancel an invitation',
-    tag: 'Team and roles',
-    access: T,
-    permission: 'membership.invite',
     ok: 204,
   },
   'GET /api/v1/tenants/{tenantId}/roles': {

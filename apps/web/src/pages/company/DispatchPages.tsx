@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ModalCard } from '../../components/ui/ModalCard';
+import { ListTools } from '../../components/ui/ListTools';
 import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -187,89 +188,93 @@ export function DispatchPage() {
               : ' · nothing needs attention'}
           </p>
           <Card>
-            <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-              {board.data.trips.length === 0 && (
-                <li className="py-2 text-slate-500">No trips on this date.</li>
-              )}
-              {board.data.trips.map((t) => (
-                <li key={t.id} className="space-y-2 py-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">
-                        {time(t.departureAt)} · {t.route}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {t.vehicle
-                          ? `${t.vehicle.registration} (${t.vehicle.seats} seats)`
-                          : 'No vehicle'}
-                        {' · '}
-                        {t.crew.length
-                          ? t.crew.map((c) => `${c.fullName} (${c.role.toLowerCase()})`).join(', ')
-                          : 'No crew'}
-                        {t.delayMinutes ? ` · delayed ${t.delayMinutes} min` : ''}
-                      </p>
-                      {t.flags.length > 0 && (
-                        <p className="mt-1 flex flex-wrap gap-1">
-                          {t.flags.map((f) => (
-                            <span
-                              key={f}
-                              className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
-                            >
-                              {FLAG_TEXT[f] ?? f}
-                            </span>
-                          ))}
+            <ListTools title="Dispatch">
+              <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+                {board.data.trips.length === 0 && (
+                  <li className="py-2 text-slate-500">No trips on this date.</li>
+                )}
+                {board.data.trips.map((t) => (
+                  <li key={t.id} className="space-y-2 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">
+                          {time(t.departureAt)} · {t.route}
                         </p>
-                      )}
+                        <p className="text-xs text-slate-500">
+                          {t.vehicle
+                            ? `${t.vehicle.registration} (${t.vehicle.seats} seats)`
+                            : 'No vehicle'}
+                          {' · '}
+                          {t.crew.length
+                            ? t.crew
+                                .map((c) => `${c.fullName} (${c.role.toLowerCase()})`)
+                                .join(', ')
+                            : 'No crew'}
+                          {t.delayMinutes ? ` · delayed ${t.delayMinutes} min` : ''}
+                        </p>
+                        {t.flags.length > 0 && (
+                          <p className="mt-1 flex flex-wrap gap-1">
+                            {t.flags.map((f) => (
+                              <span
+                                key={f}
+                                className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+                              >
+                                {FLAG_TEXT[f] ?? f}
+                              </span>
+                            ))}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge
+                          status={
+                            t.status === 'SCHEDULED'
+                              ? 'PENDING'
+                              : t.status === 'CANCELLED'
+                                ? 'REJECTED'
+                                : 'ACTIVE'
+                          }
+                          label={
+                            t.status.charAt(0) + t.status.slice(1).toLowerCase().replace('_', ' ')
+                          }
+                        />
+                        {manage && ['SCHEDULED', 'BOARDING', 'IN_TRANSIT'].includes(t.status) && (
+                          <>
+                            <select
+                              aria-label={`Delay for ${t.route} at ${time(t.departureAt)}`}
+                              className={selectClass}
+                              value={t.delayMinutes}
+                              disabled={delay.isPending}
+                              onChange={(e) =>
+                                delay.mutate({ id: t.id, delayMinutes: Number(e.target.value) })
+                              }
+                            >
+                              {[...new Set([0, 10, 15, 30, 45, 60, 90, 120, t.delayMinutes])]
+                                .sort((a, b) => a - b)
+                                .map((m) => (
+                                  <option key={m} value={m}>
+                                    {m === 0 ? 'On time' : `Delay ${m} min`}
+                                  </option>
+                                ))}
+                            </select>
+                            <Button variant="secondary" onClick={() => setReplacing(t)}>
+                              Replace vehicle
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          onClick={() => setOpenTimeline(openTimeline === t.id ? null : t.id)}
+                        >
+                          Timeline
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge
-                        status={
-                          t.status === 'SCHEDULED'
-                            ? 'PENDING'
-                            : t.status === 'CANCELLED'
-                              ? 'REJECTED'
-                              : 'ACTIVE'
-                        }
-                        label={
-                          t.status.charAt(0) + t.status.slice(1).toLowerCase().replace('_', ' ')
-                        }
-                      />
-                      {manage && ['SCHEDULED', 'BOARDING', 'IN_TRANSIT'].includes(t.status) && (
-                        <>
-                          <select
-                            aria-label={`Delay for ${t.route} at ${time(t.departureAt)}`}
-                            className={selectClass}
-                            value={t.delayMinutes}
-                            disabled={delay.isPending}
-                            onChange={(e) =>
-                              delay.mutate({ id: t.id, delayMinutes: Number(e.target.value) })
-                            }
-                          >
-                            {[...new Set([0, 10, 15, 30, 45, 60, 90, 120, t.delayMinutes])]
-                              .sort((a, b) => a - b)
-                              .map((m) => (
-                                <option key={m} value={m}>
-                                  {m === 0 ? 'On time' : `Delay ${m} min`}
-                                </option>
-                              ))}
-                          </select>
-                          <Button variant="secondary" onClick={() => setReplacing(t)}>
-                            Replace vehicle
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        variant="ghost"
-                        onClick={() => setOpenTimeline(openTimeline === t.id ? null : t.id)}
-                      >
-                        Timeline
-                      </Button>
-                    </div>
-                  </div>
-                  {openTimeline === t.id && <Timeline tripId={t.id} fmt={fmt} />}
-                </li>
-              ))}
-            </ul>
+                    {openTimeline === t.id && <Timeline tripId={t.id} fmt={fmt} />}
+                  </li>
+                ))}
+              </ul>
+            </ListTools>
           </Card>
         </>
       )}
@@ -468,42 +473,44 @@ export function CalendarPage() {
       <Card title="Upcoming blackouts">
         {list.isPending && <PageLoader label="Loading blackouts" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {list.data?.items.length === 0 && (
-            <li className="py-2 text-slate-500">None scheduled.</li>
-          )}
-          {list.data?.items.map((b) => (
-            <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">
-                  {b.startsOn === b.endsOn ? b.startsOn : `${b.startsOn} → ${b.endsOn}`}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {b.reason} · {b.route ?? 'All routes'}
-                </p>
-              </div>
-              {manage && (
-                <Button
-                  variant="ghost"
-                  loading={remove.isPending && remove.variables === b.id}
-                  onClick={async () => {
-                    if (
-                      await ask({
-                        title: 'Remove this blackout?',
-                        message: 'Trips can be scheduled on those days again.',
-                        confirmLabel: 'Remove',
-                        danger: true,
-                      })
-                    )
-                      remove.mutate(b.id);
-                  }}
-                >
-                  Remove
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <ListTools title="Blackouts">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {list.data?.items.length === 0 && (
+              <li className="py-2 text-slate-500">None scheduled.</li>
+            )}
+            {list.data?.items.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-medium">
+                    {b.startsOn === b.endsOn ? b.startsOn : `${b.startsOn} → ${b.endsOn}`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {b.reason} · {b.route ?? 'All routes'}
+                  </p>
+                </div>
+                {manage && (
+                  <Button
+                    variant="ghost"
+                    loading={remove.isPending && remove.variables === b.id}
+                    onClick={async () => {
+                      if (
+                        await ask({
+                          title: 'Remove this blackout?',
+                          message: 'Trips can be scheduled on those days again.',
+                          confirmLabel: 'Remove',
+                          danger: true,
+                        })
+                      )
+                        remove.mutate(b.id);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );
@@ -614,72 +621,74 @@ export function SeatLayoutsPage() {
       <Card>
         {list.isPending && <PageLoader label="Loading layouts" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {list.data?.items.length === 0 && (
-            <li className="py-2 text-slate-500">No layouts yet.</li>
-          )}
-          {list.data?.items.map((l) => (
-            <li key={l.id} className="space-y-2 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{l.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {l.seats} seats · used by {l.vehicles} vehicle(s)
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setPreview(preview === l.id ? null : l.id)}
-                  >
-                    {preview === l.id ? 'Hide' : 'Preview'}
-                  </Button>
-                  {manage && l.vehicles === 0 && (
+        <ListTools title="Seat layouts">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {list.data?.items.length === 0 && (
+              <li className="py-2 text-slate-500">No layouts yet.</li>
+            )}
+            {list.data?.items.map((l) => (
+              <li key={l.id} className="space-y-2 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{l.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {l.seats} seats · used by {l.vehicles} vehicle(s)
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
-                      variant="danger"
-                      loading={remove.isPending && remove.variables === l.id}
-                      onClick={async () => {
-                        if (
-                          await ask({
-                            title: `Delete ${l.name}?`,
-                            message: 'A layout in use by a vehicle cannot be deleted.',
-                            confirmLabel: 'Delete layout',
-                            danger: true,
-                          })
-                        )
-                          remove.mutate(l.id);
-                      }}
+                      variant="ghost"
+                      onClick={() => setPreview(preview === l.id ? null : l.id)}
                     >
-                      Delete
+                      {preview === l.id ? 'Hide' : 'Preview'}
                     </Button>
-                  )}
+                    {manage && l.vehicles === 0 && (
+                      <Button
+                        variant="danger"
+                        loading={remove.isPending && remove.variables === l.id}
+                        onClick={async () => {
+                          if (
+                            await ask({
+                              title: `Delete ${l.name}?`,
+                              message: 'A layout in use by a vehicle cannot be deleted.',
+                              confirmLabel: 'Delete layout',
+                              danger: true,
+                            })
+                          )
+                            remove.mutate(l.id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {preview === l.id && detail.data && (
-                <div
-                  role="img"
-                  aria-label={`${l.name}: ${l.seats} seats`}
-                  className="grid max-w-xs gap-1"
-                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-                >
-                  {detail.data.seats.map((s) => (
-                    <span
-                      key={s.label}
-                      title={s.accessible ? `${s.label} (accessible)` : s.label}
-                      className={`rounded border px-1 py-1 text-center text-xs ${
-                        s.accessible
-                          ? 'border-blue-600 bg-blue-50 font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-200'
-                          : 'border-slate-300 dark:border-slate-600'
-                      }`}
-                    >
-                      {s.label}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                {preview === l.id && detail.data && (
+                  <div
+                    role="img"
+                    aria-label={`${l.name}: ${l.seats} seats`}
+                    className="grid max-w-xs gap-1"
+                    style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                  >
+                    {detail.data.seats.map((s) => (
+                      <span
+                        key={s.label}
+                        title={s.accessible ? `${s.label} (accessible)` : s.label}
+                        className={`rounded border px-1 py-1 text-center text-xs ${
+                          s.accessible
+                            ? 'border-blue-600 bg-blue-50 font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-200'
+                            : 'border-slate-300 dark:border-slate-600'
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
     </div>
   );

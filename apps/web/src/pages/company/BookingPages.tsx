@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '../../components/ui/Confirm';
+import { ListTools } from '../../components/ui/ListTools';
 import { useRef, useState } from 'react';
 import { Alert, ErrorAlert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
@@ -324,119 +325,121 @@ export function BookingsPage() {
         </div>
         {list.isPending && <PageLoader label="Loading bookings" />}
         {list.error && <ErrorAlert error={list.error} onRetry={() => void list.refetch()} />}
-        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
-          {list.data?.bookings.length === 0 && (
-            <li className="py-2 text-slate-500">No bookings.</li>
-          )}
-          {list.data?.bookings.map((b) => (
-            <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p className="font-medium">
-                  {b.reference} · {b.contactName}
-                </p>
-                <p className="text-xs text-slate-500">
-                  Seats {b.passengers.map((p) => p.seatLabel).join(', ')} ·{' '}
-                  {money(b.totalMinor, b.currency)} · {b.contactPhone}
-                  {b.status === 'PENDING_PAYMENT' && b.holdExpiresAt
-                    ? ` · held until ${fmt(b.holdExpiresAt)}`
-                    : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge
-                  status={
-                    b.status === 'CONFIRMED'
-                      ? 'ACTIVE'
-                      : b.status === 'PENDING_PAYMENT'
-                        ? 'PENDING'
-                        : 'REJECTED'
-                  }
-                  label={STATUS_LABEL[b.status]}
-                />
-                {b.status === 'CONFIRMED' && (
-                  <>
-                    <a
-                      className="text-sm text-brand-700 font-medium dark:text-brand-500"
-                      href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/tickets.pdf`}
-                    >
-                      Tickets
-                    </a>
-                    <a
-                      className="text-sm text-brand-700 font-medium dark:text-brand-500"
-                      href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/receipt.pdf`}
-                    >
-                      Receipt
-                    </a>
-                  </>
-                )}
-                {b.status === 'CANCELLED' && b.desk && (
-                  <>
-                    {b.desk.refundedAt ? (
-                      <span className="text-xs text-slate-500">Refunded</span>
-                    ) : (
-                      <>
-                        <StatusBadge status="PENDING" label="Refund due" />
-                        {refundRights && (
-                          <Button
-                            variant="secondary"
-                            onClick={() =>
-                              setRefund({
-                                id: b.id,
-                                reference: b.reference,
-                                totalMinor: b.desk?.amountMinor ?? b.totalMinor,
-                                currency: b.currency,
-                              })
-                            }
-                          >
-                            Record refund
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-                {b.status === 'PENDING_PAYMENT' && b.claim && (
-                  <StatusBadge status="PENDING" label={`QMoney paid? ${b.claim.reference}`} />
-                )}
-                {collect && b.status === 'PENDING_PAYMENT' && (
-                  <Button
-                    onClick={() =>
-                      setDesk({
-                        id: b.id,
-                        reference: b.reference,
-                        totalMinor: b.totalMinor,
-                        currency: b.currency,
-                        claim: b.claim ?? null,
-                      })
+        <ListTools title="Bookings">
+          <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+            {list.data?.bookings.length === 0 && (
+              <li className="py-2 text-slate-500">No bookings.</li>
+            )}
+            {list.data?.bookings.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="font-medium">
+                    {b.reference} · {b.contactName}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Seats {b.passengers.map((p) => p.seatLabel).join(', ')} ·{' '}
+                    {money(b.totalMinor, b.currency)} · {b.contactPhone}
+                    {b.status === 'PENDING_PAYMENT' && b.holdExpiresAt
+                      ? ` · held until ${fmt(b.holdExpiresAt)}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge
+                    status={
+                      b.status === 'CONFIRMED'
+                        ? 'ACTIVE'
+                        : b.status === 'PENDING_PAYMENT'
+                          ? 'PENDING'
+                          : 'REJECTED'
                     }
-                  >
-                    Take payment
-                  </Button>
-                )}
-                {manage && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED') && (
-                  <Button
-                    variant="dangerQuiet"
-                    loading={cancel.isPending && cancel.variables === b.id}
-                    onClick={async () => {
-                      if (
-                        await ask({
-                          title: `Cancel booking ${b.reference}?`,
-                          message:
-                            'The seats are released. If it was paid, a refund is recorded as owed.',
-                          confirmLabel: 'Cancel booking',
-                          danger: true,
+                    label={STATUS_LABEL[b.status]}
+                  />
+                  {b.status === 'CONFIRMED' && (
+                    <>
+                      <a
+                        className="text-sm text-brand-700 font-medium dark:text-brand-500"
+                        href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/tickets.pdf`}
+                      >
+                        Tickets
+                      </a>
+                      <a
+                        className="text-sm text-brand-700 font-medium dark:text-brand-500"
+                        href={`/api/v1/tenants/${tenantId}/bookings/${b.id}/receipt.pdf`}
+                      >
+                        Receipt
+                      </a>
+                    </>
+                  )}
+                  {b.status === 'CANCELLED' && b.desk && (
+                    <>
+                      {b.desk.refundedAt ? (
+                        <span className="text-xs text-slate-500">Refunded</span>
+                      ) : (
+                        <>
+                          <StatusBadge status="PENDING" label="Refund due" />
+                          {refundRights && (
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                setRefund({
+                                  id: b.id,
+                                  reference: b.reference,
+                                  totalMinor: b.desk?.amountMinor ?? b.totalMinor,
+                                  currency: b.currency,
+                                })
+                              }
+                            >
+                              Record refund
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                  {b.status === 'PENDING_PAYMENT' && b.claim && (
+                    <StatusBadge status="PENDING" label={`QMoney paid? ${b.claim.reference}`} />
+                  )}
+                  {collect && b.status === 'PENDING_PAYMENT' && (
+                    <Button
+                      onClick={() =>
+                        setDesk({
+                          id: b.id,
+                          reference: b.reference,
+                          totalMinor: b.totalMinor,
+                          currency: b.currency,
+                          claim: b.claim ?? null,
                         })
-                      )
-                        cancel.mutate(b.id);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+                      }
+                    >
+                      Take payment
+                    </Button>
+                  )}
+                  {manage && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED') && (
+                    <Button
+                      variant="dangerQuiet"
+                      loading={cancel.isPending && cancel.variables === b.id}
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: `Cancel booking ${b.reference}?`,
+                            message:
+                              'The seats are released. If it was paid, a refund is recorded as owed.',
+                            confirmLabel: 'Cancel booking',
+                            danger: true,
+                          })
+                        )
+                          cancel.mutate(b.id);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </ListTools>
       </Card>
       <DeskRefundDialog
         tenantId={tenantId}

@@ -16,6 +16,8 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { clockTime, duration, initials, shortDate } from '../../lib/format';
 import { RateTrip } from './ComplaintPages';
+import { appRoot } from '../../lib/app-path';
+import { ListTools } from '../../components/ui/ListTools';
 
 const MAX_SEATS = 8;
 const money = (minor: number, currency: string) =>
@@ -153,7 +155,7 @@ export function TripBookPage() {
       return booking.id;
     },
     // Seats are held; the next page is where they choose how to pay.
-    onSuccess: (bookingId) => void navigate(`/app/bookings/${bookingId}/pay`),
+    onSuccess: (bookingId) => void navigate(`${appRoot()}/bookings/${bookingId}/pay`),
     onError: async (e) => {
       // After a timeout the booking may exist; the same key makes a retry return it, not a copy.
       setError(errMsg(e));
@@ -526,12 +528,12 @@ export function PayReturnPage() {
       {b.status === 'CONFIRMED' && (
         <Link
           className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 font-medium text-white hover:bg-brand-700"
-          to={`/app/bookings/${b.id}`}
+          to={`${appRoot()}/bookings/${b.id}`}
         >
           View my tickets
         </Link>
       )}
-      <Link className="block text-brand-700 font-medium" to="/app/bookings">
+      <Link className="block text-brand-700 font-medium" to={`${appRoot()}/bookings`}>
         My bookings
       </Link>
     </div>
@@ -542,7 +544,10 @@ export function PayReturnPage() {
 
 function BookingCard({ b, children }: { b: MyBooking; children?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 sm:p-5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
+    <div
+      data-list-item
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-level1 sm:p-5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
@@ -643,49 +648,57 @@ export function MyBookingsPage() {
           .
         </Alert>
       )}
-      {q.data?.bookings.map((b) => (
-        <BookingCard key={b.id} b={b}>
-          {b.status === 'CONFIRMED' && (
-            <div className="mt-3">
-              <Link
-                className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
-                to={`/app/bookings/${b.id}`}
-              >
-                View tickets
-              </Link>
-              <Link
-                className="ml-3 inline-flex min-h-11 items-center text-sm text-brand-700 font-medium dark:text-brand-500"
-                to={`/app/complaints/new?booking=${b.id}`}
-              >
-                Report a problem
-              </Link>
-              {b.tripStatus === 'COMPLETED' && <RateTrip bookingId={b.id} />}
-            </div>
-          )}
-          {b.status === 'PENDING_PAYMENT' && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button onClick={() => void nav(`/app/bookings/${b.id}/pay`)}>Pay now</Button>
-              <Button
-                variant="ghost"
-                loading={cancel.isPending && cancel.variables === b.id}
-                onClick={async () => {
-                  if (
-                    await ask({
-                      title: 'Cancel this booking?',
-                      message: 'Your seats are released.',
-                      confirmLabel: 'Cancel booking',
-                      danger: true,
-                    })
-                  )
-                    cancel.mutate(b.id);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
-        </BookingCard>
-      ))}
+      {q.data && q.data.bookings.length > 0 && (
+        <ListTools title="My bookings">
+          <div className="space-y-4">
+            {q.data.bookings.map((b) => (
+              <BookingCard key={b.id} b={b}>
+                {b.status === 'CONFIRMED' && (
+                  <div className="mt-3">
+                    <Link
+                      className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
+                      to={`${appRoot()}/bookings/${b.id}`}
+                    >
+                      View tickets
+                    </Link>
+                    <Link
+                      className="ml-3 inline-flex min-h-11 items-center text-sm text-brand-700 font-medium dark:text-brand-500"
+                      to={`${appRoot()}/complaints/new?booking=${b.id}`}
+                    >
+                      Report a problem
+                    </Link>
+                    {b.tripStatus === 'COMPLETED' && <RateTrip bookingId={b.id} />}
+                  </div>
+                )}
+                {b.status === 'PENDING_PAYMENT' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button onClick={() => void nav(`${appRoot()}/bookings/${b.id}/pay`)}>
+                      Pay now
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      loading={cancel.isPending && cancel.variables === b.id}
+                      onClick={async () => {
+                        if (
+                          await ask({
+                            title: 'Cancel this booking?',
+                            message: 'Your seats are released.',
+                            confirmLabel: 'Cancel booking',
+                            danger: true,
+                          })
+                        )
+                          cancel.mutate(b.id);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </BookingCard>
+            ))}
+          </div>
+        </ListTools>
+      )}
     </div>
   );
 }

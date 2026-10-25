@@ -41,7 +41,10 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState(params.get('phone') ?? params.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [fieldError, setFieldError] = useState<{ id?: string; pw?: string }>({});
-  const next = safeNext(params.get('next'));
+  // A new sign-in always starts from the person's dashboard, never where an old session stopped
+  // (the only exception is returning from a payment).
+  const requested = safeNext(params.get('next'), '');
+  const next = requested.startsWith('/pay/') ? requested : safeNext(null);
 
   const finish = async (res: LoginResponse) => {
     if ('mfaRequired' in res) {

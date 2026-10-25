@@ -147,8 +147,6 @@ export function createApp({
 
   const v1 = Router();
   v1.use(originGuard(env));
-  // Passenger features belong to the Passenger role: staff acting as a company role switch first.
-  if (db) v1.use(['/passenger', '/applicant'], passengerRoleGuard(db));
   if (db && mailer) {
     const box = env.MFA_ENCRYPTION_KEY ? new SecretBox(env.MFA_ENCRYPTION_KEY) : undefined;
     const mfa = box ? new MfaService(db, box, 'NTS Transport') : undefined;
@@ -185,6 +183,8 @@ export function createApp({
     // The client ID is public (it is in the page Google shows); the browser needs it to draw the button.
     if (verifier && env.GOOGLE_CLIENT_ID) features.googleClientId = env.GOOGLE_CLIENT_ID;
     v1.use(sessionLoader(auth, env));
+    // Passenger features belong to the Passenger role: staff acting as a company role switch first.
+    v1.use(['/passenger', '/applicant'], passengerRoleGuard(db));
     // Maintenance switch: its own endpoints first, then the gate in front of everything else.
     const maintenance = new MaintenanceModeService(db, logger);
     v1.use(maintenanceRouter(db, maintenance));

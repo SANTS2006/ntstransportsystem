@@ -6,6 +6,8 @@ export type MailTemplate =
   | 'password-changed'
   | 'tenant-invitation'
   | 'company-admin-created'
+  | 'staff-added'
+  | 'platform-message'
   | 'booking-confirmed'
   | 'booking-cancelled'
   | 'trip-delayed'
@@ -16,10 +18,31 @@ export type MailTemplate =
   | 'application-received'
   | 'application-update';
 
+/** Who an e-mail is from: the company it belongs to, or the system itself. */
+export interface MailBrand {
+  name: string;
+  /** An absolute address of the logo picture, when there is one. */
+  logoUrl: string | null;
+  /** #rrggbb */
+  primary: string;
+  accent: string;
+  /** The brand's own web address (a company's page, or the system's). */
+  siteUrl: string;
+}
+
+export interface MailAttachment {
+  name: string;
+  contentBase64: string;
+}
+
 export interface MailMessage {
   to: string;
   template: MailTemplate;
   data: Record<string, string>;
+  /** The company this mail is about; it decides the brand (name, logo, colours). Absent: the system. */
+  tenantId?: string | undefined;
+  brand?: MailBrand | undefined;
+  attachments?: MailAttachment[] | undefined;
 }
 
 export interface Mailer {

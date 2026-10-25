@@ -57,6 +57,8 @@ function renderAt(url: string) {
             <Route path="/:slug/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/verify-email-code" element={<VerifyEmailCodePage />} />
+            <Route path="/:slug/verify-email-code" element={<VerifyEmailCodePage />} />
+            <Route path="/:slug/verify-phone" element={<VerifyPhonePage />} />
             <Route path="/verify-phone" element={<VerifyPhonePage />} />
             <Route path="/reset-password-phone" element={<ResetPhonePasswordPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -117,7 +119,7 @@ describe('Sign up with a phone number', () => {
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(where()).toContain('/verify-email-code'));
-    expect(where()).toBe('/verify-email-code?email=ada%40example.com');
+    expect(where()).toBe('/acme-coaches/verify-email-code?email=ada%40example.com');
     expect(calls.find((c) => c.url === '/auth/register')!.body).toMatchObject({
       companySlug: 'acme-coaches',
       email: 'Ada@Example.com',
@@ -174,7 +176,7 @@ describe('Sign up with a phone number', () => {
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(where()).toContain('/verify-phone'));
-    expect(where()).toBe(`/verify-phone?phone=${encodeURIComponent('+23276123456')}`);
+    expect(where()).toBe(`/acme-coaches/verify-phone?phone=${encodeURIComponent('+23276123456')}`);
     const sent = calls.find((c) => c.url === '/auth/register-phone')!;
     expect(sent.body).toEqual({
       companySlug: 'acme-coaches',

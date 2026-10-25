@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { AuthProvider } from './auth/AuthProvider';
 import { ConfirmProvider } from './components/ui/Confirm';
+import { InstallPrompt } from './components/ui/InstallPrompt';
 import { ToastProvider } from './components/ui/Toast';
 import { ApiError } from './lib/api';
 import { router } from './router';
@@ -38,9 +39,17 @@ createRoot(root).render(
         <ConfirmProvider>
           <AuthProvider>
             <RouterProvider router={router} />
+            <InstallPrompt />
           </AuthProvider>
         </ConfirmProvider>
       </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Installable app: the worker only runs in the built site, not while developing.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

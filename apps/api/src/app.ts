@@ -60,6 +60,7 @@ import { PlatformReportService } from './modules/report/platform-report.service.
 import { PlatformAuditService } from './modules/audit/platform-audit.service.js';
 import { BrandingService } from './modules/branding/branding.service.js';
 import { brandingRouter } from './modules/branding/branding.routes.js';
+import { platformEmailRouter } from './modules/notifications/platform-email.routes.js';
 import { passengerRoleGuard } from './modules/tenants/tenant.guards.js';
 import { platformRouter } from './modules/tenants/platform.routes.js';
 import { RoleService } from './modules/tenants/role.service.js';
@@ -132,13 +133,14 @@ export function createApp({
     }),
   );
   // The raw bytes are kept for webhook signature verification (re-serialised JSON would differ).
-  app.use(
-    express.json({
-      limit: '100kb',
-      verify: (req, _res, buf) => {
-        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
-      },
-    }),
+  const keepRaw = (req: unknown, _res: unknown, buf: Buffer) => {
+    (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+  };
+  const jsonSmall = express.json({ limit: '100kb', verify: keepRaw });
+  // Platform e-mail carries attachments (4 MB, a third larger once encoded); only that route may.
+  const jsonLarge = express.json({ limit: '7mb', verify: keepRaw });
+  app.use((req, res, next) =>
+    req.path === '/api/v1/platform/email' ? jsonLarge(req, res, next) : jsonSmall(req, res, next),
   );
   app.use(cookieParser());
 
@@ -203,6 +205,7 @@ export function createApp({
     const members = new MembershipService(db, mailer, env.APP_URL);
     v1.use(tenantRouter({ db, tenants, members, roles: new RoleService(db) }));
     v1.use(brandingRouter(db, new BrandingService(db)));
+    v1.use(platformEmailRouter(db, mailer));
     v1.use(
       '/platform',
       platformRouter(
@@ -286,7 +289,13 @@ export function createApp({
       );
       v1.use(webhookRouter({ payments }));
     }
-    v1.use(crewRouter({ db, crew: new CrewService(db), maintenance: new MaintenanceService(db) }));
+    v1.use(
+      crewRouter({
+        db,
+        crew: new CrewService(db, members),
+        maintenance: new MaintenanceService(db),
+      }),
+    );
   }
   // Further feature modules are mounted here phase by phase.
   if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') mountApiDocs(app, v1);

@@ -179,15 +179,6 @@ main h1 {
   font-variant-numeric: tabular-nums;
 }
 
-@keyframes nts-bar {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(300%);
-  }
-}
-
 @keyframes nts-pulse {
   0%,
   100% {

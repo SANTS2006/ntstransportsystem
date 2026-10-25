@@ -20,6 +20,7 @@ import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.j
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
 import { requestSchemas as branding } from '../modules/branding/branding.routes.js';
+import { platformEmailSchema } from '../modules/notifications/platform-email.routes.js';
 import { requestSchemas as tenant } from '../modules/tenants/tenant.routes.js';
 
 export type Access = 'public' | 'session' | 'tenant' | 'platform';
@@ -391,6 +392,25 @@ export const operations: Record<string, Operation> = {
     access: 'platform',
     permission: 'SUPER_ADMIN | OPERATIONS',
     ok: 204,
+  },
+  'GET /api/v1/platform/email/companies': {
+    summary: 'Companies that can be e-mailed, with their administrator',
+    description:
+      'Each active company with the name and address of its owner, who receives the message.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS | SUPPORT',
+    ok: 200,
+  },
+  'POST /api/v1/platform/email': {
+    summary: "E-mail a company's administrator",
+    description:
+      'Sent in the NTS Transport look (name, logo, colours). Up to 6 attachments and 4 MB in all, base64 encoded; programs are refused.',
+    tag: 'Platform',
+    access: 'platform',
+    permission: 'SUPER_ADMIN | OPERATIONS | SUPPORT',
+    body: platformEmailSchema,
+    ok: 202,
   },
   'GET /api/v1/tenants/{tenantId}/users': {
     summary: "The company's registered users (its passengers)",

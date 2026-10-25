@@ -1,6 +1,7 @@
 import './config/dotenv.js';
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
+import { BrandedMailer } from './modules/notifications/branded-mailer.js';
 import { BrevoMailer } from './modules/notifications/brevo.mailer.js';
 import { DevLogMailer, type Mailer } from './modules/notifications/mailer.js';
 import { createDb } from './platform/db.js';
@@ -75,7 +76,7 @@ const app = createApp({
   env,
   logger,
   readinessChecks,
-  ...(db ? { db, mailer: buildMailer() } : {}),
+  ...(db ? { db, mailer: new BrandedMailer(buildMailer(), db, env.APP_URL) } : {}),
   ...(sms ? { sms } : {}),
   ...(redis ? { rateLimitStores: redisRateLimitStores(redis) } : {}),
 });
@@ -86,7 +87,12 @@ const server = app.listen(env.PORT, () => {
 
 // Background work: expire unpaid bookings, deliver passenger/staff emails from the outbox.
 const stopWorkers = db
-  ? startWorkers({ db, mailer: buildMailer(), appUrl: env.APP_URL, logger })
+  ? startWorkers({
+      db,
+      mailer: new BrandedMailer(buildMailer(), db, env.APP_URL),
+      appUrl: env.APP_URL,
+      logger,
+    })
   : () => undefined;
 
 function shutdown(signal: string) {

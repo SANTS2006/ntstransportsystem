@@ -32,6 +32,7 @@ export function OrDivider() {
 export default function LoginPage() {
   const [params] = useSearchParams();
   const { slug } = useParams();
+  const base = slug ? `/${slug}` : '';
   const navigate = useNavigate();
   const { refresh } = useAuth();
   const [challenge, setChallenge] = useState<string | null>(null);
@@ -69,12 +70,12 @@ export default function LoginPage() {
       // The number is right but was never confirmed: go and get a code.
       if (e instanceof ApiError && e.code === 'EMAIL_NOT_VERIFIED') {
         void navigate(
-          `/verify-email-code?email=${encodeURIComponent(v.identifier.trim())}&resend=1`,
+          `${base}/verify-email-code?email=${encodeURIComponent(v.identifier.trim())}&resend=1`,
         );
       }
       if (e instanceof ApiError && e.code === 'PHONE_NOT_VERIFIED') {
         const n = normalizePhone(v.identifier);
-        if (n) void navigate(`/verify-phone?phone=${encodeURIComponent(n)}&resend=1`);
+        if (n) void navigate(`${base}/verify-phone?phone=${encodeURIComponent(n)}&resend=1`);
       }
     },
   });
@@ -110,7 +111,7 @@ export default function LoginPage() {
         </Button>
         <Link
           className="block text-center text-sm font-semibold text-brand-600"
-          to="/forgot-password"
+          to={`${base}/forgot-password`}
         >
           Reset my password
         </Link>
@@ -156,7 +157,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <div className="flex justify-end text-sm">
-          <Link className="font-medium text-brand-600" to="/forgot-password">
+          <Link className="font-medium text-brand-600" to={`${base}/forgot-password`}>
             Forgot password?
           </Link>
         </div>

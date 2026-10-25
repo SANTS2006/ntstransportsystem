@@ -297,3 +297,15 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Roles and permissions page: every role with how many permissions it has, a tick-box matrix of all permissions grouped by module (assigned and not assigned), save, undo, new role with its permissions, delete for unused custom roles. System roles (owner) are locked. Everything is stored per company in the database.
 - [x] Users page (everyone who signed up on the company's page, searchable, staff marked) and Staff page (staff with all their roles, "Roles" dialog to give or take roles, invite, remove). The old HR page is now called Employees.
 - [x] "Switch role" in the profile menu: Passenger and each role the person holds.
+
+## Company e-mail, staff accounts, platform e-mail, 404 and PWA
+
+- [x] Loader bar at the top of the page removed everywhere (`TopProgress` deleted).
+- [x] Company pages have their own forgot-password, reset-password and verification pages (`/:slug/forgot-password`, `/:slug/reset-password`, ...); the reset request carries `companySlug`, so the e-mail and its link belong to that company.
+- [x] One 404 page for the whole system (also shown for an unknown company address) with "Go to home" and "Go to login".
+- [x] Every dialog is 40% of the screen wide on desktop (94% on phones), with the new header, close button and blurred backdrop.
+- [x] E-mail branding: `BrandedMailer` gives every message about a company that company's name, logo, colours and page address (and its name as the sender); anything without a company, and everything from platform staff, uses the NTS Transport look. Applies to verification, password reset, password changed, invitations, notifications, new-administrator and staff-added e-mail.
+- [x] Add employee takes an email and phone number: the person gets an account (random first password, `must_change_password`) or, if the email already has one, a membership; the employee record is linked; a welcome e-mail lists their details, the password and the company sign-in link. A failed account step removes the employee record. DRIVER/CONDUCTOR get the driver role, DISPATCHER the dispatcher role, MECHANIC/OTHER the passenger role.
+- [x] Platform console "Email": pick a company (its owner's address is filled in), write a subject and message, attach up to 6 files (images, video, documents, 4 MB in all), send in the system look. Audited as `platform.email_sent` (no message text stored). Only that route accepts a large JSON body.
+- [x] Deleting anything asks for confirmation in a dialog first.
+- [x] PWA: web manifest, 192/512/maskable icons, service worker (pages network-first with an offline page, fingerprinted assets cached, `/api` never cached), install prompt, theme colour.

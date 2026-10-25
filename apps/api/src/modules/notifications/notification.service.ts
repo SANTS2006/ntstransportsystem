@@ -69,7 +69,7 @@ export class NotificationService {
     // The in-app copy goes first: it is idempotent, so a retry after a failed send adds nothing.
     await this.inbox(e, recipientKey, template, to, data, userId);
     // Accounts reached only by phone number have no address: the in-app notice is theirs.
-    if (to) await this.mailer.send({ to, template, data });
+    if (to) await this.mailer.send({ to, template, data, tenantId: e.tenantId });
     sent.add(recipientKey);
     await withDb(this.db, { tenantId: e.tenantId }, (tx) =>
       tx.notificationDelivery.createMany({

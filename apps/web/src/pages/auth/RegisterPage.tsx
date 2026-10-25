@@ -59,8 +59,8 @@ export default function RegisterPage() {
       const id = x.identifier.trim();
       void navigate(
         identifierKind(id) === 'phone'
-          ? `/verify-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`
-          : `/verify-email-code?email=${encodeURIComponent(id.toLowerCase())}`,
+          ? `/${slug}/verify-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`
+          : `/${slug}/verify-email-code?email=${encodeURIComponent(id.toLowerCase())}`,
       );
     },
   });

@@ -66,7 +66,11 @@ export const loginSchema = z
     message: 'Sign in with an email address or a phone number',
     path: ['email'],
   });
-export const forgotSchema = z.object({ email: emailSchema });
+export const forgotSchema = z.object({
+  email: emailSchema,
+  /** The company page the request came from, so the reset link and e-mail are that company's. */
+  companySlug: companySlugSchema.optional(),
+});
 export const tokenSchema = z.object({ token: z.string().min(20).max(200) });
 export const resetSchema = tokenSchema.extend({ password: passwordSchema });
 export const changePasswordSchema = z.object({

@@ -198,7 +198,8 @@ export function authRouter({
   });
 
   r.post('/forgot-password', limiter('forgot-password', 5), async (req, res) => {
-    await auth.forgotPassword(forgotSchema.parse(req.body).email, meta(req));
+    const body = forgotSchema.parse(req.body);
+    await auth.forgotPassword(body.email, meta(req), body.companySlug);
     res.status(202).json({ message: 'If an account exists, a reset email has been sent.' });
   });
 

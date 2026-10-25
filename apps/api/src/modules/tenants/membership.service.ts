@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { generateToken, hashPassword, hashToken } from '../../platform/crypto.js';
 import { withDb, type Db, type Tx } from '../../platform/db.js';
 import { AppError } from '../../platform/errors.js';
@@ -128,6 +129,7 @@ export class MembershipService {
     // Sent after commit. The email states the company name but carries no other tenant data.
     await this.mailer.send({
       to: email,
+      tenantId: s.tenantId,
       template: 'tenant-invitation',
       data: {
         company: result.tenantName,
@@ -199,6 +201,7 @@ export class MembershipService {
     });
     await this.mailer.send({
       to: input.email,
+      tenantId: input.tenantId,
       template: 'company-admin-created',
       data: {
         company: input.companyName,
@@ -209,6 +212,96 @@ export class MembershipService {
       },
     });
     return { email: input.email, newAccount: result.isNew };
+  }
+
+  /**
+   * Gives a newly added employee a sign-in: a new account with a random first password (changed at
+   * first sign-in) or, when the e-mail already has one, a membership on that account. The person is
+   * e-mailed their details and the company's sign-in address. Returns the account's id.
+   */
+  async provisionStaff(
+    s: TenantScope,
+    input: {
+      email: string;
+      name: string;
+      phone?: string | undefined;
+      employeeNumber: string;
+      job: string;
+      roleKey: string;
+    },
+    requestId?: string,
+  ): Promise<{ userId: string; newAccount: boolean }> {
+    const email = input.email.trim().toLowerCase();
+    const password = randomBytes(10).toString('base64url');
+    const out = await withDb(this.db, { platform: true, userId: s.userId }, async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: s.tenantId },
+        select: { name: true, slug: true },
+      });
+      if (!tenant) throw AppError.notFound('Company not found');
+      const role =
+        (await tx.role.findFirst({ where: { tenantId: s.tenantId, key: input.roleKey } })) ??
+        (await tx.role.findFirst({ where: { tenantId: s.tenantId, key: 'passenger' } }));
+      if (!role) throw AppError.notFound('Role not found');
+      const existing = await tx.user.findUnique({ where: { email } });
+      let userId: string;
+      if (existing) {
+        const already = await tx.membership.findFirst({
+          where: { tenantId: s.tenantId, userId: existing.id, status: { not: 'REVOKED' } },
+        });
+        if (already)
+          throw AppError.conflict('This e-mail already belongs to a member of the company');
+        userId = existing.id;
+      } else {
+        const phone = input.phone && /^\+\d{8,15}$/.test(input.phone) ? input.phone : null;
+        const phoneTaken = phone ? await tx.user.findUnique({ where: { phone } }) : null;
+        userId = (
+          await tx.user.create({
+            data: {
+              email,
+              displayName: input.name,
+              emailVerifiedAt: this.now(),
+              passwordHash: await hashPassword(password),
+              mustChangePassword: true,
+              homeTenantId: s.tenantId,
+              ...(phone && !phoneTaken ? { phone } : {}),
+            },
+          })
+        ).id;
+      }
+      await tx.membership.upsert({
+        where: { tenantId_userId: { tenantId: s.tenantId, userId } },
+        update: { roleId: role.id, status: 'ACTIVE' },
+        create: { tenantId: s.tenantId, userId, roleId: role.id, status: 'ACTIVE' },
+      });
+      await writeAudit(tx, {
+        action: 'hr.staff_account_created',
+        outcome: 'SUCCESS',
+        tenantId: s.tenantId,
+        actorUserId: s.userId,
+        targetType: 'user',
+        targetId: userId,
+        requestId,
+        summary: { newAccount: !existing },
+      });
+      return { userId, newAccount: !existing, company: tenant.name, slug: tenant.slug };
+    });
+    await this.mailer.send({
+      to: email,
+      tenantId: s.tenantId,
+      template: 'staff-added',
+      data: {
+        company: out.company,
+        name: input.name,
+        email,
+        phone: input.phone ?? '',
+        employeeNumber: input.employeeNumber,
+        job: input.job,
+        password: out.newAccount ? password : '',
+        link: `${this.appUrl.replace(/\/$/, '')}/${out.slug}/login`,
+      },
+    });
+    return { userId: out.userId, newAccount: out.newAccount };
   }
 
   /** Holders of the owner role cannot be left with none. */

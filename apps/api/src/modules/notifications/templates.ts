@@ -1,4 +1,16 @@
-import type { MailMessage, MailTemplate } from './mailer.js';
+import type { MailBrand, MailMessage, MailTemplate } from './mailer.js';
+
+/** The look of e-mail that comes from the system itself (platform staff, platform sign-in). */
+export const SYSTEM_BRAND_COLORS = { primary: '#0075df', accent: '#fc8b01' } as const;
+export const systemBrand = (siteUrl: string): MailBrand => ({
+  name: 'NTS Transport',
+  logoUrl: `${siteUrl.replace(/\/$/, '')}/nts-wordmark.png`,
+  ...SYSTEM_BRAND_COLORS,
+  siteUrl,
+});
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const colour = (v: string, fallback: string) => (HEX.test(v) ? v : fallback);
 
 export interface RenderedMail {
   subject: string;
@@ -23,16 +35,26 @@ export function safeLink(raw: string | undefined): string {
   return url.toString();
 }
 
-const layout = (heading: string, bodyHtml: string) => `<!doctype html>
-<html lang="en"><body style="margin:0;background:#f8fafc;font-family:Poppins,Arial,sans-serif;color:#0f172a">
+const layoutFor = (brand: MailBrand, heading: string, bodyHtml: string) => {
+  const primary = colour(brand.primary, SYSTEM_BRAND_COLORS.primary);
+  const accent = colour(brand.accent, SYSTEM_BRAND_COLORS.accent);
+  const logo = brand.logoUrl
+    ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" style="max-height:48px;max-width:180px;display:block;margin:0 0 6px">`
+    : '';
+  return `<!doctype html>
+<html lang="en"><body style="margin:0;background:#f1f5f9;font-family:Poppins,Arial,sans-serif;color:#0f172a">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
-<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px">
-<tr><td><h1 style="font-size:20px;margin:0 0 16px;color:#0f766e">${escapeHtml(heading)}</h1>${bodyHtml}
-<p style="font-size:12px;color:#64748b;margin:24px 0 0">If you did not expect this email you can safely ignore it.</p></td></tr>
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="height:6px;background:${primary};background-image:linear-gradient(90deg,${primary},${accent});font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="padding:24px 32px 8px">${logo}<div style="font-size:15px;font-weight:700;color:${primary}">${escapeHtml(brand.name)}</div></td></tr>
+<tr><td style="padding:8px 32px 32px"><h1 style="font-size:22px;margin:8px 0 16px;color:${primary}">${escapeHtml(heading)}</h1>${bodyHtml}
+<p style="font-size:12px;color:#64748b;margin:28px 0 0">If you did not expect this email you can safely ignore it.</p></td></tr>
+<tr><td style="background:#f8fafc;padding:16px 32px;font-size:12px;color:#64748b">Sent by <strong style="color:#334155">${escapeHtml(brand.name)}</strong> · <a href="${escapeHtml(brand.siteUrl)}" style="color:${primary}">${escapeHtml(brand.siteUrl.replace(/^https?:\/\//, ''))}</a></td></tr>
 </table></td></tr></table></body></html>`;
+};
 
-const button = (href: string, label: string) =>
-  `<p style="margin:24px 0"><a href="${escapeHtml(href)}" style="background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block">${escapeHtml(label)}</a></p>` +
+const buttonFor = (brand: MailBrand, href: string, label: string) =>
+  `<p style="margin:24px 0"><a href="${escapeHtml(href)}" style="background:${colour(brand.primary, SYSTEM_BRAND_COLORS.primary)};color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;display:inline-block;font-weight:600">${escapeHtml(label)}</a></p>` +
   `<p style="font-size:12px;color:#64748b;word-break:break-all">Or paste this link into your browser:<br>${escapeHtml(href)}</p>`;
 
 interface TripData {
@@ -56,7 +78,21 @@ const tripText = (t: TripData) =>
  * Subjects are deliberately generic: no names, company names, or tokens, because subjects show in
  * lock-screen previews and notification lists.
  */
-export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): RenderedMail {
+export function renderMail(
+  msg: Pick<MailMessage, 'template' | 'data'> & { brand?: MailBrand | undefined },
+): RenderedMail {
+  const brand = msg.brand ?? systemBrand('https://app.invalid');
+  const out = renderBody(msg, brand);
+  return {
+    ...out,
+    subject: out.subject.replace(/NTS Transport/g, brand.name),
+    text: `${out.text.replace(/\s+$/, '')}\n\n— ${brand.name}\n${brand.siteUrl}\n`,
+  };
+}
+
+function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBrand): RenderedMail {
+  const layout = (heading: string, bodyHtml: string) => layoutFor(brand, heading, bodyHtml);
+  const button = (href: string, label: string) => buttonFor(brand, href, label);
   const t: MailTemplate = msg.template;
   switch (t) {
     case 'verify-email': {
@@ -129,6 +165,43 @@ export function renderMail(msg: Pick<MailMessage, 'template' | 'data'>): Rendere
           `<p>Hello ${escapeHtml(name)}, <strong>${escapeHtml(company)}</strong> has been registered on NTS Transport and you are its administrator.</p>${details}${button(link, 'Open your company sign-in page')}`,
         ),
         text: `${company} has been registered on NTS Transport and you are its administrator.\nSign-in page: ${link}\nEmail: ${email}\n${password ? `Temporary password: ${password}\nYou will be asked to choose your own password at first sign-in.\n` : 'Use your usual password.\n'}`,
+      };
+    }
+    case 'staff-added': {
+      const link = safeLink(msg.data.link);
+      const company = msg.data.company ?? 'your company';
+      const row = (k: string, v: string | undefined) =>
+        v
+          ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">${escapeHtml(k)}</td><td style="padding:4px 0"><strong>${escapeHtml(v)}</strong></td></tr>`
+          : '';
+      const password = msg.data.password ?? '';
+      const details = `<table role="presentation" style="font-size:14px;margin:12px 0">${row('Name', msg.data.name)}${row('Staff number', msg.data.employeeNumber)}${row('Job', msg.data.job)}${row('Phone', msg.data.phone)}${row('Sign in with', msg.data.email)}${row('Temporary password', password)}</table>`;
+      return {
+        subject: `You have been added to the ${company} team`,
+        html: layout(
+          'Welcome to the team',
+          `<p>Hello ${escapeHtml(msg.data.name ?? '')}, you have been added to the <strong>${escapeHtml(company)}</strong> team.</p>${details}${
+            password
+              ? '<p>Sign in with the temporary password above. You will be asked to choose your own password straight away.</p>'
+              : '<p>You already have an account with this email: sign in with your usual password.</p>'
+          }${button(link, 'Sign in to ' + company)}`,
+        ),
+        text: `You have been added to the ${company} team.\nName: ${msg.data.name ?? ''}\nStaff number: ${msg.data.employeeNumber ?? ''}\nJob: ${msg.data.job ?? ''}\nSign in with: ${msg.data.email ?? ''}\n${password ? `Temporary password: ${password}\nYou will be asked to choose your own password at first sign-in.\n` : 'Use your usual password.\n'}Sign in: ${link}\n`,
+      };
+    }
+    case 'platform-message': {
+      const body = (msg.data.message ?? '')
+        .split(/\n{2,}/)
+        .map(
+          (p) =>
+            `<p style="line-height:1.6;margin:0 0 12px">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`,
+        )
+        .join('');
+      const subject = (msg.data.subject ?? 'A message from NTS Transport').slice(0, 150);
+      return {
+        subject,
+        html: layout(subject, body),
+        text: `${msg.data.message ?? ''}\n`,
       };
     }
     case 'booking-confirmed': {

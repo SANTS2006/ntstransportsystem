@@ -26,7 +26,6 @@ import { Logo } from './Logo';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { NotificationBell } from './NotificationBell';
-import { TopProgress } from './TopProgress';
 
 const linkClass = 'text-sm font-medium text-slate-700 hover:text-brand-700 dark:text-slate-300';
 
@@ -233,7 +232,6 @@ export function PublicLayout({
   ];
   return (
     <div className="flex min-h-dvh flex-col">
-      <TopProgress />
       <MaintenanceBanner />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
         <div className="flex w-full items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
@@ -724,7 +722,6 @@ export function DashboardShell({
       className={`min-h-dvh lg:flex ${theme === 'platform' ? 'theme-platform' : ''}`}
       style={company ? brandStyle(company.primary, company.accent) : undefined}
     >
-      <TopProgress />
       {signOut.isPending && (
         <BlockingOverlay title="Signing you out…" note="Closing your session safely." />
       )}

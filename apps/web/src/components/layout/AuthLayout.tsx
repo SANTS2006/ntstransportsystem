@@ -3,13 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { rememberCompany } from '../../lib/company-page';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
+import NotFoundPage from '../../pages/NotFoundPage';
 import { PageLoader } from '../ui/Spinner';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { AuthCompanyContext } from './AuthBrand';
 import { api } from '../../lib/api';
 import { brandStyle } from '../../lib/theme';
 import { MaintenanceBanner } from './MaintenanceBanner';
-import { TopProgress } from './TopProgress';
 
 const FEATURES: { icon: LucideIcon; title: string; note: string }[] = [
   { icon: Bus, title: 'Manage Fleet', note: 'Buses, taxis and more' },
@@ -107,21 +107,7 @@ export function AuthLayout() {
     if (company) rememberCompany(company.slug);
   }, [company]);
   if (slug && found.isPending) return <PageLoader label="Loading" full />;
-  if (slug && !company) {
-    return (
-      <div className="grid min-h-dvh place-items-center p-6 text-center">
-        <div>
-          <h1 className="text-2xl font-bold">Company not found</h1>
-          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
-            There is no company at this web address, or it is not open yet.
-          </p>
-          <Link className="mt-4 inline-block font-semibold text-brand-600" to="/login">
-            Go to the main sign-in page
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (slug && !company) return <NotFoundPage />;
   return (
     <div
       style={company ? brandStyle(company.primaryColor, company.accentColor) : undefined}
@@ -129,7 +115,6 @@ export function AuthLayout() {
         company ? 'from-brand-100 via-brand-50 to-white' : 'from-sky-200 via-sky-100 to-sky-50'
       }`}
     >
-      <TopProgress />
       <MaintenanceBanner />
       <div className="mx-auto grid min-h-dvh max-w-[1500px] lg:grid-cols-[1.05fr_1fr]">
         <HeroPanel company={company} />

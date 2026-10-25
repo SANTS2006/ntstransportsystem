@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signInPath, signUpPath } from '../../lib/company-page';
+import { useAuthBase } from '../../lib/company-page';
 import { formatPhone, normalizePhone } from '@nts/shared';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -63,6 +63,7 @@ export function ResendCode({
 
 /** Step two of signing up with a phone number: type the code from the text message. */
 export function VerifyPhonePage() {
+  const base = useAuthBase();
   const phone = useNumber();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -74,7 +75,7 @@ export function VerifyPhonePage() {
     mutationFn: (v: { code: string }) =>
       api('/auth/verify-phone', { method: 'POST', body: { phone, code: v.code } }),
     onSuccess: () =>
-      void navigate(`${signInPath()}?phone=${encodeURIComponent(phone as string)}&verified=1`, {
+      void navigate(`${base}/login?phone=${encodeURIComponent(phone as string)}&verified=1`, {
         replace: true,
       }),
   });
@@ -95,7 +96,7 @@ export function VerifyPhonePage() {
     return (
       <AuthCard title="Confirm your phone number">
         <Alert tone="error">This page needs your phone number. Please start again.</Alert>
-        <Link className={linkClass} to={signUpPath()}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Create an account
         </Link>
       </AuthCard>
@@ -122,10 +123,10 @@ export function VerifyPhonePage() {
       </form>
       <ResendCode body={{ phone }} startNow />
       <div className="flex justify-between">
-        <Link className={linkClass} to={signUpPath()}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Use a different number
         </Link>
-        <Link className={linkClass} to={signInPath()}>
+        <Link className={linkClass} to={`${base}/login`}>
           Back to sign in
         </Link>
       </div>
@@ -135,6 +136,7 @@ export function VerifyPhonePage() {
 
 /** Choose a new password with the code from a text message. */
 export function ResetPhonePasswordPage() {
+  const base = useAuthBase();
   const phone = useNumber();
   const navigate = useNavigate();
   const form = useForm<ResetPhoneValues>({
@@ -148,7 +150,7 @@ export function ResetPhonePasswordPage() {
         body: { phone, code: v.code, password: v.password },
       }),
     onSuccess: () =>
-      void navigate(`${signInPath()}?phone=${encodeURIComponent(phone as string)}&reset=1`, {
+      void navigate(`${base}/login?phone=${encodeURIComponent(phone as string)}&reset=1`, {
         replace: true,
       }),
   });
@@ -157,7 +159,7 @@ export function ResetPhonePasswordPage() {
     return (
       <AuthCard title="Reset password">
         <Alert tone="error">This page needs your phone number. Please start again.</Alert>
-        <Link className={linkClass} to="/forgot-password">
+        <Link className={linkClass} to={`${base}/forgot-password`}>
           Reset my password
         </Link>
       </AuthCard>
@@ -197,7 +199,7 @@ export function ResetPhonePasswordPage() {
           Save password
         </Button>
       </form>
-      <Link className={linkClass} to="/forgot-password">
+      <Link className={linkClass} to={`${base}/forgot-password`}>
         Send a new code
       </Link>
     </AuthCard>

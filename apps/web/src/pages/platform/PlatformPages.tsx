@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, LayoutDashboard, Plus, Power, ScrollText } from 'lucide-react';
+import { Building2, LayoutDashboard, Mail, Plus, Power, ScrollText } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -40,6 +40,7 @@ export function PlatformLayout() {
       nav={[
         { to: '/platform/overview', label: 'Overview', icon: LayoutDashboard, group: 'Platform' },
         { to: '/platform', label: 'Companies', end: true, icon: Building2, group: 'Platform' },
+        { to: '/platform/email', label: 'Email', icon: Mail, group: 'Platform' },
         { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
       ]}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0075df" />
+    <title>You are offline</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #eff6ff; font-family: Poppins, system-ui, Arial, sans-serif; color: #0f172a; }
+      main { max-width: 26rem; margin: 1.5rem; padding: 2rem; text-align: center; background: #fff; border-radius: 1.5rem; box-shadow: 0 10px 30px rgba(0, 40, 90, 0.12); }
+      img { height: 3.5rem; width: auto; }
+      h1 { margin: 1rem 0 0.5rem; font-size: 1.5rem; color: #0a3d75; }
+      p { margin: 0 0 1.25rem; color: #334155; line-height: 1.5; }
+      button { min-height: 2.75rem; padding: 0 1.5rem; border: 0; border-radius: 0.5rem; background: #0075df; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon-192.png" alt="NTS Transport" />
+      <h1>You are offline</h1>
+      <p>Check your internet connection. NTS Transport needs it to show live trips and tickets.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

@@ -105,6 +105,9 @@ const PlatformOverviewPage = lazy(() =>
     default: m.PlatformOverviewPage,
   })),
 );
+const PlatformEmailPage = lazy(() =>
+  import('./pages/platform/PlatformEmailPage').then((m) => ({ default: m.PlatformEmailPage })),
+);
 const PlatformMaintenancePage = lazy(() =>
   import('./pages/platform/PlatformPages').then((m) => ({ default: m.PlatformMaintenancePage })),
 );
@@ -194,6 +197,12 @@ export const router = createBrowserRouter([
       { path: '/change-password', element: s(<ChangePasswordPage />) },
       { path: '/:slug/login', element: s(<LoginPage />) },
       { path: '/:slug/register', element: s(<RegisterPage />) },
+      { path: '/:slug/forgot-password', element: s(<ForgotPasswordPage />) },
+      { path: '/:slug/reset-password', element: s(<ResetPasswordPage />) },
+      { path: '/:slug/verify-email', element: s(<VerifyEmailPage />) },
+      { path: '/:slug/verify-email-code', element: s(<VerifyEmailCodePage />) },
+      { path: '/:slug/verify-phone', element: s(<VerifyPhonePage />) },
+      { path: '/:slug/reset-password-phone', element: s(<ResetPhonePasswordPage />) },
       { path: '/register', element: <Navigate to="/login" replace /> },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
       { path: '/verify-email-code', element: s(<VerifyEmailCodePage />) },
@@ -265,6 +274,7 @@ export const router = createBrowserRouter([
       { path: 'audit', element: s(<PlatformAuditPage />) },
       { path: 'profile', element: s(<ProfilePage />) },
       { path: 'security', element: s(<SecurityPage />) },
+      { path: 'email', element: s(<PlatformEmailPage />) },
       { path: 'maintenance', element: s(<PlatformMaintenancePage />) },
     ],
   },

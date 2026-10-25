@@ -5,6 +5,22 @@ import { AppError } from '../../platform/errors.js';
 import { writeAudit } from '../audit/audit.js';
 import type { Page } from '../catalog/catalog.service.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
+import type { MembershipService } from '../tenants/membership.service.js';
+
+const JOB_LABEL: Record<EmployeeRole, string> = {
+  DRIVER: 'Driver',
+  CONDUCTOR: 'Conductor',
+  DISPATCHER: 'Dispatcher',
+  MECHANIC: 'Mechanic',
+  OTHER: 'Staff',
+};
+const ROLE_KEY: Record<EmployeeRole, string> = {
+  DRIVER: 'driver',
+  CONDUCTOR: 'driver',
+  DISPATCHER: 'dispatcher',
+  MECHANIC: 'passenger',
+  OTHER: 'passenger',
+};
 
 type EmployeeRole = 'DRIVER' | 'CONDUCTOR' | 'DISPATCHER' | 'MECHANIC' | 'OTHER';
 type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED';
@@ -15,6 +31,8 @@ export interface EmployeeInput {
   fullName: string;
   role: EmployeeRole;
   phone?: string | undefined;
+  /** When given, the person gets a sign-in and a welcome e-mail. */
+  email?: string | undefined;
   hiredOn?: string | undefined;
 }
 export interface EmployeePatch {
@@ -30,7 +48,10 @@ const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const OVERLAP_MSG = 'This person is already assigned to an overlapping trip';
 
 export class CrewService {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly staff?: Pick<MembershipService, 'provisionStaff'>,
+  ) {}
 
   private audit(
     tx: Tx,
@@ -116,6 +137,33 @@ export class CrewService {
   }
 
   async createEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
+    const created = await this.insertEmployee(s, input, requestId);
+    if (!input.email || !this.staff) return created;
+    try {
+      const { userId } = await this.staff.provisionStaff(
+        s,
+        {
+          email: input.email,
+          name: input.fullName.trim(),
+          phone: input.phone,
+          employeeNumber: input.employeeNumber.trim(),
+          job: JOB_LABEL[input.role],
+          roleKey: ROLE_KEY[input.role],
+        },
+        requestId,
+      );
+      await withDb(this.db, ctxOf(s), (tx) =>
+        tx.employee.update({ where: { id: created.id }, data: { userId } }),
+      );
+    } catch (err) {
+      // No half-added person: the record goes if the account could not be made.
+      await withDb(this.db, ctxOf(s), (tx) => tx.employee.delete({ where: { id: created.id } }));
+      throw err;
+    }
+    return created;
+  }
+
+  private insertEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
     return mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {

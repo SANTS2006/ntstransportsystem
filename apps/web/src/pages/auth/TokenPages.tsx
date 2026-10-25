@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signInPath, signUpPath } from '../../lib/company-page';
+import { useAuthBase } from '../../lib/company-page';
 import { useMutation } from '@tanstack/react-query';
 import { normalizePhone } from '@nts/shared';
 import { useEffect, useRef, useState } from 'react';
@@ -23,6 +23,7 @@ const linkClass = 'text-sm text-brand-700 font-medium dark:text-brand-500';
  * would let mail-scanner prefetches or React's double-invoked effects burn a single-use link.
  */
 export function VerifyEmailPage() {
+  const base = useAuthBase();
   const token = useSearchParams()[0].get('token');
   const verify = useMutation({
     mutationFn: () => api('/auth/verify-email', { method: 'POST', body: { token } }),
@@ -41,7 +42,7 @@ export function VerifyEmailPage() {
       {verify.isSuccess ? (
         <>
           <Alert tone="success">Your email is confirmed.</Alert>
-          <Link className={linkClass} to={signInPath()}>
+          <Link className={linkClass} to={`${base}/login`}>
             Continue to sign in
           </Link>
         </>
@@ -63,6 +64,7 @@ export function VerifyEmailPage() {
 }
 
 export function ForgotPasswordPage() {
+  const base = useAuthBase();
   const navigate = useNavigate();
   const { phoneSignup } = useFeatures();
   const [identifier, setIdentifier] = useState('');
@@ -71,14 +73,17 @@ export function ForgotPasswordPage() {
     mutationFn: (raw: string) => {
       const id = raw.trim();
       return identifierKind(id) === 'email'
-        ? api('/auth/forgot-password', { method: 'POST', body: { email: id } })
+        ? api('/auth/forgot-password', {
+            method: 'POST',
+            body: { email: id, ...(base ? { companySlug: base.slice(1) } : {}) },
+          })
         : api('/auth/forgot-password-phone', { method: 'POST', body: { phone: id } });
     },
     onSuccess: (_r, raw) => {
       const id = raw.trim();
       if (identifierKind(id) === 'phone') {
         void navigate(
-          `/reset-password-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`,
+          `${base}/reset-password-phone?phone=${encodeURIComponent(normalizePhone(id) ?? id)}`,
         );
       }
     },
@@ -90,7 +95,7 @@ export function ForgotPasswordPage() {
           If an account exists for that address, a reset link is on its way. It expires in 30
           minutes.
         </Alert>
-        <Link className={linkClass} to={signInPath()}>
+        <Link className={linkClass} to={`${base}/login`}>
           Back to sign in
         </Link>
       </AuthCard>
@@ -129,7 +134,7 @@ export function ForgotPasswordPage() {
           {phoneSignup ? 'Send reset link or code' : 'Send reset link'}
         </Button>
       </form>
-      <Link className={linkClass} to={signInPath()}>
+      <Link className={linkClass} to={`${base}/login`}>
         Back to sign in
       </Link>
     </AuthCard>
@@ -137,6 +142,7 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
+  const base = useAuthBase();
   const token = useSearchParams()[0].get('token');
   const navigate = useNavigate();
   const form = useForm<ResetValues>({
@@ -146,14 +152,14 @@ export function ResetPasswordPage() {
   const reset = useMutation({
     mutationFn: (v: ResetValues) =>
       api('/auth/reset-password', { method: 'POST', body: { token, password: v.password } }),
-    onSuccess: () => void navigate(`${signInPath()}?reset=1`, { replace: true }),
+    onSuccess: () => void navigate(`${base}/login?reset=1`, { replace: true }),
   });
   const { errors } = form.formState;
   if (!token) {
     return (
       <AuthCard title="Reset password">
         <Alert tone="error">This reset link is incomplete. Request a new one.</Alert>
-        <Link className={linkClass} to="/forgot-password">
+        <Link className={linkClass} to={`${base}/forgot-password`}>
           Request a new link
         </Link>
       </AuthCard>
@@ -234,6 +240,7 @@ const emailCodeShape = /^[A-Za-z0-9]{6}$/;
 
 /** Step two of signing up with an email address: type the 6-character code that was mailed. */
 export function VerifyEmailCodePage() {
+  const base = useAuthBase();
   const [params] = useSearchParams();
   const email = params.get('email')?.trim().toLowerCase() ?? '';
   const navigate = useNavigate();
@@ -243,7 +250,7 @@ export function VerifyEmailCodePage() {
     mutationFn: () =>
       api('/auth/verify-email-code', { method: 'POST', body: { email, code: code.trim() } }),
     onSuccess: () =>
-      void navigate(`${signInPath()}?email=${encodeURIComponent(email)}&verified=1`, {
+      void navigate(`${base}/login?email=${encodeURIComponent(email)}&verified=1`, {
         replace: true,
       }),
   });
@@ -264,7 +271,7 @@ export function VerifyEmailCodePage() {
     return (
       <AuthCard title="Confirm your email">
         <Alert tone="error">This page needs your email address. Please start again.</Alert>
-        <Link className={linkClass} to={signUpPath()}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Create an account
         </Link>
       </AuthCard>
@@ -307,10 +314,10 @@ export function VerifyEmailCodePage() {
       </form>
       <ResendCode path="/auth/resend-email-code" body={{ email }} startNow />
       <div className="flex justify-between">
-        <Link className={linkClass} to={signUpPath()}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/login'}>
           Use a different email
         </Link>
-        <Link className={linkClass} to={signInPath()}>
+        <Link className={linkClass} to={`${base}/login`}>
           Back to sign in
         </Link>
       </div>

@@ -50,3 +50,11 @@ export function companyPath(user?: Who | null, sub = ''): string {
   const s = user?.homeCompany?.slug ?? rememberedCompany();
   return s ? `/${s}${sub}` : '/login';
 }
+
+import { useParams } from 'react-router';
+
+/** "/<web-address-name>" on a company's own sign-in pages, "" on the main ones. */
+export function useAuthBase(): string {
+  const { slug } = useParams();
+  return slug ? `/${slug}` : '';
+}

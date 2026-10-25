@@ -35,6 +35,7 @@ const employeeCreate = z
     fullName: trim.min(2).max(120),
     role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']),
     phone: trim.max(30).optional(),
+    email: z.email().max(254).optional(),
     hiredOn: dateStr.optional(),
   })
   .strict();

@@ -55,12 +55,16 @@ export class BrevoMailer implements Mailer {
   async send(msg: MailMessage): Promise<void> {
     const mail = renderMail(msg);
     const body = JSON.stringify({
-      sender: { email: this.opts.senderEmail, name: this.opts.senderName },
+      // A company's mail shows the company as the sender; the address is the one verified in Brevo.
+      sender: { email: this.opts.senderEmail, name: msg.brand?.name ?? this.opts.senderName },
       to: [{ email: msg.to }],
       subject: mail.subject,
       htmlContent: mail.html,
       textContent: mail.text,
       tags: [`tpl:${msg.template}`],
+      ...(msg.attachments?.length
+        ? { attachment: msg.attachments.map((a) => ({ name: a.name, content: a.contentBase64 })) }
+        : {}),
     });
 
     let lastError: MailDeliveryError | undefined;

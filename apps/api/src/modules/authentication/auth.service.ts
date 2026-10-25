@@ -154,7 +154,7 @@ export class AuthService {
         homeTenantId: company.id,
       },
     });
-    await this.sendEmailCode(user.id, input.email);
+    await this.sendEmailCode(user.id, input.email, company.id);
     await writeAudit(this.db, {
       action: 'auth.register',
       outcome: 'SUCCESS',
@@ -164,15 +164,25 @@ export class AuthService {
   }
 
   /** Mails the code (and the older confirmation link) that proves an address is the person's own. */
-  private async sendEmailCode(userId: string, email: string) {
+  private async sendEmailCode(userId: string, email: string, tenantId?: string | null) {
     const token = await this.issueToken(userId, 'EMAIL_VERIFY', VERIFY_TTL_MS);
     const link = `${this.appUrl}/verify-email?token=${token}`;
     if (!this.emailCodes) {
-      await this.mailer.send({ to: email, template: 'verify-email', data: { link } });
+      await this.mailer.send({
+        to: email,
+        template: 'verify-email',
+        data: { link },
+        ...(tenantId ? { tenantId } : {}),
+      });
       return;
     }
     await this.emailCodes.issue(email, 'EMAIL_VERIFY', userId, (code) =>
-      this.mailer.send({ to: email, template: 'verify-email', data: { link, code } }),
+      this.mailer.send({
+        to: email,
+        template: 'verify-email',
+        data: { link, code },
+        ...(tenantId ? { tenantId } : {}),
+      }),
     );
   }
 
@@ -200,7 +210,7 @@ export class AuthService {
   async resendEmailCode(email: string, meta: ReqMeta) {
     const user = await this.db.user.findUnique({ where: { email } });
     if (user && !user.emailVerifiedAt && user.status === 'ACTIVE') {
-      await this.sendEmailCode(user.id, email);
+      await this.sendEmailCode(user.id, email, user.homeTenantId);
     }
     await writeAudit(this.db, {
       action: 'auth.email_code_resent',
@@ -506,14 +516,29 @@ export class AuthService {
   }
 
   /** Generic outcome regardless of whether the account exists. */
-  async forgotPassword(email: string, meta: ReqMeta) {
+  async forgotPassword(email: string, meta: ReqMeta, companySlug?: string) {
     const user = await this.db.user.findUnique({ where: { email } });
     if (user?.email && user.status === 'ACTIVE') {
       const token = await this.issueToken(user.id, 'PASSWORD_RESET', RESET_TTL_MS);
+      // The link goes to the company's own page when the request came from it or the account belongs
+      // to one; platform administrators get the main system page.
+      const named = companySlug ? await this.openCompany(companySlug).catch(() => null) : null;
+      const tenantId = named?.id ?? user.homeTenantId ?? undefined;
+      const slug = tenantId
+        ? await withDb(this.db, { platform: true }, (tx) =>
+            tx.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } }),
+          )
+        : null;
+      const isPlatform =
+        (await this.db.platformRoleAssignment.count({ where: { userId: user.id } })) > 0;
+      const useCompany = Boolean(slug) && !isPlatform;
       await this.mailer.send({
         to: user.email,
         template: 'password-reset',
-        data: { link: `${this.appUrl}/reset-password?token=${token}` },
+        data: {
+          link: `${this.appUrl.replace(/\/$/, '')}${useCompany ? `/${slug!.slug}` : ''}/reset-password?token=${token}`,
+        },
+        ...(useCompany && tenantId ? { tenantId } : {}),
       });
     }
     await writeAudit(this.db, {
@@ -537,7 +562,12 @@ export class AuthService {
     });
     await this.revokeAllSessions(userId);
     if (user.email) {
-      await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+      await this.mailer.send({
+        to: user.email,
+        template: 'password-changed',
+        data: {},
+        ...(user.homeTenantId ? { tenantId: user.homeTenantId } : {}),
+      });
     }
     await writeAudit(this.db, {
       action: 'auth.password_reset',
@@ -760,7 +790,12 @@ export class AuthService {
       data: { revokedAt: this.now() },
     });
     if (user.email) {
-      await this.mailer.send({ to: user.email, template: 'password-changed', data: {} });
+      await this.mailer.send({
+        to: user.email,
+        template: 'password-changed',
+        data: {},
+        ...(user.homeTenantId ? { tenantId: user.homeTenantId } : {}),
+      });
     }
     await writeAudit(this.db, {
       action: 'auth.password_change',

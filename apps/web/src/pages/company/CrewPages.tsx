@@ -37,6 +37,12 @@ const employeeSchema = z.object({
   employeeNumber: z.string().trim().min(1, 'Enter the staff number').max(30),
   fullName: z.string().trim().min(2, 'Enter the full name').max(120),
   role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
+  phone: z
+    .string()
+    .trim()
+    .max(30)
+    .refine((v) => v === '' || /^\+?[0-9 ()-]{7,20}$/.test(v), 'Enter a valid phone number'),
 });
 type EmployeeValues = z.infer<typeof employeeSchema>;
 const licenceSchema = z.object({
@@ -61,13 +67,16 @@ export function StaffPage() {
   });
   const form = useForm<EmployeeValues>({
     resolver: zodResolver(employeeSchema),
-    defaultValues: { employeeNumber: '', fullName: '', role: 'DRIVER' },
+    defaultValues: { employeeNumber: '', fullName: '', role: 'DRIVER', email: '', phone: '' },
   });
   const create = useMutation({
     mutationFn: (v: EmployeeValues) =>
-      api(`/tenants/${tenantId}/employees`, { method: 'POST', body: v }),
+      api(`/tenants/${tenantId}/employees`, {
+        method: 'POST',
+        body: { ...v, phone: v.phone.replace(/[ ()-]/g, '') || undefined },
+      }),
     onSuccess: async () => {
-      toast('Employee added', 'success');
+      toast('Employee added. They have been emailed their sign-in details.', 'success');
       form.reset();
       setAdding816(false);
       await refresh();
@@ -107,27 +116,42 @@ export function StaffPage() {
           <form
             noValidate
             onSubmit={form.handleSubmit((v) => create.mutate(v))}
-            className="flex flex-wrap items-start gap-3"
+            className="grid gap-4 sm:grid-cols-2"
           >
-            <div className="w-32">
-              <Field
-                label="Staff no."
-                error={errors.employeeNumber?.message}
-                {...form.register('employeeNumber')}
-              />
-            </div>
-            <div className="min-w-48 flex-1">
-              <Field
-                label="Full name"
-                error={errors.fullName?.message}
-                {...form.register('fullName')}
-              />
-            </div>
-            <div>
+            <p className="rounded-xl bg-brand-50 p-3 text-sm text-slate-700 sm:col-span-2 dark:bg-slate-800 dark:text-slate-200">
+              We email the new team member their details, a first password and a link to your
+              company page, where they sign in and choose their own password.
+            </p>
+            <Field
+              label="Full name"
+              error={errors.fullName?.message}
+              {...form.register('fullName')}
+            />
+            <Field
+              label="Staff number"
+              error={errors.employeeNumber?.message}
+              {...form.register('employeeNumber')}
+            />
+            <Field
+              label="Email address"
+              type="email"
+              autoComplete="off"
+              error={errors.email?.message}
+              {...form.register('email')}
+            />
+            <Field
+              label="Phone number"
+              type="tel"
+              autoComplete="off"
+              placeholder="+232 76 123456"
+              error={errors.phone?.message}
+              {...form.register('phone')}
+            />
+            <div className="sm:col-span-2">
               <label htmlFor="emp-role" className="mb-1 block text-sm font-medium">
                 Job
               </label>
-              <select id="emp-role" className={selectClass} {...form.register('role')}>
+              <select id="emp-role" className={`${selectClass} w-full`} {...form.register('role')}>
                 {['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER'].map((r) => (
                   <option key={r} value={r}>
                     {title(r)}
@@ -135,12 +159,19 @@ export function StaffPage() {
                 ))}
               </select>
             </div>
-            <div className="mt-6 flex flex-col gap-2">
+            {create.error && (
+              <div className="sm:col-span-2">
+                <ErrorAlert error={create.error} />
+              </div>
+            )}
+            <div className="flex justify-end gap-2 sm:col-span-2">
+              <Button type="button" variant="secondary" onClick={() => setAdding816(false)}>
+                Cancel
+              </Button>
               <Button type="submit" loading={create.isPending} loadingText="Adding…">
-                Add
+                Add employee
               </Button>
             </div>
-            <div className="w-full">{create.error && <ErrorAlert error={create.error} />}</div>
           </form>
         </ModalCard>
       )}

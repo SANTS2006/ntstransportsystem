@@ -57,7 +57,7 @@ export class MembershipService {
       tx.membership.findMany({
         where: { tenantId: s.tenantId },
         include: {
-          user: { select: { email: true, displayName: true } },
+          user: { select: { email: true, displayName: true, phone: true } },
           role: true,
           roles: { include: { role: { select: { id: true, key: true, name: true } } } },
         },
@@ -66,10 +66,37 @@ export class MembershipService {
         skip: page.offset,
       }),
     );
+    // HR details (staff number, job, licence) only for people who may see them.
+    const employees = s.permissions.has('hr.read')
+      ? await withDb(this.db, this.ctx(s), (tx) =>
+          tx.employee.findMany({
+            where: { tenantId: s.tenantId, userId: { in: rows.map((m) => m.userId) } },
+            include: { licences: { select: { expiresOn: true } } },
+          }),
+        )
+      : [];
+    const byUser = new Map(employees.map((e) => [e.userId, e]));
     return rows.map((m) => ({
       id: m.id,
       userId: m.userId,
       email: m.user.email,
+      phone: m.user.phone,
+      employee: byUser.get(m.userId)
+        ? {
+            id: byUser.get(m.userId)!.id,
+            employeeNumber: byUser.get(m.userId)!.employeeNumber,
+            job: byUser.get(m.userId)!.role,
+            status: byUser.get(m.userId)!.status,
+            hiredOn: byUser.get(m.userId)!.hiredOn?.toISOString().slice(0, 10) ?? null,
+            licenceExpiresOn:
+              byUser
+                .get(m.userId)!
+                .licences.map((l) => l.expiresOn)
+                .sort((a, b) => b.getTime() - a.getTime())[0]
+                ?.toISOString()
+                .slice(0, 10) ?? null,
+          }
+        : null,
       displayName: m.user.displayName,
       status: m.status,
       roles: m.roles.map((r) => r.role).sort((a, b) => a.name.localeCompare(b.name)),

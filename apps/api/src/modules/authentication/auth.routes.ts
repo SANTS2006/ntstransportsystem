@@ -224,7 +224,7 @@ export function authRouter({
   });
 
   r.patch('/me', requireAuth, limiter('profile', 30), async (req, res) => {
-    await auth.updateProfile(me(req).userId, profileSchema.parse(req.body).displayName, meta(req));
+    await auth.updateProfile(me(req).userId, profileSchema.parse(req.body), meta(req));
     res.status(204).end();
   });
   r.put(

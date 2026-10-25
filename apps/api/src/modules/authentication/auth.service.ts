@@ -166,7 +166,15 @@ export class AuthService {
   /** Mails the code (and the older confirmation link) that proves an address is the person's own. */
   private async sendEmailCode(userId: string, email: string, tenantId?: string | null) {
     const token = await this.issueToken(userId, 'EMAIL_VERIFY', VERIFY_TTL_MS);
-    const link = `${this.appUrl}/verify-email?token=${token}`;
+    // A company's customers confirm on that company's own page.
+    const slug = tenantId
+      ? (
+          await withDb(this.db, { platform: true }, (tx) =>
+            tx.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } }),
+          )
+        )?.slug
+      : undefined;
+    const link = `${this.appUrl.replace(/\/$/, '')}${slug ? `/${slug}` : ''}/verify-email?token=${token}`;
     if (!this.emailCodes) {
       await this.mailer.send({
         to: email,
@@ -724,8 +732,31 @@ export class AuthService {
   }
 
   /** The person's own name. Nothing else about the account changes here. */
-  async updateProfile(userId: string, displayName: string, meta: ReqMeta) {
-    await this.db.user.update({ where: { id: userId }, data: { displayName } });
+  async updateProfile(
+    userId: string,
+    patch: { displayName?: string | undefined; phone?: string | null | undefined },
+    meta: ReqMeta,
+  ) {
+    const current = await this.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { phone: true },
+    });
+    const phoneChanged = patch.phone !== undefined && patch.phone !== current.phone;
+    try {
+      await this.db.user.update({
+        where: { id: userId },
+        data: {
+          ...(patch.displayName !== undefined ? { displayName: patch.displayName } : {}),
+          // A new number is not yet confirmed; signing in with it asks for a code first.
+          ...(phoneChanged ? { phone: patch.phone ?? null, phoneVerifiedAt: null } : {}),
+        },
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') {
+        throw AppError.conflict('This phone number is already used by another account');
+      }
+      throw err;
+    }
     await writeAudit(this.db, {
       action: 'auth.profile_updated',
       outcome: 'SUCCESS',

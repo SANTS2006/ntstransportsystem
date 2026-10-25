@@ -25,7 +25,7 @@ export default function ChangePasswordPage() {
       }),
     onSuccess: async () => {
       await refresh();
-      void navigate('/app', { replace: true });
+      void navigate('/app/dashboard', { replace: true });
     },
   });
   if (loading) return null;

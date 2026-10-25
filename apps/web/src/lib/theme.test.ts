@@ -7,7 +7,7 @@ describe('brandStyle', () => {
     expect(s['--brand-600']).toBe('#0b6e4f');
     expect(s['--brand-900']).toMatch(/^#[0-9a-f]{6}$/);
     expect(s['--brand-50']).not.toBe(s['--brand-600']);
-    expect(s['--accent-500']).toBeUndefined();
+    expect(s['--accent-500']).toMatch(/^#[0-9a-f]{6}$/); // a lighter shade of the main colour
   });
   it('ignores anything that is not a hex colour', () => {
     expect(brandStyle('red', 'url(javascript:alert(1))')).toEqual({});

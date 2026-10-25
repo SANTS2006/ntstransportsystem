@@ -19,12 +19,17 @@ export function ProfilePage() {
   const { user, refresh } = useAuth();
   const toast = useToast();
   const [name, setName] = useState(user?.displayName ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [problem, setProblem] = useState<string | undefined>();
   const saveName = useMutation({
-    mutationFn: () => api('/auth/me', { method: 'PATCH', body: { displayName: name.trim() } }),
+    mutationFn: () =>
+      api('/auth/me', {
+        method: 'PATCH',
+        body: { displayName: name.trim(), phone: phone.trim() },
+      }),
     onSuccess: async () => {
       await refresh();
-      toast('Your name is saved', 'success');
+      toast('Your details are saved', 'success');
     },
   });
   const upload = useMutation({
@@ -110,9 +115,17 @@ export function ProfilePage() {
             onChange={(e) => setName(e.target.value)}
           />
           <Field label="Email address" value={user.email ?? ''} disabled readOnly />
-          {user.phone && <Field label="Phone number" value={user.phone} disabled readOnly />}
+          <Field
+            label="Phone number"
+            type="tel"
+            autoComplete="tel"
+            placeholder="+232 76 123456"
+            hint="Your company sees this in the staff list. Leave empty to remove it."
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
           <p className="text-xs text-slate-500">
-            Your email or phone number is how you sign in, so it cannot be changed here.
+            Your email address is how you sign in, so it cannot be changed here.
           </p>
           <Button type="submit" loading={saveName.isPending} loadingText="Saving…">
             Save changes

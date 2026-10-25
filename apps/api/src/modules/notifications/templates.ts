@@ -100,10 +100,10 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
       const code = typeof msg.data.code === 'string' ? msg.data.code : '';
       if (/^[A-Z0-9]{6}$/.test(code)) {
         return {
-          subject: 'Your NTS Transport confirmation code',
+          subject: `Your ${brand.name} confirmation code`,
           html: layout(
             'Confirm your email',
-            `<p>Thanks for signing up. Enter this code on the verification page to finish creating your account. It expires in 10 minutes.</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>Or <a href="${link}">confirm with this link</a> (valid for 24 hours).</p>`,
+            `<p>Thanks for signing up. Enter this code on the verification page to finish creating your account. It expires in 10 minutes.</p><p style="font-size:28px;font-weight:700;letter-spacing:6px;color:${colour(brand.primary, SYSTEM_BRAND_COLORS.primary)};background:#f1f5f9;border-radius:12px;padding:14px 18px;display:inline-block">${code}</p><p>Or <a href="${link}">confirm with this link</a> (valid for 24 hours).</p>`,
           ),
           text: `Your confirmation code is ${code}. It expires in 10 minutes. Never share it.\nOr use this link (24 hours): ${link}\n`,
         };

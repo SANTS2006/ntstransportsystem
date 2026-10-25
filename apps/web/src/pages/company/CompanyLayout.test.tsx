@@ -54,7 +54,7 @@ describe('CompanyLayout navigation gating', () => {
       permissions: ['trip.read', 'ticket.validate'],
     });
     await screen.findByText('OVERVIEW');
-    expect(links()).toContain('Overview');
+    expect(links()).toContain('Dashboard');
     expect(links()).not.toContain('Staff');
     expect(links()).not.toContain('Roles');
     expect(links()).not.toContain('Activity');
@@ -67,7 +67,7 @@ describe('CompanyLayout navigation gating', () => {
       permissions: ['membership.read', 'role.read', 'audit.read'],
     });
     await screen.findByText('OVERVIEW');
-    expect(links()).toEqual(expect.arrayContaining(['Overview', 'Staff', 'Roles', 'Activity']));
+    expect(links()).toEqual(expect.arrayContaining(['Dashboard', 'Staff', 'Roles', 'Activity']));
   });
 
   it('hides operations for a company that is still pending review', async () => {

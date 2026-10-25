@@ -34,7 +34,14 @@ export const registerPhoneSchema = z.object({
   displayName: z.string().trim().min(1).max(100),
 });
 export const phoneOnlySchema = z.object({ phone: phoneSchema });
-export const profileSchema = z.object({ displayName: z.string().trim().min(1).max(100) }).strict();
+export const profileSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(100).optional(),
+    /** The person's own phone number; empty or null removes it. */
+    phone: z.union([phoneSchema, z.literal('').transform(() => null), z.null()]).optional(),
+  })
+  .strict()
+  .refine((v) => v.displayName !== undefined || v.phone !== undefined, 'Nothing to change');
 export const emailOnlySchema = z.object({ email: emailSchema });
 export const emailCodeSchema = z.object({
   email: emailSchema,

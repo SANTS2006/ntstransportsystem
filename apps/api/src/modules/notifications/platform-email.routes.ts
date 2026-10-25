@@ -126,14 +126,16 @@ export function platformEmailRouter(db: Db, mailer: Mailer): ExpressRouter {
       data: { subject: input.subject, message: input.message },
       attachments: input.attachments,
     });
-    await writeAudit(db, {
-      action: 'platform.email_sent',
-      outcome: 'SUCCESS',
-      tenantId: input.tenantId,
-      actorUserId: req.platform.userId,
-      requestId: req.id,
-      summary: { attachments: input.attachments.length },
-    });
+    await withDb(db, { platform: true, userId: req.platform.userId }, (tx) =>
+      writeAudit(tx, {
+        action: 'platform.email_sent',
+        outcome: 'SUCCESS',
+        tenantId: input.tenantId,
+        actorUserId: req.platform!.userId,
+        requestId: req.id,
+        summary: { attachments: input.attachments.length },
+      }),
+    );
     res.status(202).json({ sentTo: admin.email, company: admin.company });
   });
   return r;

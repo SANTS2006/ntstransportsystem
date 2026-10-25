@@ -3,6 +3,7 @@ import {
   Briefcase,
   Check,
   Building2,
+  LayoutDashboard,
   LogOut,
   Menu,
   UserRound,
@@ -249,7 +250,7 @@ export function PublicLayout({
               <>
                 <NotificationBell />
                 <span className="hidden sm:block">
-                  <Link className={linkButton('primary')} to="/app">
+                  <Link className={linkButton('primary')} to="/app/dashboard">
                     Open dashboard
                   </Link>
                 </span>
@@ -374,7 +375,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     const login = signInPath(null, named && /^[a-z0-9-]{3,40}$/.test(named) ? named : null);
     return (
       <Navigate
-        to={dest === '/app' ? login : `${login}?next=${encodeURIComponent(dest)}`}
+        to={
+          dest === '/app' || dest === '/app/dashboard'
+            ? login
+            : `${login}?next=${encodeURIComponent(dest)}`
+        }
         replace
       />
     );
@@ -432,7 +437,10 @@ function RoleSwitcher({ onDone }: { onDone: () => void }) {
       // Everything on screen belonged to the old role: forget it and open the new role's area.
       await qc.invalidateQueries();
       onDone();
-      void navigate(v.role === 'passenger' ? '/app' : `/c/${v.tenantId}`, { replace: true });
+      // The new role starts from its own dashboard, whatever page the old role was on.
+      void navigate(v.role === 'passenger' ? '/app/dashboard' : `/c/${v.tenantId}/dashboard`, {
+        replace: true,
+      });
     },
   });
   const staff = (mine.data?.tenants ?? []).filter(
@@ -777,6 +785,7 @@ export function DashboardShell({
 }
 
 const APP_NAV: NavItem[] = [
+  { to: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/app/bookings', label: 'My bookings', icon: Ticket, group: 'Travel' },
   { to: '/app/complaints', label: 'My complaints', icon: MessageSquareWarning, group: 'Travel' },
   { to: '/app/applications', label: 'My job applications', icon: Briefcase, group: 'Travel' },
@@ -806,13 +815,13 @@ export function AppShell() {
         }[];
       }>('/tenants/mine', { signal }),
   });
-  if (isPlatform) return <Navigate to="/platform" replace />;
+  if (isPlatform) return <Navigate to="/platform/dashboard" replace />;
   if (mine.isPending) return <PageLoader label="Opening your workspace" full />;
   // Staff who are acting as passengers stay here; the rest go to the company they act for.
   const staff = (mine.data?.tenants ?? []).filter(
     (t) => t.membershipStatus === 'ACTIVE' && !t.passengerMode,
   );
-  if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}`} replace />;
+  if (staff.length === 1) return <Navigate to={`/c/${staff[0]!.tenantId}/dashboard`} replace />;
   if (staff.length > 1) {
     return (
       <DashboardShell nav={PICKER_NAV} heading="Your companies">
@@ -822,7 +831,7 @@ export function AppShell() {
             {staff.map((t) => (
               <li key={t.tenantId}>
                 <Link
-                  to={'/c/' + t.tenantId}
+                  to={`/c/${t.tenantId}/dashboard`}
                   className="block rounded-2xl border border-slate-200 bg-white p-4 font-semibold shadow-level1 hover:border-brand-600 dark:border-slate-700 dark:bg-slate-900"
                 >
                   {t.name}

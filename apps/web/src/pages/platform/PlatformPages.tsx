@@ -38,8 +38,8 @@ export function PlatformLayout() {
       theme="platform"
       account="/platform"
       nav={[
-        { to: '/platform/overview', label: 'Overview', icon: LayoutDashboard, group: 'Platform' },
-        { to: '/platform', label: 'Companies', end: true, icon: Building2, group: 'Platform' },
+        { to: '/platform/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Platform' },
+        { to: '/platform/companies', label: 'Companies', icon: Building2, group: 'Platform' },
         { to: '/platform/email', label: 'Email', icon: Mail, group: 'Platform' },
         { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },

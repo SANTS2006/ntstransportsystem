@@ -62,20 +62,26 @@ export function SecurityPage() {
         )}
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {sessions.data?.sessions.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-              <div className="min-w-0">
-                <p className="truncate">{s.userAgent ?? 'Unknown device'}</p>
-                <p className="text-xs text-slate-500">
+            <li
+              key={s.id}
+              className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="break-words [overflow-wrap:anywhere] line-clamp-2">
+                  {s.userAgent ?? 'Unknown device'}
+                </p>
+                <p className="text-xs text-slate-500 [overflow-wrap:anywhere]">
                   Last active {new Date(s.lastUsedAt).toLocaleString()}
                 </p>
               </div>
               {s.current ? (
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                   This device
                 </span>
               ) : (
                 <Button
                   variant="secondary"
+                  className="w-full shrink-0 sm:w-auto"
                   loading={revoke.isPending && revoke.variables === s.id}
                   loadingText="Signing out…"
                   onClick={async () => {
@@ -152,13 +158,15 @@ function MfaEnroll({ onEnabled }: { onEnabled: () => void }) {
           alt="QR code for your authenticator app"
           width={192}
           height={192}
-          className="rounded bg-white p-1"
+          className="mx-auto h-auto w-full max-w-48 rounded bg-white p-1 sm:mx-0"
         />
       ) : (
         <PageLoader label="Generating code" />
       )}
       <details className="text-xs">
-        <summary className="cursor-pointer">Can't scan? Enter this key manually</summary>
+        <summary className="cursor-pointer [overflow-wrap:anywhere]">
+          Can't scan? Enter this key manually
+        </summary>
         <code className="mt-2 block break-all rounded bg-slate-100 p-2 dark:bg-slate-800">
           {begin.data.secret}
         </code>
@@ -167,9 +175,9 @@ function MfaEnroll({ onEnabled }: { onEnabled: () => void }) {
       <form
         noValidate
         onSubmit={form.handleSubmit((v) => confirm.mutate(v.code))}
-        className="flex items-start gap-3"
+        className="flex flex-col gap-3 sm:flex-row sm:items-start"
       >
-        <div className="w-40">
+        <div className="w-full sm:w-40">
           <Field
             label="Code"
             inputMode="numeric"
@@ -179,7 +187,12 @@ function MfaEnroll({ onEnabled }: { onEnabled: () => void }) {
             {...form.register('code')}
           />
         </div>
-        <Button type="submit" className="mt-6" loading={confirm.isPending} loadingText="Verifying…">
+        <Button
+          type="submit"
+          className="w-full sm:mt-6 sm:w-auto"
+          loading={confirm.isPending}
+          loadingText="Verifying…"
+        >
           Turn on
         </Button>
       </form>
@@ -194,9 +207,9 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
         Save these recovery codes now. Each works once if you lose your phone, and they will not be
         shown again.
       </Alert>
-      <ul className="grid grid-cols-2 gap-2 font-mono text-sm">
+      <ul className="grid gap-2 font-mono text-sm min-[420px]:grid-cols-2">
         {codes.map((c) => (
-          <li key={c} className="rounded bg-slate-100 px-2 py-1 dark:bg-slate-800">
+          <li key={c} className="break-all rounded bg-slate-100 px-2 py-1 dark:bg-slate-800">
             {c}
           </li>
         ))}
@@ -239,7 +252,7 @@ function MfaEnabled({ onChanged }: { onChanged: () => void }) {
         <form
           noValidate
           onSubmit={form.handleSubmit((v) => disable.mutate(v.code))}
-          className="max-w-sm space-y-3"
+          className="w-full max-w-sm space-y-3"
         >
           {disable.error && <ErrorAlert error={disable.error} />}
           <Field
@@ -259,6 +272,7 @@ function MfaEnabled({ onChanged }: { onChanged: () => void }) {
           <Button
             type="submit"
             variant="danger"
+            className="w-full sm:w-auto"
             loading={disable.isPending}
             loadingText="Turning off…"
           >

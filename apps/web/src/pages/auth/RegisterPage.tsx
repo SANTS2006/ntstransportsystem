@@ -73,7 +73,7 @@ export default function RegisterPage() {
     onSuccess: async (res) => {
       if (res.mfaRequired) return void navigate(`/${slug}/login`);
       await refresh();
-      void navigate('/app', { replace: true });
+      void navigate('/app/dashboard', { replace: true });
     },
   });
 

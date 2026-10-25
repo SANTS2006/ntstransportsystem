@@ -6,12 +6,12 @@ import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Armchair,
+  Building2,
   ArrowLeft,
   BarChart3,
   Bus,
   CalendarDays,
   History,
-  IdCard,
   KeyRound,
   LayoutDashboard,
   MapPin,
@@ -44,7 +44,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ApiError, api } from '../../lib/api';
 import { email } from '../../lib/schemas';
 import { AccessContext, can, useCompany, type CompanyAccess } from './company-context';
-import { CompanyPulse } from './CompanyPulse';
+import { AddStaffButton, StaffDetailsDialog, type Member } from './StaffDetails';
 import type { Branding } from './BrandingPage';
 
 interface Profile {
@@ -54,6 +54,40 @@ interface Profile {
   timezone: string;
   defaultCurrency: string;
 }
+/** The sidebar of a company workspace: only what the signed-in role may open. */
+export function companyNav(a: CompanyAccess, tenantId: string): NavItem[] {
+  const nav: NavItem[] = [
+    { to: `/c/${tenantId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+  ];
+  if (a.tenantStatus === 'ACTIVE') {
+    const add = (ok: boolean, group: string, path: string, label: string, icon: LucideIcon) => {
+      if (ok) nav.push({ to: `/c/${tenantId}/${path}`, label, icon, group });
+    };
+    // Grouped the way the sidebar shows them: what happens today, the network, sales, people, insight.
+    add(can(a, 'trip.read'), 'Operations', 'dispatch', 'Dispatch', Radio);
+    add(can(a, 'route.read'), 'Operations', 'calendar', 'Calendar', CalendarDays);
+    add(can(a, 'trip.read'), 'Operations', 'trips', 'Trips', Route);
+    add(can(a, 'ticket.validate'), 'Operations', 'boarding', 'Boarding', ScanLine);
+    add(can(a, 'route.read'), 'Network', 'routes', 'Routes', Waypoints);
+    add(can(a, 'route.read'), 'Network', 'locations', 'Locations', MapPin);
+    add(can(a, 'fleet.read'), 'Network', 'vehicles', 'Vehicles', Bus);
+    add(can(a, 'fleet.read'), 'Network', 'seat-layouts', 'Seat layouts', Armchair);
+    add(can(a, 'booking.read'), 'Sales', 'bookings', 'Bookings', Ticket);
+    add(can(a, 'payment.manage'), 'Sales', 'payments', 'Payments', Wallet);
+    add(can(a, 'membership.read'), 'People', 'members', 'Staff', Users);
+    add(can(a, 'membership.read'), 'People', 'users', 'Users', UserRound);
+    add(can(a, 'role.read'), 'People', 'roles', 'Roles', KeyRound);
+    add(can(a, 'recruitment.manage'), 'People', 'recruitment', 'Recruitment', UserPlus);
+    add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
+    add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
+    add(can(a, 'audit.read'), 'Insight', 'audit', 'Activity', History);
+    add(can(a, 'tenant.profile.update'), 'Company', 'company', 'Company details', Building2);
+    add(can(a, 'tenant.profile.update'), 'Company', 'branding', 'Branding', Palette);
+    add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
+  }
+  return nav;
+}
+
 /** Loads the caller's role in this company. Navigation is hidden by permission; the API enforces it. */
 export function CompanyLayout() {
   const { tenantId = '' } = useParams();
@@ -99,35 +133,7 @@ export function CompanyLayout() {
   }
   const a = q.data;
   const name = profile.data?.name ?? '';
-  const nav: NavItem[] = [
-    { to: `/c/${tenantId}`, label: 'Overview', end: true, icon: LayoutDashboard },
-  ];
-  if (a.tenantStatus === 'ACTIVE') {
-    const add = (ok: boolean, group: string, path: string, label: string, icon: LucideIcon) => {
-      if (ok) nav.push({ to: `/c/${tenantId}/${path}`, label, icon, group });
-    };
-    // Grouped the way the sidebar shows them: what happens today, the network, sales, people, insight.
-    add(can(a, 'trip.read'), 'Operations', 'dispatch', 'Dispatch', Radio);
-    add(can(a, 'route.read'), 'Operations', 'calendar', 'Calendar', CalendarDays);
-    add(can(a, 'trip.read'), 'Operations', 'trips', 'Trips', Route);
-    add(can(a, 'ticket.validate'), 'Operations', 'boarding', 'Boarding', ScanLine);
-    add(can(a, 'route.read'), 'Network', 'routes', 'Routes', Waypoints);
-    add(can(a, 'route.read'), 'Network', 'locations', 'Locations', MapPin);
-    add(can(a, 'fleet.read'), 'Network', 'vehicles', 'Vehicles', Bus);
-    add(can(a, 'fleet.read'), 'Network', 'seat-layouts', 'Seat layouts', Armchair);
-    add(can(a, 'booking.read'), 'Sales', 'bookings', 'Bookings', Ticket);
-    add(can(a, 'payment.manage'), 'Sales', 'payments', 'Payments', Wallet);
-    add(can(a, 'membership.read'), 'People', 'members', 'Staff', Users);
-    add(can(a, 'membership.read'), 'People', 'users', 'Users', UserRound);
-    add(can(a, 'role.read'), 'People', 'roles', 'Roles', KeyRound);
-    add(can(a, 'hr.read'), 'People', 'staff', 'Employees', IdCard);
-    add(can(a, 'recruitment.manage'), 'People', 'recruitment', 'Recruitment', UserPlus);
-    add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
-    add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
-    add(can(a, 'audit.read'), 'Insight', 'audit', 'Activity', History);
-    add(can(a, 'tenant.profile.update'), 'Company', 'branding', 'Branding', Palette);
-    add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
-  }
+  const nav = companyNav(a, tenantId);
   if ((mine.data?.tenants?.filter((t) => t.membershipStatus === 'ACTIVE').length ?? 0) > 1) {
     nav.push({ to: '/app', label: 'Switch company', icon: ArrowLeft, group: 'Account' });
   }
@@ -172,7 +178,6 @@ export function CompanyOverview() {
               approved.
             </Alert>
           )}
-          {access.tenantStatus === 'ACTIVE' && <CompanyPulse timezone={q.data.timezone} />}
           {access.tenantStatus === 'ACTIVE' && can(access, 'tenant.profile.update') && (
             <ProfileForm profile={q.data} />
           )}
@@ -246,16 +251,6 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
 // ---- Team ------------------------------------------------------------------------------------
 
-interface Member {
-  id: string;
-  userId: string;
-  email: string;
-  displayName: string;
-  status: string;
-  role: { id: string; key: string; name: string };
-  roles: { id: string; key: string; name: string }[];
-  passengerMode: boolean;
-}
 export function StaffPage() {
   const { tenantId, access } = useCompany();
   const { user } = useAuth();
@@ -281,6 +276,7 @@ export function StaffPage() {
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId] });
   const [rolesFor, setRolesFor] = useState<Member | null>(null);
+  const [detailsFor, setDetailsFor] = useState<Member | null>(null);
   const ask = useConfirm();
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/tenants/${tenantId}/memberships/${id}`, { method: 'DELETE' }),
@@ -304,6 +300,14 @@ export function StaffPage() {
           between them, and between those roles and the passenger role.
         </p>
       </div>
+      {can(access, 'hr.manage') && <AddStaffButton onAdded={refresh} />}
+      <StaffDetailsDialog
+        member={detailsFor}
+        onClose={() => setDetailsFor(null)}
+        onChanged={async () => {
+          await refresh();
+        }}
+      />
       {can(access, 'membership.invite') && (
         <InviteForm roles={roles.data?.roles ?? []} onInvited={refresh} />
       )}
@@ -338,10 +342,22 @@ export function StaffPage() {
                   >
                     {x.displayName.slice(0, 1).toUpperCase()}
                   </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{x.displayName}</p>
+                  <button
+                    type="button"
+                    onClick={() => setDetailsFor(x)}
+                    className="min-w-0 text-left"
+                    aria-label={`Details for ${x.displayName}`}
+                  >
+                    <p className="truncate font-semibold text-brand-700 dark:text-brand-500">
+                      {x.displayName}
+                    </p>
                     <p className="truncate text-xs text-slate-600 dark:text-slate-400">{x.email}</p>
-                  </div>
+                    {x.phone && (
+                      <p className="truncate text-xs text-slate-600 dark:text-slate-400">
+                        {x.phone}
+                      </p>
+                    )}
+                  </button>
                 </div>
               ),
             },
@@ -367,45 +383,47 @@ export function StaffPage() {
                 </div>
               ),
             },
-            ...(can(access, 'membership.revoke') || can(access, 'membership.invite')
-              ? [
-                  {
-                    key: 'actions',
-                    header: 'Actions',
-                    kind: 'actions' as const,
-                    cell: (x: Member) =>
-                      x.userId === user?.id ? null : (
-                        <>
-                          {can(access, 'membership.invite') && (
-                            <Button variant="secondary" onClick={() => setRolesFor(x)}>
-                              Roles
-                            </Button>
-                          )}
-                          {can(access, 'membership.revoke') && (
-                            <Button
-                              variant="danger"
-                              loading={revoke.isPending && revoke.variables === x.id}
-                              loadingText="Removing…"
-                              onClick={async () => {
-                                if (
-                                  await ask({
-                                    title: `Remove ${x.displayName}?`,
-                                    message: 'They lose access to this company straight away.',
-                                    confirmLabel: 'Remove',
-                                    danger: true,
-                                  })
-                                )
-                                  revoke.mutate(x.id);
-                              }}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </>
-                      ),
-                  },
-                ]
-              : []),
+            {
+              key: 'actions',
+              header: 'Actions',
+              kind: 'actions' as const,
+              cell: (x: Member) => (
+                <>
+                  <Button variant="secondary" onClick={() => setDetailsFor(x)}>
+                    Details
+                  </Button>
+                  {x.userId === user?.id ? null : (
+                    <>
+                      {can(access, 'membership.invite') && (
+                        <Button variant="secondary" onClick={() => setRolesFor(x)}>
+                          Roles
+                        </Button>
+                      )}
+                      {can(access, 'membership.revoke') && (
+                        <Button
+                          variant="danger"
+                          loading={revoke.isPending && revoke.variables === x.id}
+                          loadingText="Removing…"
+                          onClick={async () => {
+                            if (
+                              await ask({
+                                title: `Remove ${x.displayName}?`,
+                                message: 'They lose access to this company straight away.',
+                                confirmLabel: 'Remove',
+                                danger: true,
+                              })
+                            )
+                              revoke.mutate(x.id);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </>
+              ),
+            },
           ]}
         />
       </Card>

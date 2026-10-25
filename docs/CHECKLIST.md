@@ -309,3 +309,12 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 - [x] Platform console "Email": pick a company (its owner's address is filled in), write a subject and message, attach up to 6 files (images, video, documents, 4 MB in all), send in the system look. Audited as `platform.email_sent` (no message text stored). Only that route accepts a large JSON body.
 - [x] Deleting anything asks for confirmation in a dialog first.
 - [x] PWA: web manifest, 192/512/maskable icons, service worker (pages network-first with an offline page, fingerprinted assets cached, `/api` never cached), install prompt, theme colour.
+
+## Dashboards, staff details, responsive pass
+
+- [x] Every role has a dashboard and it is the start page: `/app/dashboard` (passengers, with next trip and counts), `/c/:id/dashboard` (company roles: today's figures, staff and complaint counts, and tiles for only what the role may open), `/platform/dashboard`. Sign-in, registration, password change and role switching all land there; the old addresses redirect.
+- [x] Employees page removed. Staff (People > Staff) adds people (email, phone, job: they get an account and a welcome email) and opens a details pop-up per person: contact, roles, join date, and the job record (staff number, job, employment status, licence) for HR.
+- [x] Profile: phone number can be entered and saved; it shows in the staff list and details. A new number is unconfirmed until a code is entered at sign-in.
+- [x] Verification-code email is sent in the company's brand and links to the company page.
+- [x] Company colours: a company with only a main colour gets a lighter shade of it as its second colour (sidebar sign-out and picture placeholder), never the system orange.
+- [x] Security page wraps long device names, QR code, code form and recovery codes on small screens; global rules stop text, fields, buttons and media from overflowing; dialogs have a shadow and no border.

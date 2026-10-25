@@ -35,7 +35,15 @@ export function brandStyle(
     v['--brand-800'] = mix(primary, BLACK, 0.42);
     v['--brand-900'] = mix(primary, BLACK, 0.65);
   }
-  if (accent && HEX.test(accent)) {
+  // A company that chose only a main colour gets a lighter shade of it, never the system's orange.
+  const second =
+    accent && HEX.test(accent)
+      ? accent
+      : primary && HEX.test(primary)
+        ? mix(primary, WHITE, 0.3)
+        : null;
+  if (second) {
+    accent = second;
     v['--accent-50'] = mix(accent, WHITE, 0.9);
     v['--accent-100'] = mix(accent, WHITE, 0.78);
     v['--accent-500'] = accent;

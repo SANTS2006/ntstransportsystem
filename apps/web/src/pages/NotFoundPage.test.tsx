@@ -5,15 +5,38 @@ import { Dialog } from '../components/ui/Dialog';
 import NotFoundPage from './NotFoundPage';
 
 describe('not found page', () => {
-  it('offers a way home and a way to sign in', () => {
+  it("the system's page offers only the main sign-in page", () => {
     render(
       <MemoryRouter>
         <NotFoundPage />
       </MemoryRouter>,
     );
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /go to home/i })).toHaveAttribute('href', '/');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
     expect(screen.getByRole('link', { name: /go to login/i })).toHaveAttribute('href', '/login');
+  });
+
+  it("a company's page wears the company and leads only to its own sign-in page", () => {
+    render(
+      <MemoryRouter>
+        <NotFoundPage
+          company={{
+            name: 'Acme Coaches',
+            slug: 'acme',
+            logoUrl: '/api/v1/public/companies/acme/logo?v=1',
+            primaryColor: '#0b6e4f',
+            accentColor: null,
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('img', { name: 'Acme Coaches' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /go to login/i })).toHaveAttribute(
+      'href',
+      '/acme/login',
+    );
+    expect(document.title).toBe('Acme Coaches');
   });
 });
 

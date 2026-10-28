@@ -362,3 +362,7 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 
 - [x] Boarding has "Scan tickets with the camera": the phone or laptop camera reads the ticket's QR code or barcode and the ticket is checked at once (no typing), with a beep and a buzz for the answer. The camera stays on for the next passenger; the same ticket held in view is not sent twice. It uses the browser's own barcode reader where there is one (Chrome on Android) and a bundled reader elsewhere (iPhone, Firefox), loaded only when the camera starts. Camera refused or missing: a clear message, and typing the code still works. USB/Bluetooth scanners still type into the code box.
 - [x] Tickets (page and PDF) carry a barcode (Code 128) of the ticket code beside the QR code; cancelled tickets do not.
+
+## Company 404 pages
+
+- [x] An unknown page under a company's address (`/<company>/anything`) shows that company's own 404: its logo or name, its colours and tab title, and one button, "Go to login", to `/<company>/login`. Any other unknown address shows the system's 404 with one button to the main `/login`.

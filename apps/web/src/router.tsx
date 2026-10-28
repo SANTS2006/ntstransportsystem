@@ -9,6 +9,9 @@ import { PageLoader } from './components/ui/Spinner';
 
 // Route-level code splitting: each area downloads only when visited (low-bandwidth friendly).
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const CompanyNotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.CompanyNotFoundPage })),
+);
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const VerifyEmailPage = lazy(() =>
@@ -326,5 +329,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
   },
+  // An unknown page under a company's address gets that company's own 404.
+  { path: '/:slug/*', element: s(<CompanyNotFoundPage />) },
   { path: '*', element: s(<NotFoundPage />) },
 ]);

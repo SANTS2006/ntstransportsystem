@@ -27,6 +27,12 @@ describe('company addresses', () => {
     expect(where('/acme/change-password').page).toBe('/:slug/change-password');
   });
 
+  it("sends an unknown page under a company's address to that company's 404", () => {
+    expect(where('/acme/no-such-page').page).toBe('/:slug/*');
+    expect(where('/acme/bookings/1/x/y').page).toBe('/:slug/*');
+    expect(where('/a/b/c').page).toBe('/:slug/*');
+  });
+
   it('sends old addresses to the new ones', () => {
     expect(where('/c/11111111/dashboard').layout).toBe('/c/:tenantId/*');
     expect(where('/acme/app/bookings').layout).toBe('/:slug/app/*');

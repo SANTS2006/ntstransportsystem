@@ -11,3 +11,6 @@ apps/api/src/generated
 .test-data*.json
 .dev-storage
 .tmp-dev-storage
+
+# Local database backups (personal data)
+.backups/

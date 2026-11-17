@@ -13,6 +13,7 @@
   "scripts": {
     "dev:api": "npm run dev -w @nts/api",
     "dev:web": "npm run dev -w @nts/web",
+    "dev:site": "npm run dev -w @nts/site",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

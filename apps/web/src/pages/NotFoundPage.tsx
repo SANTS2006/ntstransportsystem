@@ -62,17 +62,26 @@ export default function NotFoundPage({ company }: { company?: Company | null | u
           <h1 className="text-2xl font-bold text-brand-900 dark:text-white">Page not found</h1>
           <p className="text-slate-700 dark:text-slate-300">
             The page you are looking for does not exist, or it has moved.{' '}
-            {company ? `Sign in to ${company.name} to carry on.` : 'Sign in to carry on.'}
+            {company
+              ? `Sign in to ${company.name} to carry on.`
+              : 'Head back to the home page to carry on.'}
           </p>
         </div>
         <div className="flex justify-center">
-          <Link
-            to={company ? `/${company.slug}/login` : '/login'}
-            className={`${linkButton('primary')} w-full sm:w-auto`}
-          >
-            <LogIn aria-hidden="true" className="size-4" strokeWidth={1.8} />
-            Go to login
-          </Link>
+          {company ? (
+            <Link
+              to={`/${company.slug}/login`}
+              className={`${linkButton('primary')} w-full sm:w-auto`}
+            >
+              <LogIn aria-hidden="true" className="size-4" strokeWidth={1.8} />
+              Go to login
+            </Link>
+          ) : (
+            // A full page load: the home page is the public website, outside this app.
+            <a href="/" className={`${linkButton('primary')} w-full sm:w-auto`}>
+              Go to the home page
+            </a>
+          )}
         </div>
       </main>
     </div>

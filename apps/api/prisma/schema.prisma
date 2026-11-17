@@ -1485,3 +1485,36 @@ model StaffDeduction {
   @@index([tenantId, deductionId])
   @@map("staff_deductions")
 }
+
+// ---------------------------------------------------------------------------------------------
+// Messages and demo requests sent from the public website to the platform administrators. Not
+// tenant data: anyone may add one, only platform scope can read or change them.
+
+enum InquiryKind {
+  CONTACT
+  DEMO
+}
+
+enum InquiryStatus {
+  NEW
+  HANDLED
+}
+
+model SiteInquiry {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind      InquiryKind
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  message   String?
+  /// Demo requests: fleet size, preferred date and time, role.
+  details   Json          @default("{}")
+  status    InquiryStatus @default(NEW)
+  handledBy String?       @map("handled_by") @db.Uuid
+  handledAt DateTime?     @map("handled_at") @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("site_inquiries")
+}

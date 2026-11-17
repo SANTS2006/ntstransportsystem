@@ -81,6 +81,8 @@ import type { Db } from './platform/db.js';
 import type { RateLimitStoreFactory } from './platform/redis.js';
 import { healthRouter, type ReadinessCheck } from './modules/health/health.routes.js';
 import { mountWeb } from './web-static.js';
+import { inquiryRouter } from './modules/inquiry/inquiry.routes.js';
+import { InquiryService } from './modules/inquiry/inquiry.service.js';
 import { errorHandler, notFoundHandler, requestId } from './platform/http.js';
 import { mountApiDocs } from './openapi/docs.js';
 import { Router, routesOf, type RouteInfo } from './platform/router.js';
@@ -330,6 +332,14 @@ export function createApp({
     }
     v1.use(salaryRouter({ db, salary: new SalaryService(db) }));
     v1.use(
+      inquiryRouter({
+        db,
+        inquiries: new InquiryService(db, mailer, env.CONTACT_INBOX_EMAIL),
+        env,
+        rateLimitStores,
+      }),
+    );
+    v1.use(
       crewRouter({
         db,
         crew: new CrewService(db, members),
@@ -340,7 +350,7 @@ export function createApp({
   // Further feature modules are mounted here phase by phase.
   if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') mountApiDocs(app, v1);
   app.use('/api/v1', v1);
-  if (env.WEB_DIST_DIR) mountWeb(app, env.WEB_DIST_DIR);
+  if (env.WEB_DIST_DIR) mountWeb(app, env.WEB_DIST_DIR, env.SITE_DIST_DIR);
   // Every registered route with its full path: the API documentation is generated from, and
   // tested against, this table so the two cannot drift apart.
   app.locals.routeTable = [

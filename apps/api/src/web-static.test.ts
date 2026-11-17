@@ -5,7 +5,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadEnv } from './config/env.js';
-import { WEB_CSP, mountWeb } from './web-static.js';
+import { SITE_CSP, WEB_CSP, mountWeb } from './web-static.js';
 
 describe('mountWeb', () => {
   let dir: string;
@@ -112,5 +112,52 @@ describe('Render settings', () => {
         RENDER_EXTERNAL_URL: 'https://x.onrender.com',
       }),
     ).toThrow(/REDIS_URL/);
+  });
+});
+
+describe('mountWeb with the public website', () => {
+  let web: string;
+  let site: string;
+  let app: express.Express;
+
+  beforeAll(() => {
+    web = mkdtempSync(join(tmpdir(), 'nts-web-'));
+    site = mkdtempSync(join(tmpdir(), 'nts-site-'));
+    mkdirSync(join(site, 'site-assets'));
+    writeFileSync(join(web, 'index.html'), '<!doctype html><div id="root"></div>');
+    writeFileSync(join(site, 'index.html'), '<!doctype html><title>Home</title><h1>WEBSITE</h1>');
+    writeFileSync(join(site, 'features.html'), '<!doctype html><h1>FEATURES</h1>');
+    writeFileSync(join(site, 'site-assets', 'main-abc123.js'), 'console.log(1)');
+    app = express();
+    mountWeb(app, web, site);
+    app.use((_req, res) => {
+      res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    });
+  });
+  afterAll(() => {
+    rmSync(web, { recursive: true, force: true });
+    rmSync(site, { recursive: true, force: true });
+  });
+
+  it('makes the website the home page, with its own policy', async () => {
+    const res = await request(app).get('/').expect(200);
+    expect(res.text).toContain('WEBSITE');
+    expect(res.headers['content-security-policy']).toBe(SITE_CSP);
+    const page = await request(app).get('/features.html').expect(200);
+    expect(page.text).toContain('FEATURES');
+    expect(page.headers['content-security-policy']).toBe(SITE_CSP);
+  });
+
+  it('keeps every other address for the web app, including the administrators’ sign-in', async () => {
+    for (const path of ['/platform-admin/login', '/acme/login', '/platform/dashboard']) {
+      const res = await request(app).get(path).expect(200);
+      expect(res.text).toContain('<div id="root">');
+      expect(res.headers['content-security-policy']).toBe(WEB_CSP);
+    }
+  });
+
+  it('caches the website’s fingerprinted files for a year', async () => {
+    const res = await request(app).get('/site-assets/main-abc123.js').expect(200);
+    expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
   });
 });

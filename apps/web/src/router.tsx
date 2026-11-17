@@ -44,6 +44,9 @@ const NotificationsPage = lazy(() =>
 const NotificationDetailPage = lazy(() =>
   import('./pages/app/NotificationPages').then((m) => ({ default: m.NotificationDetailPage })),
 );
+const EnquiriesPage = lazy(() =>
+  import('./pages/platform/EnquiriesPage').then((m) => ({ default: m.EnquiriesPage })),
+);
 const SalariesPage = lazy(() =>
   import('./pages/company/SalaryPages').then((m) => ({ default: m.SalariesPage })),
 );
@@ -190,7 +193,7 @@ const s = (node: ReactNode) => <Suspense fallback={fallback}>{node}</Suspense>;
 /** The bare address goes to the last company this browser used, otherwise to the main sign-in. */
 function RootRedirect() {
   const slug = rememberedCompany();
-  return <Navigate to={slug ? `/${slug}` : '/login'} replace />;
+  return <Navigate to={slug ? `/${slug}` : '/platform-admin/login'} replace />;
 }
 
 export const router = createBrowserRouter([
@@ -209,7 +212,8 @@ export const router = createBrowserRouter([
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: s(<LoginPage />) },
+      { path: '/platform-admin/login', element: s(<LoginPage />) },
+      { path: '/login', element: <Navigate to="/platform-admin/login" replace /> },
       { path: '/change-password', element: s(<ChangePasswordPage />) },
       { path: '/:slug/login', element: s(<LoginPage />) },
       { path: '/:slug/change-password', element: s(<ChangePasswordPage />) },
@@ -220,7 +224,7 @@ export const router = createBrowserRouter([
       { path: '/:slug/verify-email-code', element: s(<VerifyEmailCodePage />) },
       { path: '/:slug/verify-phone', element: s(<VerifyPhonePage />) },
       { path: '/:slug/reset-password-phone', element: s(<ResetPhonePasswordPage />) },
-      { path: '/register', element: <Navigate to="/login" replace /> },
+      { path: '/register', element: <Navigate to="/platform-admin/login" replace /> },
       { path: '/verify-email', element: s(<VerifyEmailPage />) },
       { path: '/verify-email-code', element: s(<VerifyEmailCodePage />) },
       { path: '/forgot-password', element: s(<ForgotPasswordPage />) },
@@ -317,6 +321,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: 'dashboard', element: s(<PlatformOverviewPage />) },
       { path: 'overview', element: <Navigate to="../dashboard" replace /> },
+      { path: 'enquiries', element: s(<EnquiriesPage />) },
       { path: 'notifications', element: s(<NotificationsPage />) },
       { path: 'notifications/:id', element: s(<NotificationDetailPage />) },
       { path: 'companies', element: s(<PlatformTenantsPage />) },

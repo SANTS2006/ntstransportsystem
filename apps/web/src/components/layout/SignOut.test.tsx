@@ -18,7 +18,7 @@ const makeRouter = () =>
         element: <PassengerShell slug="acme" name="Acme" />,
         children: [{ index: true, element: <p>HOME</p> }],
       },
-      { path: '/login', element: <p>LOGIN</p> },
+      { path: '/platform-admin/login', element: <p>LOGIN</p> },
     ],
     { initialEntries: ['/acme'] },
   );

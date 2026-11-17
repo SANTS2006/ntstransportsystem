@@ -31,15 +31,15 @@ function companyOf(user?: Who | null, slug?: string | null): string | null {
 
 /** The sign-in page this person (or this company, when a slug is given) should be sent to. */
 export function signInPath(user?: Who | null, slug?: string | null): string {
-  if (!slug && user?.platformRoles?.length) return '/login';
+  if (!slug && user?.platformRoles?.length) return '/platform-admin/login';
   const s = companyOf(user, slug);
-  return s ? `/${s}/login` : '/login';
+  return s ? `/${s}/login` : '/platform-admin/login';
 }
 
 /** The sign-up page for a company. Without a known company there is none: the main page has no sign-up. */
 export function signUpPath(user?: Who | null, slug?: string | null): string {
   const s = companyOf(user, slug);
-  return s ? `/${s}/register` : '/login';
+  return s ? `/${s}/register` : '/platform-admin/login';
 }
 
 /**
@@ -48,7 +48,7 @@ export function signUpPath(user?: Who | null, slug?: string | null): string {
  */
 export function companyPath(user?: Who | null, sub = ''): string {
   const s = user?.homeCompany?.slug ?? rememberedCompany();
-  return s ? `/${s}${sub}` : '/login';
+  return s ? `/${s}${sub}` : '/platform-admin/login';
 }
 
 import { useParams } from 'react-router';

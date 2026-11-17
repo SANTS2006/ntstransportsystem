@@ -19,6 +19,7 @@ import { requestSchemas as payment } from '../modules/payment/payment.routes.js'
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
 import { requestSchemas as salary } from '../modules/salary/salary.routes.js';
+import { requestSchemas as inquiry } from '../modules/inquiry/inquiry.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
 import { requestSchemas as branding } from '../modules/branding/branding.routes.js';
 import { platformEmailSchema } from '../modules/notifications/platform-email.routes.js';
@@ -1691,6 +1692,32 @@ export const operations: Record<string, Operation> = {
       { name: 'to', description: 'Last day, inclusive (at most 366 days)', format: 'date' },
     ],
     ok: 200,
+  },
+
+  // ---- Website enquiries ----------------------------------------------------------------------
+  'POST /api/v1/public/inquiries': {
+    summary: 'Send a contact message or demo request from the website',
+    description:
+      'Public. Stored for the platform administrators and e-mailed to the company inbox. Rate limited: 4 a minute and 20 an hour per address. A filled "website" field (a trap for robots) is discarded silently.',
+    tag: 'Website',
+    access: 'public',
+    body: inquiry.inquiryBody,
+    ok: 201,
+  },
+  'GET /api/v1/platform/inquiries': {
+    summary: 'List website messages and demo requests',
+    tag: 'Website',
+    access: 'platform',
+    paged: true,
+    query: [{ name: 'status', description: 'Filter by status', enum: ['NEW', 'HANDLED'] }],
+    ok: 200,
+  },
+  'POST /api/v1/platform/inquiries/{id}/handled': {
+    summary: 'Mark an enquiry handled or open again',
+    tag: 'Website',
+    access: 'platform',
+    body: inquiry.handledBody,
+    ok: 204,
   },
 
   // ---- Salaries -------------------------------------------------------------------------------

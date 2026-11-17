@@ -26,6 +26,14 @@ services:
       # The built web app, relative to apps/api (where `npm run start -w @nts/api` runs).
       - key: WEB_DIST_DIR
         value: ../web/dist
+      # The public website (apps/site), served as the home page. Build it with SITE_URL set to the
+      # address it is published at (canonical links, sitemap), e.g. https://ntstransport.onrender.com.
+      - key: SITE_DIST_DIR
+        value: ../site/dist
+      - key: SITE_URL
+        value: https://ntstransport.onrender.com
+      - key: CONTACT_INBOX_EMAIL
+        value: hello@ntsdigitalsolutions.com
       # APP_URL, API_URL and CORS_ORIGINS default to this service's own https URL on Render.
       # Company sign-in links in e-mails (https://<APP_URL>/<company>/login) are built from APP_URL.
 

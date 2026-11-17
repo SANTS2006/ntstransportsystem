@@ -92,7 +92,7 @@ export default function RegisterPage() {
   };
 
   // There is no sign-up on the main page: accounts are made on a company's own page.
-  if (!slug) return <Navigate to="/login" replace />;
+  if (!slug) return <Navigate to="/platform-admin/login" replace />;
   return (
     <AuthCard
       title="Create an account"

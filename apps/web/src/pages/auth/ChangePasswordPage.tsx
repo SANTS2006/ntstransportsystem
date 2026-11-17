@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
     },
   });
   if (loading) return null;
-  if (!user) return <Navigate to={slug ? `/${slug}/login` : '/login'} replace />;
+  if (!user) return <Navigate to={slug ? `/${slug}/login` : '/platform-admin/login'} replace />;
   if (!user.mustChangePassword) return <Navigate to={homePath(user)} replace />;
 
   const submit = (e: FormEvent) => {

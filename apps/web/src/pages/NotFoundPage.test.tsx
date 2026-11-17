@@ -5,7 +5,7 @@ import { Dialog } from '../components/ui/Dialog';
 import NotFoundPage from './NotFoundPage';
 
 describe('not found page', () => {
-  it("the system's page offers only the main sign-in page", () => {
+  it("the system's page offers only the home page", () => {
     render(
       <MemoryRouter>
         <NotFoundPage />
@@ -13,7 +13,7 @@ describe('not found page', () => {
     );
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getAllByRole('link')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: /go to login/i })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /go to the home page/i })).toHaveAttribute('href', '/');
   });
 
   it("a company's page wears the company and leads only to its own sign-in page", () => {

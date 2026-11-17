@@ -88,6 +88,11 @@ const baseSchema = z.object({
   // Serve the built web app (apps/web/dist) from this API process, so one origin hosts both.
   // Relative paths resolve against the working directory. Unset: the API only serves /api and /health.
   WEB_DIST_DIR: z.string().min(1).optional(),
+  // The built public website (apps/site/dist). When set, it is the home page of the system (/) and
+  // its pages (/features.html ...) are served next to the web app. Needs WEB_DIST_DIR as well.
+  SITE_DIST_DIR: z.string().min(1).optional(),
+  // Where a notice of each contact message or demo request from the website is e-mailed.
+  CONTACT_INBOX_EMAIL: z.email().default('hello@ntsdigitalsolutions.com'),
   // TEST DEPLOYMENTS ONLY: allow production mode without Brevo, logging each e-mail (including
   // verification and reset links) instead of sending it. Anyone who can read the logs can use them.
   ALLOW_DEV_MAILER: bool,

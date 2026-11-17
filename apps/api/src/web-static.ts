@@ -24,7 +24,49 @@ export const WEB_CSP = [
   "form-action 'self'",
 ].join('; ');
 
+/** Policy for the public website: its own scripts and styles only, and its forms post to this origin. */
+export const SITE_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
 const isApiPath = (p: string) => /^\/(api|health)(\/|$)/.test(p);
+
+/**
+ * The public website is the home page of the system: "/" and its own pages (/features.html ...),
+ * its fingerprinted files under /site-assets, sitemap.xml and robots.txt. Everything else is the
+ * web app. Company addresses never contain a dot, so the pages cannot be mistaken for one.
+ */
+function mountSite(app: Express, dir: string): void {
+  const root = resolve(dir);
+  const home = resolve(root, 'index.html');
+  if (!existsSync(home)) throw new Error(`SITE_DIST_DIR has no index.html: ${root}`);
+  app.get('/', (_req, res) => {
+    res.setHeader('Content-Security-Policy', SITE_CSP);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(home);
+  });
+  app.use(
+    express.static(root, {
+      index: false,
+      setHeaders(res, file) {
+        if (/\.html$/.test(file)) res.setHeader('Content-Security-Policy', SITE_CSP);
+        res.setHeader(
+          'Cache-Control',
+          /[\\/]site-assets[\\/]/.test(file) ? 'public, max-age=31536000, immutable' : 'no-cache',
+        );
+      },
+    }),
+  );
+}
 
 /**
  * Serves the built web app from this process, so one origin hosts the app and the API (the app
@@ -32,10 +74,12 @@ const isApiPath = (p: string) => /^\/(api|health)(\/|$)/.test(p);
  * no route handled keeps its JSON 404, and a missing file (anything with an extension) is a 404
  * rather than the app shell, so a bad script path cannot be mistaken for HTML.
  */
-export function mountWeb(app: Express, dir: string): void {
+export function mountWeb(app: Express, dir: string, siteDir?: string): void {
   const root = resolve(dir);
   const index = resolve(root, 'index.html');
   if (!existsSync(index)) throw new Error(`WEB_DIST_DIR has no index.html: ${root}`);
+
+  if (siteDir) mountSite(app, siteDir);
 
   app.use(
     express.static(root, {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   Building2,
+  Inbox,
   DatabaseBackup,
   LayoutDashboard,
   Mail,
@@ -50,6 +51,7 @@ export function PlatformLayout() {
       nav={[
         { to: '/platform/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Platform' },
         { to: '/platform/companies', label: 'Companies', icon: Building2, group: 'Platform' },
+        { to: '/platform/enquiries', label: 'Enquiries', icon: Inbox, group: 'Platform' },
         { to: '/platform/email', label: 'Email', icon: Mail, group: 'Platform' },
         { to: '/platform/audit', label: 'Audit log', icon: ScrollText, group: 'Platform' },
         ...(user.platformRoles.includes('SUPER_ADMIN')

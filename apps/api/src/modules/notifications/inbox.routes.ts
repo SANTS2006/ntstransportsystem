@@ -5,7 +5,10 @@ import { Router } from '../../platform/router.js';
 import { requireAuth } from '../authentication/session.middleware.js';
 import type { InboxService } from './inbox.service.js';
 
-const listQuery = z.object({ unread: z.enum(['0', '1']).optional() });
+const listQuery = z.object({
+  unread: z.enum(['0', '1']).optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+});
 
 /** The signed-in user's own in-app notifications. */
 export function inboxRouter({ inbox }: { inbox: InboxService }): ExpressRouter {
@@ -17,11 +20,15 @@ export function inboxRouter({ inbox }: { inbox: InboxService }): ExpressRouter {
   r.get('/me/notifications', requireAuth, async (req, res) => {
     const q = listQuery.parse(req.query);
     res.setHeader('Cache-Control', 'private, no-store');
-    res.json(await inbox.list(userId(req), q.unread === '1'));
+    res.json(await inbox.list(userId(req), q.unread === '1', q.offset));
   });
   r.get('/me/notifications/unread-count', requireAuth, async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
     res.json({ unread: await inbox.unreadCount(userId(req)) });
+  });
+  r.get('/me/notifications/:id', requireAuth, async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json(await inbox.get(userId(req), z.uuid().parse(req.params.id)));
   });
   r.post('/me/notifications/read-all', requireAuth, async (req, res) => {
     res.json({ marked: await inbox.markAllRead(userId(req)) });

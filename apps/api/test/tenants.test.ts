@@ -691,9 +691,9 @@ describe.skipIf(!TEST_DB_URL)('tenants, memberships and RBAC (database)', () => 
       const driver = await addMember(tenant.id, 'driver');
       await driver.call('get', `/tenants/${tenant.id}/memberships`).expect(403);
       await driver
-        .call('post', `/tenants/${tenant.id}/employees`)
+        .call('post', `/tenants/${tenant.id}/staff`)
         .send({
-          employeeNumber: 'E1',
+          staffNumber: 'E1',
           fullName: 'Nope Nope',
           role: 'DRIVER',
           email: 'x@example.test',

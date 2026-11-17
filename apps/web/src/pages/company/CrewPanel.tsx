@@ -11,7 +11,7 @@ const selectClass =
   'min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-900';
 
 interface CrewMember {
-  employeeId: string;
+  staffId: string;
   fullName: string;
   role: string;
 }
@@ -34,7 +34,7 @@ export function CrewPanel({
 }) {
   const { tenantId } = useCompany();
   const qc = useQueryClient();
-  const [employeeId, setEmployeeId] = useState('');
+  const [staffId, setStaffId] = useState('');
   const crew = useQuery({
     queryKey: ['company', tenantId, 'crew', tripId],
     queryFn: ({ signal }) =>
@@ -47,18 +47,18 @@ export function CrewPanel({
       api<{ roster: RosterEntry[] }>(`/tenants/${tenantId}/crew/roster`, { signal }),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['company', tenantId, 'crew', tripId] });
-  const picked = roster.data?.roster.find((r) => r.id === employeeId);
+  const picked = roster.data?.roster.find((r) => r.id === staffId);
   // Don't offer people who are already on this trip.
   const available =
-    roster.data?.roster.filter((r) => !crew.data?.crew.some((c) => c.employeeId === r.id)) ?? [];
+    roster.data?.roster.filter((r) => !crew.data?.crew.some((c) => c.staffId === r.id)) ?? [];
   const assign = useMutation({
     mutationFn: () =>
       api(`/tenants/${tenantId}/trips/${tripId}/crew`, {
         method: 'POST',
-        body: { employeeId, role: picked?.role },
+        body: { staffId, role: picked?.role },
       }),
     onSuccess: async () => {
-      setEmployeeId('');
+      setStaffId('');
       await refresh();
     },
   });
@@ -77,14 +77,14 @@ export function CrewPanel({
       {crew.data?.crew.length === 0 && <p className="text-slate-500">No crew assigned yet.</p>}
       <ul className="space-y-1">
         {crew.data?.crew.map((c) => (
-          <li key={c.employeeId} className="flex items-center justify-between gap-2">
+          <li key={c.staffId} className="flex items-center justify-between gap-2">
             <span>
               {c.fullName} <span className="text-xs text-slate-500">({c.role.toLowerCase()})</span>
             </span>
             {canManage && (
               <Button
                 variant="ghost"
-                loading={release.isPending && release.variables === c.employeeId}
+                loading={release.isPending && release.variables === c.staffId}
                 onClick={async () => {
                   if (
                     await ask({
@@ -94,7 +94,7 @@ export function CrewPanel({
                       danger: true,
                     })
                   )
-                    release.mutate(c.employeeId);
+                    release.mutate(c.staffId);
                 }}
               >
                 Remove
@@ -109,8 +109,8 @@ export function CrewPanel({
             <select
               aria-label="Choose crew member"
               className={selectClass}
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
+              value={staffId}
+              onChange={(e) => setStaffId(e.target.value)}
             >
               <option value="">Choose a person…</option>
               {available.map((r) => (
@@ -120,7 +120,7 @@ export function CrewPanel({
               ))}
             </select>
             <Button
-              disabled={!employeeId}
+              disabled={!staffId}
               loading={assign.isPending}
               loadingText="Assigning…"
               onClick={() => assign.mutate()}

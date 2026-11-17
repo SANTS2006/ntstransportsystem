@@ -43,7 +43,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
   const at = (date: string, hour: number) =>
     new Date(`${date}T${String(hour).padStart(2, '0')}:00:00.000Z`);
 
-  /** Route, vehicles, employees and trips inserted directly, so tests can focus on the rules. */
+  /** Route, vehicles, staffProfiles and trips inserted directly, so tests can focus on the rules. */
   async function kit(tenantId: string) {
     return plat(async (tx) => {
       const locs = await tx.location.createManyAndReturn({
@@ -95,13 +95,13 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         status: 'ACTIVE' | 'TERMINATED' = 'ACTIVE',
       ) => ({
         tenantId,
-        employeeNumber: uniq(n),
+        staffNumber: uniq(n),
         fullName: `${n} Person`,
         role,
         status,
         phone: '+23277000000',
       });
-      const employees = await tx.employee.createManyAndReturn({
+      const staffProfiles = await tx.staffProfile.createManyAndReturn({
         data: [
           emp('driverA', 'DRIVER'),
           emp('driverExpired', 'DRIVER'),
@@ -112,26 +112,26 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         ],
       });
       const [driverA, driverExpired, driverNoLicence, conductorC, mechanicM, driverRace] =
-        employees as unknown as typeof employees;
+        staffProfiles as unknown as typeof staffProfiles;
       await tx.driverLicence.createMany({
         data: [
           {
             tenantId,
-            employeeId: driverA!.id,
+            staffId: driverA!.id,
             licenceNumber: uniq('LIC-A').toUpperCase(),
             category: 'D',
             expiresOn: new Date('2033-01-01'),
           },
           {
             tenantId,
-            employeeId: driverExpired!.id,
+            staffId: driverExpired!.id,
             licenceNumber: uniq('LIC-X').toUpperCase(),
             category: 'D',
             expiresOn: new Date('2031-03-01'),
           }, // expired before the trips
           {
             tenantId,
-            employeeId: driverRace!.id,
+            staffId: driverRace!.id,
             licenceNumber: uniq('LIC-R').toUpperCase(),
             category: 'D',
             expiresOn: new Date('2033-01-01'),
@@ -161,18 +161,18 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
   const crewPath = (tenantId: string, tripId: string) =>
     `/tenants/${tenantId}/trips/${tripId}/crew`;
 
-  describe('employees and licences', () => {
-    it('manages employees with HR permissions and keeps personal data out of the dispatcher roster', async () => {
+  describe('staffProfiles and licences', () => {
+    it('manages staffProfiles with HR permissions and keeps personal data out of the dispatcher roster', async () => {
       const { tenantId, owner } = await company('hr');
       const hr = await member(tenantId, 'hr_manager');
       const dispatcher = await member(tenantId, 'dispatcher');
-      const base = `/tenants/${tenantId}/employees`;
+      const base = `/tenants/${tenantId}/staff`;
       const number = uniq('E');
 
       const created = await hr
         .call('post', base)
         .send({
-          employeeNumber: number,
+          staffNumber: number,
           fullName: 'Aminata Kamara',
           role: 'DRIVER',
           phone: '+23277111222',
@@ -181,16 +181,16 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         .expect(201);
       await hr
         .call('post', base)
-        .send({ employeeNumber: number, fullName: 'Duplicate', role: 'DRIVER' })
+        .send({ staffNumber: number, fullName: 'Duplicate', role: 'DRIVER' })
         .expect(409);
       await hr
         .call('post', base)
-        .send({ employeeNumber: uniq('E'), fullName: 'X', role: 'DRIVER' })
+        .send({ staffNumber: uniq('E'), fullName: 'X', role: 'DRIVER' })
         .expect(400); // name too short
       await hr
         .call('post', base)
         .send({
-          employeeNumber: uniq('E'),
+          staffNumber: uniq('E'),
           fullName: 'Mass Assign',
           role: 'DRIVER',
           tenantId: 'x',
@@ -199,7 +199,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         .expect(400);
       await hr
         .call('post', base)
-        .send({ employeeNumber: uniq('E'), fullName: 'Chris Conductor', role: 'CONDUCTOR' })
+        .send({ staffNumber: uniq('E'), fullName: 'Chris Conductor', role: 'CONDUCTOR' })
         .expect(201);
 
       const lic = `${base}/${created.body.id}/licences`;
@@ -216,13 +216,13 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         .send({ licenceNumber: 'SL-DL-2002', category: 'D', expiresOn: '2033-02-30' })
         .expect(400); // impossible date
       const conductor = (await hr.call('get', `${base}?role=CONDUCTOR`).expect(200)).body
-        .employees[0];
+        .staffProfiles[0];
       await hr
         .call('post', `${base}/${conductor.id}/licences`)
         .send({ licenceNumber: 'SL-DL-3003', category: 'D', expiresOn: '2033-05-01' })
         .expect(409); // only drivers hold licences
 
-      const list = (await hr.call('get', base).expect(200)).body.employees;
+      const list = (await hr.call('get', base).expect(200)).body.staffProfiles;
       expect(list.find((e: { id: string }) => e.id === created.body.id)).toMatchObject({
         phone: '+23277111222',
         licenceExpiresOn: '2033-05-01',
@@ -232,12 +232,12 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
       await dispatcher.call('get', base).expect(403);
       await dispatcher
         .call('post', base)
-        .send({ employeeNumber: uniq('E'), fullName: 'Nope Nope', role: 'DRIVER' })
+        .send({ staffNumber: uniq('E'), fullName: 'Nope Nope', role: 'DRIVER' })
         .expect(403);
       const roster = (await dispatcher.call('get', `/tenants/${tenantId}/crew/roster`).expect(200))
         .body.roster;
       expect(roster.length).toBeGreaterThanOrEqual(2);
-      expect(JSON.stringify(roster)).not.toMatch(/phone|\+2327|hiredOn|employeeNumber/);
+      expect(JSON.stringify(roster)).not.toMatch(/phone|\+2327|hiredOn|staffNumber/);
       void owner;
     });
   });
@@ -246,8 +246,8 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
     it('enforces job role, licence validity, overlap and minimum rest, and releases on cancel', async () => {
       const { tenantId, owner } = await company('crew');
       const k = await kit(tenantId);
-      const assign = (tripId: string, employeeId: string, role: 'DRIVER' | 'CONDUCTOR') =>
-        owner.call('post', crewPath(tenantId, tripId)).send({ employeeId, role });
+      const assign = (tripId: string, staffId: string, role: 'DRIVER' | 'CONDUCTOR') =>
+        owner.call('post', crewPath(tenantId, tripId)).send({ staffId, role });
 
       await assign(k.t1.id, k.driverA.id, 'DRIVER').expect(204); // 08:00-10:00
       await assign(k.t1.id, k.driverA.id, 'DRIVER').expect(409); // already on this trip
@@ -276,7 +276,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
 
       const crew = (await owner.call('get', crewPath(tenantId, k.t4.id)).expect(200)).body.crew;
       expect(crew).toEqual([
-        expect.objectContaining({ employeeId: k.conductorC.id, role: 'CONDUCTOR' }),
+        expect.objectContaining({ staffId: k.conductorC.id, role: 'CONDUCTOR' }),
       ]);
 
       // Releasing frees the slot; cancelling a trip releases its whole crew.
@@ -300,12 +300,12 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         [k.t5, k.t6].map((t) =>
           owner
             .call('post', crewPath(tenantId, t.id))
-            .send({ employeeId: k.driverRace.id, role: 'DRIVER' }),
+            .send({ staffId: k.driverRace.id, role: 'DRIVER' }),
         ),
       );
       expect(results.map((r) => r.status).sort()).toEqual([204, 409]);
       const live = await plat((tx) =>
-        tx.tripCrew.count({ where: { tenantId, employeeId: k.driverRace.id, releasedAt: null } }),
+        tx.tripCrew.count({ where: { tenantId, staffId: k.driverRace.id, releasedAt: null } }),
       );
       expect(live).toBe(1);
     });
@@ -316,23 +316,23 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
       const k = await kit(tenantId);
       await owner
         .call('post', crewPath(tenantId, k.t4.id))
-        .send({ employeeId: k.driverA.id, role: 'DRIVER' })
+        .send({ staffId: k.driverA.id, role: 'DRIVER' })
         .expect(204);
       await hr
-        .call('patch', `/tenants/${tenantId}/employees/${k.driverA.id}`)
+        .call('patch', `/tenants/${tenantId}/staff/${k.driverA.id}`)
         .send({ status: 'TERMINATED' })
         .expect(409);
       await owner.call('delete', `${crewPath(tenantId, k.t4.id)}/${k.driverA.id}`).expect(204);
       await hr
-        .call('patch', `/tenants/${tenantId}/employees/${k.driverA.id}`)
+        .call('patch', `/tenants/${tenantId}/staff/${k.driverA.id}`)
         .send({ status: 'TERMINATED' })
         .expect(204);
       await owner
         .call('post', crewPath(tenantId, k.t4.id))
-        .send({ employeeId: k.driverA.id, role: 'DRIVER' })
+        .send({ staffId: k.driverA.id, role: 'DRIVER' })
         .expect(409); // not active
       await hr
-        .call('patch', `/tenants/${tenantId}/employees/${k.driverA.id}`)
+        .call('patch', `/tenants/${tenantId}/staff/${k.driverA.id}`)
         .send({ status: 'ACTIVE' })
         .expect(409); // no reinstatement
     });
@@ -343,7 +343,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
       await plat((tx) => tx.trip.update({ where: { id: k.t4.id }, data: { status: 'COMPLETED' } }));
       await owner
         .call('post', crewPath(tenantId, k.t4.id))
-        .send({ employeeId: k.driverA.id, role: 'DRIVER' })
+        .send({ staffId: k.driverA.id, role: 'DRIVER' })
         .expect(409);
     });
   });
@@ -467,7 +467,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         .expect(201);
       await plat((tx) =>
         tx.driverLicence.updateMany({
-          where: { tenantId, employeeId: k.driverA.id },
+          where: { tenantId, staffId: k.driverA.id },
           data: { expiresOn: new Date(day(20)) },
         }),
       );
@@ -485,7 +485,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         a.documents.find((d: { referenceNo: string }) => d.referenceNo === 'RL-SOON'),
       ).toMatchObject({ expired: false, daysLeft: expect.any(Number) });
       expect(a.maintenance).toEqual([expect.objectContaining({ overdue: true })]); // the far-future job is outside the window
-      expect(a.licences.map((l: { employee: string }) => l.employee)).toEqual(['driverA Person']);
+      expect(a.licences.map((l: { staff: string }) => l.staff)).toEqual(['driverA Person']);
 
       // Dispatchers (fleet.read, no hr.read) get fleet alerts but no licence data.
       const d = (
@@ -524,20 +524,20 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         })
         .expect(201);
 
-      await b.owner.call('get', `/tenants/${a.tenantId}/employees`).expect(404);
+      await b.owner.call('get', `/tenants/${a.tenantId}/staff`).expect(404);
       await b.owner.call('get', `/tenants/${a.tenantId}/crew/roster`).expect(404);
 
       // B cannot crew its trips with A's people, or touch A's records through B's own scope.
       await b.owner
         .call('post', crewPath(b.tenantId, kb.t4.id))
-        .send({ employeeId: ka.driverA.id, role: 'DRIVER' })
+        .send({ staffId: ka.driverA.id, role: 'DRIVER' })
         .expect(400);
       await b.owner
         .call('post', crewPath(b.tenantId, ka.t4.id))
-        .send({ employeeId: kb.driverA.id, role: 'DRIVER' })
+        .send({ staffId: kb.driverA.id, role: 'DRIVER' })
         .expect(404);
       await b.owner
-        .call('patch', `/tenants/${b.tenantId}/employees/${ka.driverA.id}`)
+        .call('patch', `/tenants/${b.tenantId}/staff/${ka.driverA.id}`)
         .send({ fullName: 'Hijacked Name' })
         .expect(404);
       await b.owner
@@ -561,7 +561,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
         .body.roster;
       expect(bRoster.some((r: { id: string }) => r.id === ka.driverA.id)).toBe(false);
       expect(
-        (await plat((tx) => tx.employee.findFirstOrThrow({ where: { id: ka.driverA.id } })))
+        (await plat((tx) => tx.staffProfile.findFirstOrThrow({ where: { id: ka.driverA.id } })))
           .fullName,
       ).toBe('driverA Person');
     });
@@ -572,11 +572,11 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
       const ka = await kit(a.tenantId);
       const kb = await kit(b.tenantId);
 
-      expect(await withDb(db, {}, (tx) => tx.employee.count())).toBe(0);
+      expect(await withDb(db, {}, (tx) => tx.staffProfile.count())).toBe(0);
       expect(await withDb(db, {}, (tx) => tx.tripCrew.count())).toBe(0);
       expect(await withDb(db, {}, (tx) => tx.maintenanceRecord.count())).toBe(0);
       expect(await withDb(db, {}, (tx) => tx.vehicleDocument.count())).toBe(0);
-      const seen = await withDb(db, { tenantId: a.tenantId }, (tx) => tx.employee.findMany());
+      const seen = await withDb(db, { tenantId: a.tenantId }, (tx) => tx.staffProfile.findMany());
       expect(seen.some((e) => e.tenantId !== a.tenantId)).toBe(false);
 
       // Cross-tenant references fail on the composite foreign keys, even in platform scope.
@@ -587,7 +587,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
               {
                 tenantId: b.tenantId,
                 tripId: kb.t4.id,
-                employeeId: ka.driverA.id,
+                staffId: ka.driverA.id,
                 role: 'DRIVER',
                 startsAt: at('2031-03-11', 8),
                 endsAt: at('2031-03-11', 10),
@@ -619,7 +619,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
             {
               tenantId: a.tenantId,
               tripId: ka.t5.id,
-              employeeId: ka.driverA.id,
+              staffId: ka.driverA.id,
               role: 'DRIVER',
               startsAt: at('2031-03-12', 8),
               endsAt: at('2031-03-12', 10),
@@ -634,7 +634,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
               {
                 tenantId: a.tenantId,
                 tripId: ka.t6.id,
-                employeeId: ka.driverA.id,
+                staffId: ka.driverA.id,
                 role: 'DRIVER',
                 startsAt: at('2031-03-12', 9),
                 endsAt: at('2031-03-12', 11),
@@ -656,7 +656,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
             {
               tenantId: a.tenantId,
               tripId: ka.t6.id,
-              employeeId: ka.driverA.id,
+              staffId: ka.driverA.id,
               role: 'DRIVER',
               startsAt: at('2031-03-12', 9),
               endsAt: at('2031-03-12', 11),
@@ -673,7 +673,7 @@ describe.skipIf(!TEST_DB_URL)('crew, maintenance and fleet alerts (database)', (
               {
                 tenantId: a.tenantId,
                 tripId: ka.t4.id,
-                employeeId: ka.driverRace.id,
+                staffId: ka.driverRace.id,
                 role: 'DRIVER',
                 startsAt: at('2031-03-11', 10),
                 endsAt: at('2031-03-11', 8),

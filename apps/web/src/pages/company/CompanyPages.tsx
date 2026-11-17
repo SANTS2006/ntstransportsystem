@@ -6,7 +6,10 @@ import { useConfirm } from '../../components/ui/Confirm';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Armchair,
+  Banknote,
+  Bell,
   Building2,
+  Coins,
   ArrowLeft,
   BarChart3,
   Bus,
@@ -80,12 +83,16 @@ export function companyNav(a: CompanyAccess): NavItem[] {
     add(can(a, 'membership.read'), 'People', 'users', 'Users', UserRound);
     add(can(a, 'role.read'), 'People', 'roles', 'Roles', KeyRound);
     add(can(a, 'recruitment.manage'), 'People', 'recruitment', 'Recruitment', UserPlus);
+    add(can(a, 'salary.manage'), 'Finance', 'salaries', 'Salaries', Coins);
     add(can(a, 'finance.report.read'), 'Insight', 'reports', 'Reports', BarChart3);
     add(can(a, 'support.manage'), 'Insight', 'complaints', 'Complaints', MessageSquareWarning);
     add(can(a, 'audit.read'), 'Insight', 'audit', 'Activity', History);
     add(can(a, 'tenant.profile.update'), 'Company', 'company', 'Company details', Building2);
     add(can(a, 'tenant.profile.update'), 'Company', 'branding', 'Branding', Palette);
     add(can(a, 'fleet.read'), 'Fleet care', 'maintenance', 'Maintenance', Wrench);
+    // Every role: their own pay, and their notifications.
+    add(true, 'My work', 'my-salary', 'My salary', Banknote);
+    add(true, 'My work', 'notifications', 'Notifications', Bell);
   }
   return nav;
 }

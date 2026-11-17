@@ -12,7 +12,7 @@ const STATUS_TEXT: Record<number, string> = {
 };
 const UNSAFE = new Set(['post', 'put', 'patch', 'delete']);
 const toBraces = (p: string) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
-const UUID_PARAMS = new Set(['tenantId', 'id', 'employeeId']);
+const UUID_PARAMS = new Set(['tenantId', 'id', 'staffId']);
 
 const errorResponse = (description: string): Json => ({
   description,

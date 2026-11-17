@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Bell,
   Building2,
   DatabaseBackup,
   LayoutDashboard,
@@ -55,6 +56,7 @@ export function PlatformLayout() {
           ? [{ to: '/platform/backup', label: 'Backup', icon: DatabaseBackup, group: 'Platform' }]
           : []),
         { to: '/platform/maintenance', label: 'Maintenance', icon: Power, group: 'Platform' },
+        { to: '/platform/notifications', label: 'Notifications', icon: Bell, group: 'Account' },
       ]}
     >
       <Outlet />

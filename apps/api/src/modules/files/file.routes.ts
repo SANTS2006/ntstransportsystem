@@ -17,7 +17,7 @@ import {
   uuidParam,
   type TenantScope,
 } from '../tenants/tenant.guards.js';
-import type { FileService } from './file.service.js';
+import type { ApplicantSlot, FileService } from './file.service.js';
 
 /** The body is the file itself. The type is decided from its bytes later, not from this header. */
 const rawFile = express.raw({
@@ -50,6 +50,21 @@ function bodyOf(req: Request): Buffer {
 const declaredType = (req: Request) => req.header('content-type')?.split(';')[0]?.trim();
 /** Show an image or play audio/video instead of downloading it (the service decides if it may). */
 const wantsInline = (req: Request) => req.query.inline === '1';
+
+/** "licence" or "photo" in the address becomes the kind of upload; anything else is not found. */
+function slotOf(req: Request): ApplicantSlot {
+  const v = z.enum(['licence', 'photo']).safeParse(req.params.slot);
+  if (!v.success) throw AppError.notFound();
+  return { kind: v.data === 'licence' ? 'APPLICATION_LICENCE' : 'APPLICATION_PHOTO' };
+}
+function formSlot(req: Request): ApplicantSlot {
+  const v = z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,39}$/)
+    .safeParse(req.params.fieldId);
+  if (!v.success) throw AppError.notFound();
+  return { kind: 'APPLICATION_FORM_FILE', fieldKey: v.data };
+}
 
 export interface FileRouterDeps {
   db: Db;
@@ -88,6 +103,34 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
     noStore(res);
     res.json(await files.cvLinkForStaff(scope(req), uuidParam(req, 'id'), req.id));
   });
+  t.get('/applications/:id/files/:slot/link', perm('recruitment.manage'), async (req, res) => {
+    noStore(res);
+    res.json(
+      await files.applicantFileLinkForStaff(
+        scope(req),
+        uuidParam(req, 'id'),
+        slotOf(req),
+        wantsInline(req),
+        req.id,
+      ),
+    );
+  });
+  t.get(
+    '/applications/:id/form-files/:fieldId/link',
+    perm('recruitment.manage'),
+    async (req, res) => {
+      noStore(res);
+      res.json(
+        await files.applicantFileLinkForStaff(
+          scope(req),
+          uuidParam(req, 'id'),
+          formSlot(req),
+          wantsInline(req),
+          req.id,
+        ),
+      );
+    },
+  );
   t.get('/complaints/:id/attachments', perm('support.manage'), async (req, res) => {
     noStore(res);
     res.json({
@@ -158,6 +201,43 @@ export function fileRouter({ db, files, env, rateLimitStores }: FileRouterDeps):
     noStore(res);
     res.json(await files.cvLinkForApplicant(userId(req), id(req)));
   });
+  for (const [path, slot] of [
+    ['files/:slot', slotOf],
+    ['form-files/:fieldId', formSlot],
+  ] as const) {
+    r.post(
+      `/applicant/applications/:id/${path}`,
+      requireAuth,
+      limit('applicant-file', 20),
+      rawFile,
+      async (req, res) => {
+        res
+          .status(201)
+          .json(
+            await files.uploadApplicantFile(
+              userId(req),
+              id(req),
+              slot(req),
+              bodyOf(req),
+              nameHeader(req),
+              req.id,
+              declaredType(req),
+            ),
+          );
+      },
+    );
+    r.get(`/applicant/applications/:id/${path}/link`, requireAuth, async (req, res) => {
+      noStore(res);
+      res.json(
+        await files.applicantFileLinkForApplicant(
+          userId(req),
+          id(req),
+          slot(req),
+          wantsInline(req),
+        ),
+      );
+    });
+  }
   r.get('/passenger/complaints/:id/attachments', requireAuth, async (req, res) => {
     noStore(res);
     res.json({

@@ -171,7 +171,9 @@ model Tenant {
   schedules   Schedule[]
   trips       Trip[]
 
-  employees          Employee[]
+  staffProfiles      StaffProfile[]
+  salaryStructures   SalaryStructure[]
+  salaryDeductions   SalaryDeduction[]
   driverLicences     DriverLicence[]
   tripCrew           TripCrew[]
   maintenanceRecords MaintenanceRecord[]
@@ -546,7 +548,7 @@ model Trip {
 // Same rules as slice A: tenant-scoped, RLS, composite (tenant_id, id) FKs.
 // ---------------------------------------------------------------------------------------------
 
-enum EmployeeRole {
+enum StaffJob {
   DRIVER
   CONDUCTOR
   DISPATCHER
@@ -554,7 +556,7 @@ enum EmployeeRole {
   OTHER
 }
 
-enum EmployeeStatus {
+enum StaffStatus {
   ACTIVE
   ON_LEAVE
   TERMINATED
@@ -585,42 +587,46 @@ enum VehicleDocumentKind {
   OTHER
 }
 
-model Employee {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String         @map("tenant_id") @db.Uuid
-  userId         String?        @map("user_id") @db.Uuid // optional link to a platform account
-  employeeNumber String         @map("employee_number")
-  fullName       String         @map("full_name")
-  role           EmployeeRole
-  status         EmployeeStatus @default(ACTIVE)
-  phone          String?
-  hiredOn        DateTime?      @map("hired_on") @db.Date
-  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+model StaffProfile {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  userId      String?     @map("user_id") @db.Uuid // optional link to a platform account
+  staffNumber String      @map("staff_number")
+  fullName    String      @map("full_name")
+  role        StaffJob
+  status      StaffStatus @default(ACTIVE)
+  phone       String?
+  hiredOn     DateTime?   @map("hired_on") @db.Date
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  licences DriverLicence[]
-  crew     TripCrew[]
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  licences   DriverLicence[]
+  crew       TripCrew[]
+  salary     StaffSalary?
+  deductions StaffDeduction[]
+  /// Terms of employment given when an applicant is hired (title, type, start date, ...).
+  employment Json?
 
-  @@unique([tenantId, employeeNumber])
+  @@unique([tenantId, staffNumber])
   @@unique([tenantId, id])
-  @@map("employees")
+  @@map("staff_profiles")
 }
 
 model DriverLicence {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String   @map("tenant_id") @db.Uuid
-  employeeId    String   @map("employee_id") @db.Uuid
+  staffId       String   @map("staff_id") @db.Uuid
   licenceNumber String   @map("licence_number")
   category      String
   expiresOn     DateTime @map("expires_on") @db.Date
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  StaffProfile @relation(fields: [tenantId, staffId], references: [tenantId, id], onDelete: Cascade)
 
   @@unique([tenantId, licenceNumber])
-  @@index([tenantId, employeeId])
+  @@index([tenantId, staffId])
   @@map("driver_licences")
 }
 
@@ -628,7 +634,7 @@ model TripCrew {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId   String    @map("tenant_id") @db.Uuid
   tripId     String    @map("trip_id") @db.Uuid
-  employeeId String    @map("employee_id") @db.Uuid
+  staffId    String    @map("staff_id") @db.Uuid
   role       CrewRole
   // The trip's time window, copied at assignment so the database can forbid overlapping duty.
   startsAt   DateTime  @map("starts_at") @db.Timestamptz(6)
@@ -636,12 +642,12 @@ model TripCrew {
   releasedAt DateTime? @map("released_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  trip     Trip     @relation(fields: [tenantId, tripId], references: [tenantId, id], onDelete: Cascade)
-  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id])
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip   Trip         @relation(fields: [tenantId, tripId], references: [tenantId, id], onDelete: Cascade)
+  staff  StaffProfile @relation(fields: [tenantId, staffId], references: [tenantId, id])
 
   @@index([tenantId, tripId])
-  @@index([tenantId, employeeId])
+  @@index([tenantId, staffId])
   @@map("trip_crew")
 }
 
@@ -1140,17 +1146,20 @@ enum ApplicationStatus {
 }
 
 model JobPosting {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String       @map("tenant_id") @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
   title       String
-  jobRole     EmployeeRole @map("job_role")
+  /// The company role (roles.key) the posting recruits for; never the owner role.
+  roleKey     String?   @map("role_key")
+  /// The extra questions the company built for this posting's application form.
+  formFields  Json      @default("[]") @map("form_fields")
   description String
   location    String?
-  status      JobStatus    @default(DRAFT)
-  closesOn    DateTime?    @map("closes_on") @db.Date
-  createdBy   String?      @map("created_by") @db.Uuid
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status      JobStatus @default(DRAFT)
+  closesOn    DateTime? @map("closes_on") @db.Date
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   applications JobApplication[]
@@ -1162,18 +1171,21 @@ model JobPosting {
 
 /// A signed-in person's application to one posting (one per person per posting).
 model JobApplication {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String            @map("tenant_id") @db.Uuid
-  jobId         String            @map("job_id") @db.Uuid
-  userId        String            @map("user_id") @db.Uuid
-  fullName      String            @map("full_name")
-  phone         String
-  experience    String
-  licenceNumber String?           @map("licence_number")
-  status        ApplicationStatus @default(SUBMITTED)
-  employeeId    String?           @map("employee_id") @db.Uuid
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  jobId           String            @map("job_id") @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  fullName        String            @map("full_name")
+  phone           String
+  experience      String
+  licenceNumber   String?           @map("licence_number")
+  yearsExperience Int               @default(0) @map("years_experience")
+  formAnswers     Json              @default("{}") @map("form_answers")
+  interview       Json?
+  status          ApplicationStatus @default(SUBMITTED)
+  staffId         String?           @map("staff_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   job    JobPosting         @relation(fields: [tenantId, jobId], references: [tenantId, id], onDelete: Cascade)
@@ -1211,6 +1223,9 @@ model ApplicationEvent {
 enum FileKind {
   APPLICATION_CV
   COMPLAINT_ATTACHMENT
+  APPLICATION_LICENCE
+  APPLICATION_PHOTO
+  APPLICATION_FORM_FILE
 }
 
 model StoredFile {
@@ -1218,6 +1233,8 @@ model StoredFile {
   tenantId    String    @map("tenant_id") @db.Uuid
   kind        FileKind
   ownerId     String    @map("owner_id") @db.Uuid // the application or complaint it belongs to
+  /// Which custom form field an APPLICATION_FORM_FILE answers.
+  fieldKey    String?   @map("field_key")
   objectKey   String    @unique @map("object_key")
   contentType String    @map("content_type")
   sizeBytes   Int       @map("size_bytes")
@@ -1380,4 +1397,91 @@ model MembershipRole {
   @@index([tenantId])
   @@index([roleId])
   @@map("membership_roles")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Salaries: structures (base pay + allowances) and deductions, assigned to staff profiles. All
+// amounts are whole minor units of the company currency; percentage deductions are in basis
+// points of gross pay.
+
+enum DeductionKind {
+  FIXED
+  PERCENT
+}
+
+model SalaryStructure {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  baseMinor   Int      @map("base_minor")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  allowances  SalaryAllowance[]
+  assignments StaffSalary[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, name])
+  @@map("salary_structures")
+}
+
+model SalaryAllowance {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  structureId String @map("structure_id") @db.Uuid
+  name        String
+  amountMinor Int    @map("amount_minor")
+
+  structure SalaryStructure @relation(fields: [tenantId, structureId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, structureId])
+  @@map("salary_allowances")
+}
+
+model SalaryDeduction {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  name        String
+  kind        DeductionKind
+  /// FIXED: minor units. PERCENT: basis points (100 = 1%) of gross pay.
+  value       Int
+  description String?
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments StaffDeduction[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, name])
+  @@map("salary_deductions")
+}
+
+model StaffSalary {
+  tenantId    String   @map("tenant_id") @db.Uuid
+  staffId     String   @map("staff_id") @db.Uuid
+  structureId String   @map("structure_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  staff     StaffProfile    @relation(fields: [tenantId, staffId], references: [tenantId, id], onDelete: Cascade)
+  structure SalaryStructure @relation(fields: [tenantId, structureId], references: [tenantId, id])
+
+  @@id([tenantId, staffId])
+  @@index([tenantId, structureId])
+  @@map("staff_salaries")
+}
+
+model StaffDeduction {
+  tenantId    String   @map("tenant_id") @db.Uuid
+  staffId     String   @map("staff_id") @db.Uuid
+  deductionId String   @map("deduction_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  staff     StaffProfile    @relation(fields: [tenantId, staffId], references: [tenantId, id], onDelete: Cascade)
+  deduction SalaryDeduction @relation(fields: [tenantId, deductionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([staffId, deductionId])
+  @@index([tenantId, deductionId])
+  @@map("staff_deductions")
 }

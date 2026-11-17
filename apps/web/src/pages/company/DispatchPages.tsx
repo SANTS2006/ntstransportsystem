@@ -46,7 +46,7 @@ interface BoardTrip {
   status: string;
   delayMinutes: number;
   vehicle: { id: string; registration: string; seats: number } | null;
-  crew: { employeeId: string; fullName: string; role: string }[];
+  crew: { staffId: string; fullName: string; role: string }[];
   flags: string[];
 }
 interface Board {

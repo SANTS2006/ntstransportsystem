@@ -17,53 +17,60 @@ import {
   type TenantScope,
 } from '../tenants/tenant.guards.js';
 import { pageQuery } from '../tenants/tenant.routes.js';
-import type { RecruitmentService } from './recruitment.service.js';
+import { formFieldsSchema } from './form-fields.js';
+import { SIMPLE_TRANSITIONS, type RecruitmentService } from './recruitment.service.js';
 
 const trim = z.string().trim();
 const today = () => new Date().toISOString().slice(0, 10);
-const futureDate = z
-  .string()
-  .refine((v) => {
-    try {
-      parseDate(v);
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'Use a valid YYYY-MM-DD date')
-  .refine((v) => v >= today(), 'The closing date cannot be in the past');
-const jobRole = z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']);
+const validDate = (v: string) => {
+  try {
+    parseDate(v);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const dateStr = z.string().refine(validDate, 'Use a valid YYYY-MM-DD date');
+const futureDate = dateStr.refine((v) => v >= today(), 'The closing date cannot be in the past');
+const roleKey = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, 'Choose a role');
 
 const jobBase = z.object({
   title: trim.min(3).max(120),
-  jobRole,
+  roleKey,
   description: trim.min(20).max(8000),
   location: trim.min(2).max(120).optional(),
   closesOn: futureDate.optional(),
+  formFields: formFieldsSchema.optional(),
 });
 const jobCreate = jobBase.strict();
 const jobPatch = jobBase.partial().strict();
 const statusBody = z
   .object({
-    status: z.enum(['SHORTLISTED', 'INTERVIEW', 'OFFERED', 'REJECTED']),
+    status: z.enum(SIMPLE_TRANSITIONS),
     note: trim.min(1).max(2000).optional(),
   })
   .strict();
 const noteBody = z.object({ note: trim.min(1).max(2000) }).strict();
+const interviewBody = z
+  .object({
+    date: dateStr,
+    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a valid HH:MM time'),
+    mode: z.enum(['IN_PERSON', 'PHONE', 'VIDEO']),
+    location: trim.min(2).max(300),
+    contactPerson: trim.min(2).max(120).optional(),
+    contactPhone: trim.min(5).max(30).optional(),
+    instructions: trim.min(1).max(2000).optional(),
+  })
+  .strict();
 const hireBody = z
   .object({
-    employeeNumber: trim.min(1).max(40),
-    hiredOn: z
-      .string()
-      .refine((v) => {
-        try {
-          parseDate(v);
-          return true;
-        } catch {
-          return false;
-        }
-      }, 'Use a valid YYYY-MM-DD date')
-      .optional(),
+    staffNumber: trim.min(1).max(30),
+    jobTitle: trim.min(2).max(120),
+    employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'TEMPORARY']),
+    startDate: dateStr,
+    reportingTo: trim.min(2).max(120).optional(),
+    workLocation: trim.min(2).max(200).optional(),
+    notes: trim.min(1).max(2000).optional(),
   })
   .strict();
 const applyBody = z
@@ -71,9 +78,14 @@ const applyBody = z
     tenantId: z.uuid(),
     jobId: z.uuid(),
     fullName: trim.min(2).max(120),
-    phone: trim.regex(/^\+?[0-9 ()-]{6,20}$/, 'Enter a valid phone number'),
+    phoneNumber: trim.regex(/^\+?[0-9 ()-]{6,20}$/, 'Enter a valid phone number'),
+    yearsExperience: z.number().int().min(0).max(70),
     experience: trim.min(10).max(4000),
     licenceNumber: trim.min(3).max(40).optional(),
+    /** Answers to the posting's own questions, by field key (files are uploaded afterwards). */
+    answers: z
+      .record(z.string().max(40), z.union([z.string().max(4000), z.number(), z.boolean()]))
+      .optional(),
   })
   .strict();
 const listQuery = z.object({
@@ -82,7 +94,7 @@ const listQuery = z.object({
 const appQuery = z.object({
   jobId: z.uuid().optional(),
   status: z
-    .enum(['SUBMITTED', 'SHORTLISTED', 'INTERVIEW', 'OFFERED', 'HIRED', 'REJECTED', 'WITHDRAWN'])
+    .enum(['SUBMITTED', 'SHORTLISTED', 'INTERVIEW', 'HIRED', 'REJECTED', 'WITHDRAWN'])
     .optional(),
 });
 
@@ -126,6 +138,10 @@ export function recruitmentRouter({
   const noStore = (res: Response) => res.setHeader('Cache-Control', 'private, no-store');
   const hr = perm('recruitment.manage');
 
+  // The roles a posting can recruit for: everything registered in the company except the owner.
+  t.get('/jobs/roles', hr, async (req, res) => {
+    res.json({ roles: await recruitment.listRoles(scope(req)) });
+  });
   t.get('/jobs', hr, async (req, res) => {
     res.json({
       jobs: await recruitment.listJobs(
@@ -177,8 +193,19 @@ export function recruitmentRouter({
   });
   t.post('/applications/:id/status', hr, async (req, res) => {
     const b = statusBody.parse(req.body);
-    await recruitment.transition(scope(req), uuidParam(req, 'id'), b.status, b.note, req.id);
-    res.status(204).end();
+    res.json(
+      await recruitment.transition(scope(req), uuidParam(req, 'id'), b.status, b.note, req.id),
+    );
+  });
+  t.post('/applications/:id/interview', hr, async (req, res) => {
+    res.json(
+      await recruitment.invite(
+        scope(req),
+        uuidParam(req, 'id'),
+        interviewBody.parse(req.body),
+        req.id,
+      ),
+    );
   });
   t.post('/applications/:id/notes', hr, async (req, res) => {
     await recruitment.addNote(
@@ -230,4 +257,12 @@ export function recruitmentRouter({
   return r;
 }
 
-export const requestSchemas = { jobCreate, jobPatch, statusBody, noteBody, hireBody, applyBody };
+export const requestSchemas = {
+  jobCreate,
+  jobPatch,
+  statusBody,
+  noteBody,
+  interviewBody,
+  hireBody,
+  applyBody,
+};

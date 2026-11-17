@@ -72,27 +72,28 @@ export class MembershipService {
       }),
     );
     // HR details (staff number, job, licence) only for people who may see them.
-    const employees = s.permissions.has('hr.read')
+    const staffProfiles = s.permissions.has('hr.read')
       ? await withDb(this.db, this.ctx(s), (tx) =>
-          tx.employee.findMany({
+          tx.staffProfile.findMany({
             where: { tenantId: s.tenantId, userId: { in: rows.map((m) => m.userId) } },
             include: { licences: { select: { expiresOn: true } } },
           }),
         )
       : [];
-    const byUser = new Map(employees.map((e) => [e.userId, e]));
+    const byUser = new Map(staffProfiles.map((e) => [e.userId, e]));
     return rows.map((m) => ({
       id: m.id,
       userId: m.userId,
       email: m.user.email,
       phone: m.user.phone,
-      employee: byUser.get(m.userId)
+      staff: byUser.get(m.userId)
         ? {
             id: byUser.get(m.userId)!.id,
-            employeeNumber: byUser.get(m.userId)!.employeeNumber,
+            staffNumber: byUser.get(m.userId)!.staffNumber,
             job: byUser.get(m.userId)!.role,
             status: byUser.get(m.userId)!.status,
             hiredOn: byUser.get(m.userId)!.hiredOn?.toISOString().slice(0, 10) ?? null,
+            employment: byUser.get(m.userId)!.employment ?? null,
             licenceExpiresOn:
               byUser
                 .get(m.userId)!
@@ -188,7 +189,7 @@ export class MembershipService {
   }
 
   /**
-   * Gives a newly added employee a sign-in: a new account with a random first password (changed at
+   * Gives a newly added staff a sign-in: a new account with a random first password (changed at
    * first sign-in) or, when the e-mail already has one, a membership on that account. The person is
    * e-mailed their details and the company's sign-in address. Returns the account's id.
    */
@@ -198,7 +199,7 @@ export class MembershipService {
       email: string;
       name: string;
       phone?: string | undefined;
-      employeeNumber: string;
+      staffNumber: string;
       job: string;
       roleKey: string;
     },
@@ -267,7 +268,7 @@ export class MembershipService {
         name: input.name,
         email,
         phone: input.phone ?? '',
-        employeeNumber: input.employeeNumber,
+        staffNumber: input.staffNumber,
         job: input.job,
         password: out.newAccount ? password : '',
         link: `${this.appUrl.replace(/\/$/, '')}/${out.slug}/login`,

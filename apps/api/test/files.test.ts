@@ -69,7 +69,7 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
         .call('post', `/tenants/${c.tenantId}/jobs`)
         .send({
           title: 'Coach driver',
-          jobRole: 'DRIVER',
+          roleKey: 'driver',
           description: 'Drive our coaches on long routes. Experience needed.',
         })
         .expect(201)
@@ -83,7 +83,8 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
           tenantId: c.tenantId,
           jobId: job.id,
           fullName: 'Sia Kamara',
-          phone: '+23277111222',
+          phoneNumber: '+23277111222',
+          yearsExperience: 6,
           experience: 'Six years driving coaches across the country.',
         })
         .expect(201)
@@ -106,6 +107,34 @@ describe.skipIf(!TEST_DB_URL)('file uploads (database, in-memory storage)', () =
       .set('Content-Type', 'application/pdf')
       .send(PDF())
       .expect(404); // not mounted
+  }, 300_000);
+
+  it('stores the licence photo and the picture as pictures only, one live file each, visible to HR', async () => {
+    const k = await applicationSetup('fl-slots');
+    const base = `/applicant/applications/${k.appId}`;
+    const hrBase = `/tenants/${k.tenantId}/applications/${k.appId}`;
+
+    // Pictures only: a PDF is refused, and so is anything that is not one of the two slots.
+    await upload(k.applicant, `${base}/files/photo`, PDF()).expect(415);
+    await upload(k.applicant, `${base}/files/passport`, PNG, 'image/png').expect(404);
+    const other = await newClient(ctx.app, db, 'fl-slots-other');
+    await upload(other, `${base}/files/photo`, PNG, 'image/png').expect(404);
+
+    await upload(k.applicant, `${base}/files/photo`, PNG, 'image/png').expect(201);
+    await upload(k.applicant, `${base}/files/licence`, PNG, 'image/png').expect(201);
+    await upload(k.applicant, `${base}/files/licence`, PNG, 'image/png').expect(201); // replaces
+    const live = await plat((tx) =>
+      tx.storedFile.findMany({ where: { ownerId: k.appId, deletedAt: null } }),
+    );
+    expect(live.map((f) => f.kind).sort()).toEqual(['APPLICATION_LICENCE', 'APPLICATION_PHOTO']);
+
+    // HR sees both on the application and can open them; others cannot.
+    const seen = (await k.hr.call('get', hrBase).expect(200)).body;
+    expect(seen.photo).toBeTruthy();
+    expect(seen.licencePhoto).toBeTruthy();
+    await k.hr.call('get', `${hrBase}/files/photo/link?inline=1`).expect(200);
+    await k.hr.call('get', `${hrBase}/files/licence/link`).expect(200);
+    await other.call('get', `${base}/files/photo/link`).expect(404);
   }, 300_000);
 
   it('stores a CV by its real type, shows it only to the applicant and HR, and replaces it cleanly', async () => {

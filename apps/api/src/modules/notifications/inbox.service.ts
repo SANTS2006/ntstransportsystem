@@ -11,19 +11,21 @@ const PAGE = 30;
 export class InboxService {
   constructor(private readonly db: Db) {}
 
-  async list(userId: string, unreadOnly: boolean) {
+  async list(userId: string, unreadOnly: boolean, offset = 0) {
     return withDb(this.db, { platform: true }, async (tx) => {
       const [unread, rows] = await Promise.all([
         tx.inboxNotification.count({ where: { userId, readAt: null } }),
         tx.inboxNotification.findMany({
           where: { userId, ...(unreadOnly ? { readAt: null } : {}) },
           orderBy: { createdAt: 'desc' },
-          take: PAGE,
+          skip: offset,
+          take: PAGE + 1,
         }),
       ]);
       return {
         unread,
-        items: rows.map((n) => ({
+        hasMore: rows.length > PAGE,
+        items: rows.slice(0, PAGE).map((n) => ({
           id: n.id,
           title: n.title,
           body: n.body,
@@ -31,6 +33,27 @@ export class InboxService {
           createdAt: n.createdAt.toISOString(),
           read: n.readAt !== null,
         })),
+      };
+    });
+  }
+
+  /** One notification with its full text and the company it came from (the caller's own only). */
+  async get(userId: string, id: string) {
+    return withDb(this.db, { platform: true }, async (tx) => {
+      const n = await tx.inboxNotification.findFirst({
+        where: { id, userId },
+        include: { tenant: { select: { name: true } } },
+      });
+      if (!n) throw AppError.notFound();
+      return {
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        link: n.link,
+        company: n.tenant.name,
+        kind: n.template,
+        createdAt: n.createdAt.toISOString(),
+        read: n.readAt !== null,
       };
     });
   }

@@ -7,39 +7,39 @@ import type { Page } from '../catalog/catalog.service.js';
 import type { TenantScope } from '../tenants/tenant.guards.js';
 import type { MembershipService } from '../tenants/membership.service.js';
 
-const JOB_LABEL: Record<EmployeeRole, string> = {
+const JOB_LABEL: Record<StaffJob, string> = {
   DRIVER: 'Driver',
   CONDUCTOR: 'Conductor',
   DISPATCHER: 'Dispatcher',
   MECHANIC: 'Mechanic',
   OTHER: 'Staff',
 };
-const JOB_OF_ROLE: Record<string, EmployeeRole> = { driver: 'DRIVER', dispatcher: 'DISPATCHER' };
+const JOB_OF_ROLE: Record<string, StaffJob> = { driver: 'DRIVER', dispatcher: 'DISPATCHER' };
 /** The company role a job gets when none is chosen. Other jobs need the role to be chosen. */
-const ROLE_KEY: Partial<Record<EmployeeRole, string>> = {
+const ROLE_KEY: Partial<Record<StaffJob, string>> = {
   DRIVER: 'driver',
   CONDUCTOR: 'driver',
   DISPATCHER: 'dispatcher',
 };
 
-type EmployeeRole = 'DRIVER' | 'CONDUCTOR' | 'DISPATCHER' | 'MECHANIC' | 'OTHER';
-type EmployeeStatus = 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED';
+type StaffJob = 'DRIVER' | 'CONDUCTOR' | 'DISPATCHER' | 'MECHANIC' | 'OTHER';
+type StaffStatus = 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED';
 type CrewRole = 'DRIVER' | 'CONDUCTOR';
 
-export interface EmployeeInput {
-  employeeNumber: string;
+export interface StaffInput {
+  staffNumber: string;
   fullName: string;
-  role?: EmployeeRole | undefined;
+  role?: StaffJob | undefined;
   roleKey?: string | undefined;
   phone?: string | undefined;
   /** When given, the person gets a sign-in and a welcome e-mail. */
   email?: string | undefined;
   hiredOn?: string | undefined;
 }
-export interface EmployeePatch {
+export interface StaffPatch {
   fullName?: string | undefined;
-  role?: EmployeeRole | undefined;
-  status?: EmployeeStatus | undefined;
+  role?: StaffJob | undefined;
+  status?: StaffStatus | undefined;
   phone?: string | undefined;
 }
 
@@ -75,19 +75,19 @@ export class CrewService {
     });
   }
 
-  // ---- Employees (HR-restricted) -----------------------------------------------------------
+  // ---- Staff (HR-restricted) -----------------------------------------------------------
 
-  async listEmployees(
+  async listStaff(
     s: TenantScope,
     page: Page,
     filter: {
-      role?: EmployeeRole | undefined;
-      status?: EmployeeStatus | undefined;
+      role?: StaffJob | undefined;
+      status?: StaffStatus | undefined;
       q?: string | undefined;
     } = {},
   ) {
     const rows = await withDb(this.db, ctxOf(s), (tx) =>
-      tx.employee.findMany({
+      tx.staffProfile.findMany({
         where: {
           tenantId: s.tenantId,
           ...(filter.role ? { role: filter.role } : {}),
@@ -102,7 +102,7 @@ export class CrewService {
     );
     return rows.map((e) => ({
       id: e.id,
-      employeeNumber: e.employeeNumber,
+      staffNumber: e.staffNumber,
       fullName: e.fullName,
       role: e.role,
       status: e.status,
@@ -120,7 +120,7 @@ export class CrewService {
    */
   async roster(s: TenantScope) {
     const rows = await withDb(this.db, ctxOf(s), (tx) =>
-      tx.employee.findMany({
+      tx.staffProfile.findMany({
         where: { tenantId: s.tenantId, status: 'ACTIVE', role: { in: ['DRIVER', 'CONDUCTOR'] } },
         include: { licences: { select: { expiresOn: true } } },
         orderBy: { fullName: 'asc' },
@@ -137,14 +137,14 @@ export class CrewService {
     }));
   }
 
-  async createEmployee(s: TenantScope, input: EmployeeInput, requestId?: string) {
-    const job: EmployeeRole =
+  async createStaff(s: TenantScope, input: StaffInput, requestId?: string) {
+    const job: StaffJob =
       input.role ?? (input.roleKey ? (JOB_OF_ROLE[input.roleKey] ?? 'OTHER') : 'OTHER');
     const roleKey = input.roleKey ?? ROLE_KEY[job];
     if (input.email && !roleKey) {
       throw AppError.validation('Choose the role this person signs in with');
     }
-    const created = await this.insertEmployee(s, { ...input, role: job }, requestId);
+    const created = await this.insertStaff(s, { ...input, role: job }, requestId);
     if (!input.email || !this.staff) return created;
     try {
       const { userId } = await this.staff.provisionStaff(
@@ -153,80 +153,76 @@ export class CrewService {
           email: input.email,
           name: input.fullName.trim(),
           phone: input.phone,
-          employeeNumber: input.employeeNumber.trim(),
+          staffNumber: input.staffNumber.trim(),
           job: JOB_LABEL[job],
           roleKey: roleKey!,
         },
         requestId,
       );
       await withDb(this.db, ctxOf(s), (tx) =>
-        tx.employee.update({ where: { id: created.id }, data: { userId } }),
+        tx.staffProfile.update({ where: { id: created.id }, data: { userId } }),
       );
     } catch (err) {
       // No half-added person: the record goes if the account could not be made.
-      await withDb(this.db, ctxOf(s), (tx) => tx.employee.delete({ where: { id: created.id } }));
+      await withDb(this.db, ctxOf(s), (tx) =>
+        tx.staffProfile.delete({ where: { id: created.id } }),
+      );
       throw err;
     }
     return created;
   }
 
-  private insertEmployee(
-    s: TenantScope,
-    input: EmployeeInput & { role: EmployeeRole },
-    requestId?: string,
-  ) {
+  private insertStaff(s: TenantScope, input: StaffInput & { role: StaffJob }, requestId?: string) {
     return mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {
-          const e = await tx.employee.create({
+          const e = await tx.staffProfile.create({
             data: {
               tenantId: s.tenantId,
-              employeeNumber: input.employeeNumber.trim(),
+              staffNumber: input.staffNumber.trim(),
               fullName: input.fullName.trim(),
               role: input.role,
               phone: input.phone ?? null,
               hiredOn: input.hiredOn ? dateOnly(input.hiredOn) : null,
             },
           });
-          await this.audit(tx, s, 'hr.employee_created', 'employee', e.id, requestId, {
+          await this.audit(tx, s, 'hr.staff_created', 'staff', e.id, requestId, {
             role: e.role,
           });
           return {
             id: e.id,
-            employeeNumber: e.employeeNumber,
+            staffNumber: e.staffNumber,
             fullName: e.fullName,
             role: e.role,
             status: e.status,
           };
         }),
       {
-        unique: 'An employee with this number already exists',
-        check: 'Name or employee number is out of range',
+        unique: 'An staff with this number already exists',
+        check: 'Name or staff number is out of range',
       },
     );
   }
 
   /** Terminating or suspending someone with upcoming crew duty is refused until they are replaced. */
-  async updateEmployee(s: TenantScope, id: string, patch: EmployeePatch, requestId?: string) {
+  async updateStaff(s: TenantScope, id: string, patch: StaffPatch, requestId?: string) {
     await mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {
-          const e = await tx.employee.findFirst({ where: { id, tenantId: s.tenantId } });
+          const e = await tx.staffProfile.findFirst({ where: { id, tenantId: s.tenantId } });
           if (!e) throw AppError.notFound();
           if (
             e.status === 'TERMINATED' &&
             patch.status !== undefined &&
             patch.status !== 'TERMINATED'
           ) {
-            throw AppError.conflict(
-              'A terminated employee cannot be reinstated; create a new record',
-            );
+            throw AppError.conflict('A terminated staff cannot be reinstated; create a new record');
           }
           if (patch.status && patch.status !== 'ACTIVE' && e.status === 'ACTIVE') {
             const upcoming = await tx.tripCrew.count({
               where: {
                 tenantId: s.tenantId,
-                employeeId: id,
+                staffId: id,
                 releasedAt: null,
                 endsAt: { gt: new Date() },
               },
@@ -238,7 +234,7 @@ export class CrewService {
           }
           const data = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
           if (Object.keys(data).length === 0) throw AppError.validation('Nothing to update');
-          await tx.employee.update({ where: { id }, data });
+          await tx.staffProfile.update({ where: { id }, data });
           // A person who has left the company can no longer sign in to it (owners are handled by
           // the owner rules in the staff list, never silently here).
           if (patch.status === 'TERMINATED' && e.userId && e.userId !== s.userId) {
@@ -252,7 +248,7 @@ export class CrewService {
               data: { status: 'REVOKED' },
             });
           }
-          await this.audit(tx, s, 'hr.employee_updated', 'employee', id, requestId, {
+          await this.audit(tx, s, 'hr.staff_updated', 'staff', id, requestId, {
             fields: Object.keys(data).join(','),
           });
         }),
@@ -262,38 +258,38 @@ export class CrewService {
 
   async addLicence(
     s: TenantScope,
-    employeeId: string,
+    staffId: string,
     input: { licenceNumber: string; category: string; expiresOn: string },
     requestId?: string,
   ) {
     return mapDbErrors(
       () =>
         withDb(this.db, ctxOf(s), async (tx) => {
-          const e = await tx.employee.findFirst({
-            where: { id: employeeId, tenantId: s.tenantId },
+          const e = await tx.staffProfile.findFirst({
+            where: { id: staffId, tenantId: s.tenantId },
           });
           if (!e) throw AppError.notFound();
           if (e.role !== 'DRIVER') throw AppError.conflict('Only drivers hold driving licences');
           const l = await tx.driverLicence.create({
             data: {
               tenantId: s.tenantId,
-              employeeId,
+              staffId,
               licenceNumber: input.licenceNumber.trim().toUpperCase(),
               category: input.category.trim(),
               expiresOn: dateOnly(input.expiresOn),
             },
           });
-          await this.audit(tx, s, 'hr.licence_added', 'employee', employeeId, requestId);
+          await this.audit(tx, s, 'hr.licence_added', 'staff', staffId, requestId);
           return { id: l.id };
         }),
       { unique: 'This licence number is already recorded' },
     );
   }
 
-  async listLicences(s: TenantScope, employeeId: string) {
+  async listLicences(s: TenantScope, staffId: string) {
     const rows = await withDb(this.db, ctxOf(s), (tx) =>
       tx.driverLicence.findMany({
-        where: { tenantId: s.tenantId, employeeId },
+        where: { tenantId: s.tenantId, staffId },
         orderBy: { expiresOn: 'desc' },
       }),
     );
@@ -316,19 +312,19 @@ export class CrewService {
       if (!trip) throw AppError.notFound();
       return tx.tripCrew.findMany({
         where: { tenantId: s.tenantId, tripId, releasedAt: null },
-        include: { employee: { select: { fullName: true } } },
+        include: { staff: { select: { fullName: true } } },
         orderBy: { createdAt: 'asc' },
       });
     });
     return rows.map((c) => ({
-      employeeId: c.employeeId,
-      fullName: c.employee.fullName,
+      staffId: c.staffId,
+      fullName: c.staff.fullName,
       role: c.role,
     }));
   }
 
   /**
-   * Assigns crew to a trip. Rules: trip still open; employee active and of a matching job role;
+   * Assigns crew to a trip. Rules: trip still open; staff active and of a matching job role;
    * drivers hold a licence valid on the service date; no overlapping duty; and at least the
    * company's minimum rest between consecutive trips. The database exclusion constraint is the
    * final guard against two dispatchers racing to double-book the same person.
@@ -336,7 +332,7 @@ export class CrewService {
   async assign(
     s: TenantScope,
     tripId: string,
-    employeeId: string,
+    staffId: string,
     role: CrewRole,
     requestId?: string,
   ) {
@@ -347,15 +343,15 @@ export class CrewService {
           if (!trip) throw AppError.notFound();
           if (trip.status !== 'SCHEDULED' && trip.status !== 'BOARDING')
             throw AppError.conflict('Crew can only be changed on an open trip');
-          const emp = await tx.employee.findFirst({
-            where: { id: employeeId, tenantId: s.tenantId },
+          const emp = await tx.staffProfile.findFirst({
+            where: { id: staffId, tenantId: s.tenantId },
             include: { licences: true },
           });
-          if (!emp) throw AppError.validation('Employee not found');
-          if (emp.status !== 'ACTIVE') throw AppError.conflict('This employee is not active');
+          if (!emp) throw AppError.validation('Staff not found');
+          if (emp.status !== 'ACTIVE') throw AppError.conflict('This staff is not active');
           if (emp.role !== role)
             throw AppError.conflict(
-              `This employee’s job role (${emp.role.toLowerCase()}) cannot fill the ${role.toLowerCase()} position`,
+              `This staff’s job role (${emp.role.toLowerCase()}) cannot fill the ${role.toLowerCase()} position`,
             );
           if (role === 'DRIVER' && !emp.licences.some((l) => l.expiresOn >= trip.serviceDate)) {
             throw AppError.conflict(
@@ -367,7 +363,7 @@ export class CrewService {
           const near = await tx.tripCrew.findMany({
             where: {
               tenantId: s.tenantId,
-              employeeId,
+              staffId,
               releasedAt: null,
               tripId: { not: tripId },
               startsAt: { lt: new Date(trip.arrivalAt.getTime() + restMs) },
@@ -384,7 +380,7 @@ export class CrewService {
             );
 
           const existing = await tx.tripCrew.findFirst({
-            where: { tripId, employeeId, releasedAt: null },
+            where: { tripId, staffId, releasedAt: null },
           });
           if (existing) throw AppError.conflict('This person is already assigned to this trip');
           await tx.tripCrew.createMany({
@@ -392,32 +388,32 @@ export class CrewService {
               {
                 tenantId: s.tenantId,
                 tripId,
-                employeeId,
+                staffId,
                 role,
                 startsAt: trip.departureAt,
                 endsAt: trip.arrivalAt,
               },
             ],
           });
-          await recordTripEvent(tx, s, tripId, 'CREW_ASSIGNED', { employeeId, role });
+          await recordTripEvent(tx, s, tripId, 'CREW_ASSIGNED', { staffId, role });
           await this.audit(tx, s, 'trips.crew_assigned', 'trip', tripId, requestId, { role });
         }),
       { exclusion: OVERLAP_MSG, unique: 'This person is already assigned to this trip' },
     );
   }
 
-  async release(s: TenantScope, tripId: string, employeeId: string, requestId?: string) {
+  async release(s: TenantScope, tripId: string, staffId: string, requestId?: string) {
     await withDb(this.db, ctxOf(s), async (tx) => {
       const trip = await tx.trip.findFirst({ where: { id: tripId, tenantId: s.tenantId } });
       if (!trip) throw AppError.notFound();
       if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED')
         throw AppError.conflict('This trip can no longer be changed');
       const res = await tx.tripCrew.updateMany({
-        where: { tenantId: s.tenantId, tripId, employeeId, releasedAt: null },
+        where: { tenantId: s.tenantId, tripId, staffId, releasedAt: null },
         data: { releasedAt: new Date() },
       });
       if (res.count !== 1) throw AppError.notFound();
-      await recordTripEvent(tx, s, tripId, 'CREW_RELEASED', { employeeId });
+      await recordTripEvent(tx, s, tripId, 'CREW_RELEASED', { staffId });
       await this.audit(tx, s, 'trips.crew_released', 'trip', tripId, requestId);
     });
   }

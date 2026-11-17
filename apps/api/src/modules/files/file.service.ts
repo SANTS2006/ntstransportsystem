@@ -18,7 +18,17 @@ import type { TenantScope } from '../tenants/tenant.guards.js';
 export const MAX_ATTACHMENTS_PER_COMPLAINT = 4;
 export const LINK_TTL_SECONDS = 300;
 
-type Kind = 'APPLICATION_CV' | 'COMPLAINT_ATTACHMENT';
+type Kind =
+  | 'APPLICATION_CV'
+  | 'COMPLAINT_ATTACHMENT'
+  | 'APPLICATION_LICENCE'
+  | 'APPLICATION_PHOTO'
+  | 'APPLICATION_FORM_FILE';
+
+/** One of an application's uploads: its licence photo, its picture, or a file a form question asks for. */
+export type ApplicantSlot =
+  | { kind: 'APPLICATION_LICENCE' | 'APPLICATION_PHOTO' }
+  | { kind: 'APPLICATION_FORM_FILE'; fieldKey: string };
 export type Actor = { kind: 'passenger'; userId: string } | { kind: 'staff'; scope: TenantScope };
 
 export interface FileDto {
@@ -68,6 +78,7 @@ export class FileService {
     userId: string;
     kind: Kind;
     ownerId: string;
+    fieldKey?: string | undefined;
     bytes: Buffer;
     rawName: string | undefined;
     /** The Content-Type the client sent: only used to tell audio from video. */
@@ -121,6 +132,7 @@ export class FileService {
                 tenantId: args.tenantId,
                 kind: args.kind,
                 ownerId: args.ownerId,
+                fieldKey: args.fieldKey ?? null,
                 objectKey: key,
                 contentType: type.contentType,
                 sizeBytes: bytes.length,
@@ -274,6 +286,138 @@ export class FileService {
       }),
     );
     return f ? dto(f) : null;
+  }
+
+  // ---- Licence photo, picture and custom form files ------------------------------------------------
+
+  private slotWhere(tenantId: string, appId: string, slot: ApplicantSlot) {
+    return {
+      tenantId,
+      kind: slot.kind,
+      ownerId: appId,
+      deletedAt: null,
+      ...(slot.kind === 'APPLICATION_FORM_FILE' ? { fieldKey: slot.fieldKey } : {}),
+    };
+  }
+
+  /** A form question that asks for a file must exist on the posting: nothing else is accepted. */
+  private async assertFileField(tenantId: string, appId: string, fieldKey: string) {
+    const job = await withDb(this.db, { platform: true }, (tx) =>
+      tx.jobApplication.findFirst({
+        where: { id: appId, tenantId },
+        select: { job: { select: { formFields: true } } },
+      }),
+    );
+    const fields = (job?.job.formFields ?? []) as { id?: string; type?: string }[];
+    if (!Array.isArray(fields) || !fields.some((f) => f.id === fieldKey && f.type === 'file'))
+      throw AppError.notFound();
+  }
+
+  async uploadApplicantFile(
+    userId: string,
+    applicationId: string,
+    slot: ApplicantSlot,
+    bytes: Buffer,
+    rawName: string | undefined,
+    requestId?: string,
+    declared?: string,
+  ) {
+    const a = await this.ownApplication(userId, applicationId);
+    if (['HIRED', 'REJECTED', 'WITHDRAWN'].includes(a.status)) {
+      throw AppError.conflict('This application is closed, so its files can no longer be changed');
+    }
+    if (slot.kind === 'APPLICATION_FORM_FILE')
+      await this.assertFileField(a.tenantId, a.id, slot.fieldKey);
+    const photoOnly = slot.kind !== 'APPLICATION_FORM_FILE';
+    return this.store({
+      tenantId: a.tenantId,
+      userId,
+      kind: slot.kind,
+      ownerId: a.id,
+      fieldKey: slot.kind === 'APPLICATION_FORM_FILE' ? slot.fieldKey : undefined,
+      bytes,
+      rawName,
+      declared,
+      allow: (t) =>
+        photoOnly ? t.media === 'image' : t.media === 'document' || t.media === 'image',
+      allowMessage: photoOnly
+        ? 'a picture (PNG, JPEG, WebP)'
+        : 'a PDF or an image (PNG, JPEG, WebP)',
+      fallbackName:
+        slot.kind === 'APPLICATION_LICENCE'
+          ? 'licence'
+          : slot.kind === 'APPLICATION_PHOTO'
+            ? 'photo'
+            : 'file',
+      auditAction: 'file.applicant_file_uploaded',
+      requestId,
+      prepare: async (tx) => {
+        const old = await tx.storedFile.findMany({
+          where: this.slotWhere(a.tenantId, a.id, slot),
+          select: { id: true, objectKey: true },
+        });
+        if (old.length) {
+          await tx.storedFile.updateMany({
+            where: { id: { in: old.map((o) => o.id) } },
+            data: { deletedAt: new Date() },
+          });
+        }
+        return old.map((o) => o.objectKey);
+      },
+    });
+  }
+
+  private async liveSlot(
+    tenantId: string,
+    userId: string | undefined,
+    appId: string,
+    slot: ApplicantSlot,
+  ) {
+    const f = await withDb(this.db, userId ? { tenantId, userId } : { tenantId }, (tx) =>
+      tx.storedFile.findFirst({ where: this.slotWhere(tenantId, appId, slot) }),
+    );
+    if (!f) throw AppError.notFound('Nothing has been uploaded');
+    return f;
+  }
+
+  async applicantFileLinkForApplicant(
+    userId: string,
+    applicationId: string,
+    slot: ApplicantSlot,
+    inline = false,
+  ) {
+    const a = await this.ownApplication(userId, applicationId);
+    return this.link(await this.liveSlot(a.tenantId, userId, a.id, slot), inline);
+  }
+
+  /** HR opening an applicant's licence photo, picture or form file is access to personal data: audited. */
+  async applicantFileLinkForStaff(
+    s: TenantScope,
+    applicationId: string,
+    slot: ApplicantSlot,
+    inline = false,
+    requestId?: string,
+  ) {
+    const app = await withDb(this.db, { tenantId: s.tenantId, userId: s.userId }, (tx) =>
+      tx.jobApplication.findFirst({
+        where: { id: applicationId, tenantId: s.tenantId },
+        select: { id: true },
+      }),
+    );
+    if (!app) throw AppError.notFound();
+    const f = await this.liveSlot(s.tenantId, s.userId, app.id, slot);
+    await withDb(this.db, { tenantId: s.tenantId, userId: s.userId }, (tx) =>
+      writeAudit(tx, {
+        action: 'file.applicant_file_accessed',
+        outcome: 'SUCCESS',
+        tenantId: s.tenantId,
+        actorUserId: s.userId,
+        targetType: 'file',
+        targetId: f.id,
+        requestId,
+      }),
+    );
+    return this.link(f, inline);
   }
 
   // ---- Complaint attachments ---------------------------------------------------------------------

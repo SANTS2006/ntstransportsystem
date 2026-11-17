@@ -163,7 +163,7 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
           ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">${escapeHtml(k)}</td><td style="padding:4px 0"><strong>${escapeHtml(v)}</strong></td></tr>`
           : '';
       const password = msg.data.password ?? '';
-      const details = `<table role="presentation" style="font-size:14px;margin:12px 0">${row('Name', msg.data.name)}${row('Staff number', msg.data.employeeNumber)}${row('Job', msg.data.job)}${row('Phone', msg.data.phone)}${row('Sign in with', msg.data.email)}${row('Temporary password', password)}</table>`;
+      const details = `<table role="presentation" style="font-size:14px;margin:12px 0">${row('Name', msg.data.name)}${row('Staff number', msg.data.staffNumber)}${row('Job', msg.data.job)}${row('Phone', msg.data.phone)}${row('Sign in with', msg.data.email)}${row('Temporary password', password)}</table>`;
       return {
         subject: `You have been added to the ${company} team`,
         html: layout(
@@ -174,7 +174,7 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
               : '<p>You already have an account with this email: sign in with your usual password.</p>'
           }${button(link, 'Sign in to ' + company)}`,
         ),
-        text: `You have been added to the ${company} team.\nName: ${msg.data.name ?? ''}\nStaff number: ${msg.data.employeeNumber ?? ''}\nJob: ${msg.data.job ?? ''}\nSign in with: ${msg.data.email ?? ''}\n${password ? `Temporary password: ${password}\nYou will be asked to choose your own password at first sign-in.\n` : 'Use your usual password.\n'}Sign in: ${link}\n`,
+        text: `You have been added to the ${company} team.\nName: ${msg.data.name ?? ''}\nStaff number: ${msg.data.staffNumber ?? ''}\nJob: ${msg.data.job ?? ''}\nSign in with: ${msg.data.email ?? ''}\n${password ? `Temporary password: ${password}\nYou will be asked to choose your own password at first sign-in.\n` : 'Use your usual password.\n'}Sign in: ${link}\n`,
       };
     }
     case 'platform-message': {
@@ -304,7 +304,6 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
           SHORTLISTED: 'You have been shortlisted.',
           INTERVIEW:
             'You have been invited to an interview. The company will contact you with the details.',
-          OFFERED: 'You have been made an offer. The company will contact you.',
           HIRED:
             'Congratulations, you have been hired. The company will be in touch about your start.',
           REJECTED:
@@ -317,6 +316,97 @@ function renderBody(msg: Pick<MailMessage, 'template' | 'data'>, brand: MailBran
           `<p>Your application for <strong>${escapeHtml(msg.data.job ?? 'the job')}</strong> at <strong>${escapeHtml(msg.data.company ?? 'the company')}</strong>: ${escapeHtml(line)}</p>${button(link, 'View my applications')}`,
         ),
         text: `Your application for ${msg.data.job ?? 'the job'} at ${msg.data.company ?? 'the company'}: ${line}\nMy applications: ${link}\n`,
+      };
+    }
+    case 'interview-invitation': {
+      const link = safeLink(msg.data.link);
+      const d = msg.data;
+      const rows: [string, string | undefined][] = [
+        ['Position', d.job],
+        ['Date', d.date],
+        ['Time', d.time],
+        ['Format', d.mode],
+        ['Where', d.location],
+        ['Contact person', d.contactPerson],
+        ['Contact phone', d.contactPhone],
+      ];
+      const table = `<table role="presentation" style="font-size:14px;margin:12px 0">${rows
+        .filter(([, v]) => v)
+        .map(
+          ([k, v]) =>
+            `<tr><td style="padding:4px 12px 4px 0;color:#64748b;vertical-align:top">${escapeHtml(k)}</td><td style="padding:4px 0"><strong>${escapeHtml(v ?? '')}</strong></td></tr>`,
+        )
+        .join('')}</table>`;
+      const extra = d.instructions
+        ? `<p style="margin:12px 0;line-height:1.6"><strong>What to bring / know</strong><br>${escapeHtml(d.instructions).replace(/\n/g, '<br>')}</p>`
+        : '';
+      return {
+        subject: 'You are invited to an interview',
+        html: layout(
+          'Interview invitation',
+          `<p>Hello ${escapeHtml(d.name ?? '')}, <strong>${escapeHtml(d.company ?? 'the company')}</strong> would like to interview you. Here are the details:</p>${table}${extra}${button(link, 'View my applications')}`,
+        ),
+        text: `Hello ${d.name ?? ''}, ${d.company ?? 'the company'} would like to interview you.\n${rows
+          .filter(([, v]) => v)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(
+            '\n',
+          )}\n${d.instructions ? `\nWhat to bring / know:\n${d.instructions}\n` : ''}\nMy applications: ${link}\n`,
+      };
+    }
+    case 'application-rejected': {
+      const d = msg.data;
+      const why = d.message
+        ? `<p style="margin:12px 0;line-height:1.6">${escapeHtml(d.message).replace(/\n/g, '<br>')}</p>`
+        : '';
+      return {
+        subject: 'Update on your application',
+        html: layout(
+          'Application update',
+          `<p>Hello ${escapeHtml(d.name ?? '')}, thank you for applying for <strong>${escapeHtml(d.job ?? 'the job')}</strong> at <strong>${escapeHtml(d.company ?? 'the company')}</strong>.</p><p>After careful consideration, the company has decided not to continue with your application.</p>${why}<p>We wish you every success and encourage you to apply again for future openings.</p>`,
+        ),
+        text: `Hello ${d.name ?? ''}, thank you for applying for ${d.job ?? 'the job'} at ${d.company ?? 'the company'}.\nAfter careful consideration, the company has decided not to continue with your application.\n${d.message ? `\n${d.message}\n` : ''}\nWe wish you every success and encourage you to apply again for future openings.\n`,
+      };
+    }
+    case 'application-hired': {
+      const link = safeLink(msg.data.link);
+      const d = msg.data;
+      const password = d.password ?? '';
+      const rows: [string, string | undefined][] = [
+        ['Staff number', d.staffNumber],
+        ['Job title', d.jobTitle],
+        ['Employment type', d.employmentType],
+        ['Start date', d.startDate],
+        ['Reports to', d.reportingTo],
+        ['Work location', d.workLocation],
+        ['Sign in with', d.email],
+        ['Default password', password],
+      ];
+      const table = `<table role="presentation" style="font-size:14px;margin:12px 0">${rows
+        .filter(([, v]) => v)
+        .map(
+          ([k, v]) =>
+            `<tr><td style="padding:4px 12px 4px 0;color:#64748b;vertical-align:top">${escapeHtml(k)}</td><td style="padding:4px 0"><strong>${escapeHtml(v ?? '')}</strong></td></tr>`,
+        )
+        .join('')}</table>`;
+      const notes = d.notes
+        ? `<p style="margin:12px 0;line-height:1.6"><strong>About your employment</strong><br>${escapeHtml(d.notes).replace(/\n/g, '<br>')}</p>`
+        : '';
+      const pw = password
+        ? '<p>Sign in with the default password above. You will be asked to choose your own password the first time you sign in.</p>'
+        : '<p>Sign in with your usual email and password.</p>';
+      return {
+        subject: 'Congratulations, you have been hired',
+        html: layout(
+          'Welcome to the team',
+          `<p>Hello ${escapeHtml(d.name ?? '')}, congratulations! <strong>${escapeHtml(d.company ?? 'The company')}</strong> is pleased to offer you the position and has created your staff profile. Your employment details:</p>${table}${notes}${pw}${button(link, 'Sign in to ' + (d.company ?? 'your company'))}`,
+        ),
+        text: `Hello ${d.name ?? ''}, congratulations! ${d.company ?? 'The company'} has hired you and created your staff profile.\n${rows
+          .filter(([, v]) => v)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(
+            '\n',
+          )}\n${d.notes ? `\nAbout your employment:\n${d.notes}\n` : ''}${password ? '\nYou will be asked to choose your own password at first sign-in.\n' : ''}Sign in: ${link}\n`,
       };
     }
     default: {

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Bell,
   Briefcase,
   Check,
   LayoutDashboard,
@@ -619,7 +620,7 @@ const sideLink = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
     isActive
       ? 'bg-brand-600 text-white shadow-level1'
-      : 'text-slate-200 hover:bg-white/10 hover:text-white'
+      : 'text-slate-700 hover:bg-slate-100 hover:text-brand-800 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white'
   }`;
 
 /**
@@ -669,12 +670,12 @@ export function DashboardShell({
   const sidebar = (
     <>
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <Brand company={company} onDark alwaysName />
+        <Brand company={company} alwaysName />
         <button
           type="button"
           aria-label="Close menu"
           onClick={() => setOpen(false)}
-          className="grid size-10 place-items-center rounded-lg text-white hover:bg-white/10 lg:hidden"
+          className="grid size-10 place-items-center rounded-lg text-slate-700 hover:bg-slate-100 lg:hidden dark:text-white dark:hover:bg-white/10"
         >
           <X className="size-5" />
         </button>
@@ -682,7 +683,9 @@ export function DashboardShell({
       {heading && (
         <p
           className={`mx-4 mt-4 truncate rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-            theme === 'platform' ? 'bg-accent-500 text-brand-900' : 'bg-white/10 text-white'
+            theme === 'platform'
+              ? 'bg-accent-500 text-brand-900'
+              : 'bg-brand-50 text-brand-800 dark:bg-white/10 dark:text-white'
           }`}
         >
           {heading}
@@ -692,7 +695,7 @@ export function DashboardShell({
         {groupNav(nav).map((g, i) => (
           <div key={g.name ?? `g${i}`}>
             {g.name && (
-              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {g.name}
               </p>
             )}
@@ -720,17 +723,19 @@ export function DashboardShell({
           </div>
         ))}
       </nav>
-      <div className="border-t border-white/10 p-4 text-white">
+      <div className="border-t border-slate-200 p-4 text-slate-800 dark:border-white/10 dark:text-white">
         <div className="flex items-center gap-3">
           <Avatar name={user?.displayName} version={user?.avatarVersion} accent />
           <div className="min-w-0 text-xs">
             <p className="truncate font-medium">{user?.displayName}</p>
-            <p className="truncate text-slate-300">{user?.email ?? user?.phone}</p>
+            <p className="truncate text-slate-500 dark:text-slate-300">
+              {user?.email ?? user?.phone}
+            </p>
           </div>
         </div>
         <Button
           variant="primary"
-          className="mt-3 w-full ring-1 ring-white/25 hover:bg-brand-500"
+          className="mt-3 w-full ring-1 ring-slate-200 hover:bg-brand-500 dark:ring-white/25"
           loading={signOut.isPending}
           loadingText="Signing out…"
           onClick={() => signOut.mutate()}
@@ -756,7 +761,7 @@ export function DashboardShell({
         Skip to content
       </a>
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col bg-brand-900 text-white lg:sticky lg:top-0 lg:flex lg:h-dvh">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white text-slate-800 lg:sticky lg:top-0 lg:flex lg:h-dvh dark:border-transparent dark:bg-brand-900 dark:text-white">
         {sidebar}
       </aside>
       {/* Phone drawer */}
@@ -768,7 +773,7 @@ export function DashboardShell({
             className="absolute inset-0 bg-slate-900/45"
             onClick={() => setOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-brand-900 text-white shadow-level3">
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white text-slate-800 shadow-level3 dark:bg-brand-900 dark:text-white">
             {sidebar}
           </aside>
         </div>
@@ -788,7 +793,7 @@ export function DashboardShell({
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <NotificationBell />
+            <NotificationBell base={account} />
             <ProfileMenu account={account} onSignOut={() => signOut.mutate()} />
           </div>
         </header>
@@ -817,6 +822,7 @@ const appNav = (): NavItem[] => [
     icon: Briefcase,
     group: 'Travel',
   },
+  { to: `${appRoot()}/notifications`, label: 'Notifications', icon: Bell, group: 'Account' },
   { to: `${appRoot()}/security`, label: 'Security', icon: ShieldCheck, group: 'Account' },
 ];
 

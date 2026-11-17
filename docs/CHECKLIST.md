@@ -366,3 +366,17 @@ Source: the 19 screens and design-system notes in `stitch_nts_transport_ui_syste
 ## Company 404 pages
 
 - [x] An unknown page under a company's address (`/<company>/anything`) shows that company's own 404: its logo or name, its colours and tab title, and one button, "Go to login", to `/<company>/login`. Any other unknown address shows the system's 404 with one button to the main `/login`.
+
+## Salaries, recruitment forms, hiring, notifications (migrations 20261117000100 and 20261117000200)
+
+- [x] **Employee is now Staff profile everywhere**: table `staff_profiles` (`staff_number`, `staff_id` columns, `StaffJob`/`StaffStatus` types), API `/tenants/:id/staff…` (was `/employees…`), crew `staffId`, "staff number" in mails and screens. Run `npm run prisma:deploy -w @nts/api` to apply; nothing is lost (renames only).
+- [x] **Job postings recruit for a company role**: the posting's Role list is every role registered in the company except the owner role (`GET …/jobs/roles`); the old fixed list of jobs is gone.
+- [x] **Application form**: "Phone number", "Years of experience", a picture of the applicant and a picture of their licence (images only, stored as `APPLICATION_PHOTO` / `APPLICATION_LICENCE`).
+- [x] **Form builder**: HR adds questions to a posting (short/long answer, number, email, phone, date, dropdown, single choice, tick box, file upload; required or not; ordered; up to 25) and they are published with the posting. Answers are validated against the posting's own questions; files are uploaded once the application exists. HR can edit a posting's form later ("Edit form").
+- [x] **Pipeline**: Received → Shortlisted → Interview → Hired; Reject is available at every open step. "Make an offer" is gone (applications that were at that step are moved back to Interview).
+  - "Invite to interview" opens a pop-up (date, time, format, address or link, contact, what to bring); Send records it, moves the application and e-mails the details (also shown to the applicant in My job applications). The same pop-up updates an interview already arranged.
+  - Reject opens a pop-up with an optional message; the applicant is e-mailed.
+  - Staff number + Hire opens a pop-up for the employment (job title, type, start date, reports to, work location, other details). Hire creates the staff profile, gives the applicant the posting's role in the company with a default password they must change at first sign-in (sent by e-mail only, never stored in the app), and e-mails the details. Hired people appear in Staff (People) with these details. Running roles (those that manage people, pay or roles) can only be hired into by someone who holds those permissions.
+- [x] **Salaries** (new permission `salary.manage`: owner and finance officer): salary structures (base pay + allowances), deductions (fixed amount or percentage of gross pay), assignment of a structure and deductions to each staff member, per-person breakdown. Every staff role has **My salary** in the sidebar with their own detailed breakdown (base, allowances, gross, each deduction, net) — no permission needed, only their own.
+- [x] **Notifications page** (sidebar and "See all notifications" in the bell) lists everything, newest first, with unread filter and "Load more"; clicking one opens its **detail page** (full text, company, time, a button to the related page) and marks it read.
+- [x] Light mode now also lightens the sidebar; toasts appear at the top of the page.

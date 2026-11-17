@@ -377,3 +377,85 @@ export function Attachments({
     </div>
   );
 }
+
+/**
+ * One named file of an application (licence photo, picture, a form question's file): upload or
+ * replace it while the application is open, and open the one on file.
+ */
+export function SlotFileControl({
+  label,
+  uploadPath,
+  linkPath,
+  canUpload,
+  current,
+  imageOnly = false,
+}: {
+  label: string;
+  uploadPath?: string;
+  linkPath: string;
+  canUpload: boolean;
+  /** File name already on file, if any. */
+  current: string | null;
+  imageOnly?: boolean;
+}) {
+  const toast = useToast();
+  const [problem, setProblem] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<string | null>(null);
+  const enabled = useFileUploadsEnabled();
+  const open = useMutation({
+    mutationFn: () => api<Link>(`${linkPath}${imageOnly ? '?inline=1' : ''}`),
+    onSuccess: (l) => {
+      if (!isSafeUrl(l.url) && !isLocalHttp(l.url)) {
+        toast('Invalid link', 'error');
+        return;
+      }
+      if (imageOnly) window.open(l.url, '_blank', 'noopener,noreferrer');
+      else window.location.assign(l.url);
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Could not open the file', 'error'),
+  });
+  const upload = useMutation({
+    mutationFn: (file: File) => api<FileInfo>(uploadPath as string, { method: 'POST', file }),
+    onSuccess: (f) => {
+      setUploaded(f.displayName);
+      setProblem(null);
+      toast(`${label} uploaded`, 'success');
+    },
+    onError: (e) => setProblem(e instanceof Error ? e.message : 'Upload failed'),
+  });
+  const has = uploaded !== null || current !== null;
+  if (!enabled) return null;
+  if (!has && !(canUpload && uploadPath)) {
+    return <span className="text-xs text-slate-500">No {label.toLowerCase()} attached</span>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {canUpload && uploadPath && (
+        <Picker
+          label={has ? `Replace ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}
+          accept={imageOnly ? 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp' : ACCEPT_CV}
+          busy={upload.isPending}
+          error={problem}
+          onPick={(f) => {
+            const p =
+              imageOnly && !f.type.startsWith('image/')
+                ? 'Choose a picture.'
+                : fileProblem(f, 'cv');
+            setProblem(p);
+            if (!p) upload.mutate(f);
+          }}
+        />
+      )}
+      {has && (
+        <Button variant="ghost" loading={open.isPending} onClick={() => open.mutate()}>
+          View {label.toLowerCase()}
+        </Button>
+      )}
+      {(uploaded ?? current) && (
+        <span className="text-xs text-slate-500">
+          {uploaded ? 'Saved' : 'On file'}: {uploaded ?? current}
+        </span>
+      )}
+    </div>
+  );
+}

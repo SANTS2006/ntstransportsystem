@@ -18,6 +18,7 @@ import { requestSchemas as passenger } from '../modules/passenger/passenger.rout
 import { requestSchemas as payment } from '../modules/payment/payment.routes.js';
 import { requestSchemas as dispatch } from '../modules/catalog/dispatch.routes.js';
 import { requestSchemas as crew } from '../modules/crew/crew.routes.js';
+import { requestSchemas as salary } from '../modules/salary/salary.routes.js';
 import { requestSchemas as platform } from '../modules/tenants/platform.routes.js';
 import { requestSchemas as branding } from '../modules/branding/branding.routes.js';
 import { platformEmailSchema } from '../modules/notifications/platform-email.routes.js';
@@ -1314,6 +1315,12 @@ export const operations: Record<string, Operation> = {
     access: 'session',
     ok: 200,
   },
+  'GET /api/v1/me/notifications/{id}': {
+    summary: 'One in-app notification with its full text',
+    tag: 'Notifications',
+    access: 'session',
+    ok: 200,
+  },
   'POST /api/v1/me/notifications/read-all': {
     summary: 'Mark all notifications as read',
     tag: 'Notifications',
@@ -1686,7 +1693,167 @@ export const operations: Record<string, Operation> = {
     ok: 200,
   },
 
+  // ---- Salaries -------------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/salary/mine': {
+    summary: "The caller's own salary breakdown",
+    description:
+      'Base pay, allowances, gross, each deduction and the net, for the signed-in staff member only. Any role may call it.',
+    tag: 'Salaries',
+    access: T,
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/salary/structures': {
+    summary: 'List salary structures',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/salary/structures': {
+    summary: 'Create a salary structure (base pay and allowances)',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    body: salary.structureBody,
+    ok: 201,
+  },
+  'PUT /api/v1/tenants/{tenantId}/salary/structures/{id}': {
+    summary: 'Replace a salary structure',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    body: salary.structureBody,
+    ok: 200,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/salary/structures/{id}': {
+    summary: 'Delete a salary structure that nobody uses',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 204,
+  },
+  'GET /api/v1/tenants/{tenantId}/salary/deductions': {
+    summary: 'List deductions',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/salary/deductions': {
+    summary: 'Create a deduction (fixed amount or percentage of gross pay)',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    body: salary.deductionBody,
+    ok: 201,
+  },
+  'PUT /api/v1/tenants/{tenantId}/salary/deductions/{id}': {
+    summary: 'Replace a deduction',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    body: salary.deductionBody,
+    ok: 204,
+  },
+  'DELETE /api/v1/tenants/{tenantId}/salary/deductions/{id}': {
+    summary: 'Delete a deduction (removed from everyone it was assigned to)',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 204,
+  },
+  'GET /api/v1/tenants/{tenantId}/salary/staff': {
+    summary: 'Staff with their salary structure, deductions and net pay',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/salary/staff/{staffId}': {
+    summary: "One staff member's detailed salary breakdown",
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    ok: 200,
+  },
+  'PUT /api/v1/tenants/{tenantId}/salary/staff/{staffId}': {
+    summary: 'Assign a salary structure and deductions to a staff member',
+    tag: 'Salaries',
+    access: T,
+    permission: 'salary.manage',
+    body: salary.assignBody,
+    ok: 204,
+  },
+
   // ---- Recruitment ----------------------------------------------------------------------------
+  'GET /api/v1/tenants/{tenantId}/jobs/roles': {
+    summary: 'Roles a posting can recruit for',
+    description: 'Every role registered in the company except the company owner role.',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    ok: 200,
+  },
+  'POST /api/v1/tenants/{tenantId}/applications/{id}/interview': {
+    summary: 'Invite an applicant to an interview',
+    description:
+      'Moves a shortlisted application to INTERVIEW (or updates the details of one already there), records the interview details and emails them to the applicant.',
+    tag: 'Recruitment',
+    access: T,
+    permission: 'recruitment.manage',
+    optional: true,
+    body: recruit.interviewBody,
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/applications/{id}/files/{slot}/link': {
+    optional: true,
+    summary: "A 5-minute link for an applicant's licence photo or picture (audited)",
+    description: 'slot is licence or photo. Add ?inline=1 to show an image instead of downloading.',
+    tag: 'Files',
+    access: T,
+    permission: 'recruitment.manage',
+    ok: 200,
+  },
+  'GET /api/v1/tenants/{tenantId}/applications/{id}/form-files/{fieldId}/link': {
+    optional: true,
+    summary:
+      'A 5-minute link for a file an applicant uploaded for a custom form question (audited)',
+    tag: 'Files',
+    access: T,
+    permission: 'recruitment.manage',
+    ok: 200,
+  },
+  'POST /api/v1/applicant/applications/{id}/files/{slot}': {
+    optional: true,
+    summary:
+      'Upload or replace the licence photo (licence) or the picture (photo) of an own application',
+    description: 'The request body is the picture itself (PNG, JPEG or WebP, at most 5 MB).',
+    tag: 'Files',
+    access: 'session',
+    ok: 201,
+  },
+  'GET /api/v1/applicant/applications/{id}/files/{slot}/link': {
+    optional: true,
+    summary: 'A 5-minute link for the licence photo or picture of an own application',
+    tag: 'Files',
+    access: 'session',
+    ok: 200,
+  },
+  'POST /api/v1/applicant/applications/{id}/form-files/{fieldId}': {
+    optional: true,
+    summary: 'Upload the file a custom form question asks for',
+    tag: 'Files',
+    access: 'session',
+    ok: 201,
+  },
+  'GET /api/v1/applicant/applications/{id}/form-files/{fieldId}/link': {
+    optional: true,
+    summary: 'A 5-minute link for a file uploaded for a custom form question',
+    tag: 'Files',
+    access: 'session',
+    ok: 200,
+  },
   'GET /api/v1/tenants/{tenantId}/jobs': {
     summary: 'List job postings',
     tag: 'Recruitment',
@@ -1751,15 +1918,7 @@ export const operations: Record<string, Operation> = {
       {
         name: 'status',
         description: 'Filter by status',
-        enum: [
-          'SUBMITTED',
-          'SHORTLISTED',
-          'INTERVIEW',
-          'OFFERED',
-          'HIRED',
-          'REJECTED',
-          'WITHDRAWN',
-        ],
+        enum: ['SUBMITTED', 'SHORTLISTED', 'INTERVIEW', 'HIRED', 'REJECTED', 'WITHDRAWN'],
       },
     ],
     ok: 200,
@@ -1779,7 +1938,7 @@ export const operations: Record<string, Operation> = {
     permission: 'recruitment.manage',
     optional: true,
     description:
-      'SUBMITTED to SHORTLISTED or REJECTED, SHORTLISTED to INTERVIEW or REJECTED, INTERVIEW to OFFERED or REJECTED, OFFERED to REJECTED. HIRED only through the hire action. The applicant is emailed.',
+      'SUBMITTED to SHORTLISTED or REJECTED, SHORTLISTED to REJECTED. A rejection is emailed to the applicant (with the optional note as a message). INTERVIEW only through the interview action and HIRED only through the hire action.',
     body: recruit.statusBody,
     ok: 204,
   },
@@ -1793,13 +1952,13 @@ export const operations: Record<string, Operation> = {
     ok: 201,
   },
   'POST /api/v1/tenants/{tenantId}/applications/{id}/hire': {
-    summary: 'Hire an applicant with an offer',
+    summary: 'Hire an interviewed applicant',
     tag: 'Recruitment',
     access: T,
     permission: 'recruitment.manage',
     optional: true,
     description:
-      'Creates the employee record (linked to the applicant account) and marks the application HIRED in one transaction.',
+      'Creates the staff profile (linked to the applicant account), gives the account the role of the posting with a default password to change at first sign-in, and marks the application HIRED in one transaction. The employment details and the password are emailed to the new staff member.',
     body: recruit.hireBody,
     ok: 201,
   },
@@ -1933,8 +2092,8 @@ export const operations: Record<string, Operation> = {
   },
 
   // ---- Crew and HR ----------------------------------------------------------------------------
-  'GET /api/v1/tenants/{tenantId}/employees': {
-    summary: 'List employees (HR)',
+  'GET /api/v1/tenants/{tenantId}/staff': {
+    summary: 'List staffProfiles (HR)',
     tag: 'Crew and HR',
     access: T,
     permission: 'hr.read',
@@ -1954,32 +2113,32 @@ export const operations: Record<string, Operation> = {
     ],
     ok: 200,
   },
-  'POST /api/v1/tenants/{tenantId}/employees': {
-    summary: 'Add an employee',
+  'POST /api/v1/tenants/{tenantId}/staff': {
+    summary: 'Add an staff',
     tag: 'Crew and HR',
     access: T,
     permission: 'hr.manage',
-    body: crew.employeeCreate,
+    body: crew.staffCreate,
     ok: 201,
   },
-  'PATCH /api/v1/tenants/{tenantId}/employees/{id}': {
-    summary: 'Update an employee',
+  'PATCH /api/v1/tenants/{tenantId}/staff/{id}': {
+    summary: 'Update an staff',
     description:
-      'Termination or leave is refused (409) while the person has upcoming crew duty; terminated employees cannot be reinstated.',
+      'Termination or leave is refused (409) while the person has upcoming crew duty; terminated staffProfiles cannot be reinstated.',
     tag: 'Crew and HR',
     access: T,
     permission: 'hr.manage',
-    body: crew.employeePatch,
+    body: crew.staffPatch,
     ok: 204,
   },
-  'GET /api/v1/tenants/{tenantId}/employees/{id}/licences': {
+  'GET /api/v1/tenants/{tenantId}/staff/{id}/licences': {
     summary: 'Driver licences',
     tag: 'Crew and HR',
     access: T,
     permission: 'hr.read',
     ok: 200,
   },
-  'POST /api/v1/tenants/{tenantId}/employees/{id}/licences': {
+  'POST /api/v1/tenants/{tenantId}/staff/{id}/licences': {
     summary: 'Record a driver licence',
     description: 'Drivers only; licence numbers are unique per company (case-insensitive).',
     tag: 'Crew and HR',
@@ -2007,14 +2166,14 @@ export const operations: Record<string, Operation> = {
   'POST /api/v1/tenants/{tenantId}/trips/{id}/crew': {
     summary: 'Assign crew to a trip',
     description:
-      "Rules: open trip; active employee whose job matches the position; drivers need a licence valid on the service date; no overlapping duty; at least the company's minimum rest between trips. Overlap is also enforced by the database under concurrency.",
+      "Rules: open trip; active staff whose job matches the position; drivers need a licence valid on the service date; no overlapping duty; at least the company's minimum rest between trips. Overlap is also enforced by the database under concurrency.",
     tag: 'Crew and HR',
     access: T,
     permission: 'trip.manage',
     body: crew.crewBody,
     ok: 204,
   },
-  'DELETE /api/v1/tenants/{tenantId}/trips/{id}/crew/{employeeId}': {
+  'DELETE /api/v1/tenants/{tenantId}/trips/{id}/crew/{staffId}': {
     summary: 'Remove crew from a trip',
     tag: 'Crew and HR',
     access: T,

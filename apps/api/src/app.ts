@@ -25,6 +25,8 @@ import { TicketService } from './modules/ticket/ticket.service.js';
 import { ComplaintService } from './modules/complaint/complaint.service.js';
 import { complaintRouter } from './modules/complaint/complaint.routes.js';
 import { RecruitmentService } from './modules/recruitment/recruitment.service.js';
+import { salaryRouter } from './modules/salary/salary.routes.js';
+import { SalaryService } from './modules/salary/salary.service.js';
 import { recruitmentRouter } from './modules/recruitment/recruitment.routes.js';
 import { FileService } from './modules/files/file.service.js';
 import { devFilesRouter, fileRouter } from './modules/files/file.routes.js';
@@ -278,7 +280,12 @@ export function createApp({
       v1.use(complaintRouter({ db, complaints: new ComplaintService(db), env, rateLimitStores }));
       v1.use(reportRouter({ db, reports: new ReportService(db) }));
       v1.use(
-        recruitmentRouter({ db, recruitment: new RecruitmentService(db), env, rateLimitStores }),
+        recruitmentRouter({
+          db,
+          recruitment: new RecruitmentService(db, mailer, env.APP_URL),
+          env,
+          rateLimitStores,
+        }),
       );
       const fileStorage: FileStorage | undefined =
         storage ??
@@ -321,6 +328,7 @@ export function createApp({
       );
       v1.use(webhookRouter({ payments }));
     }
+    v1.use(salaryRouter({ db, salary: new SalaryService(db) }));
     v1.use(
       crewRouter({
         db,

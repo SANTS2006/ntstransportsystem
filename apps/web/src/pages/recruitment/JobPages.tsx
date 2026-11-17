@@ -14,21 +14,26 @@ import { Field } from '../../components/ui/Field';
 import { PageLoader } from '../../components/ui/Spinner';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { CvControl } from '../../components/files/FileControls';
+import {
+  CvControl,
+  SlotFileControl,
+  useFileUploadsEnabled,
+} from '../../components/files/FileControls';
+import {
+  ApplicationFields,
+  IMAGE_ACCEPT,
+  PendingFile,
+  answersProblem,
+  pictureProblem,
+  type AnswerValue,
+} from '../../components/recruitment/ApplicationFields';
+import type { FormField } from '../../lib/job-form';
 import { appRoot } from '../../lib/app-path';
 
-const ROLE_LABEL: Record<string, string> = {
-  DRIVER: 'Driver',
-  CONDUCTOR: 'Conductor',
-  DISPATCHER: 'Dispatcher',
-  MECHANIC: 'Mechanic',
-  OTHER: 'Other',
-};
 const STATUS_LABEL: Record<string, string> = {
   SUBMITTED: 'Received',
   SHORTLISTED: 'Shortlisted',
   INTERVIEW: 'Interview',
-  OFFERED: 'Offer made',
   HIRED: 'Hired',
   REJECTED: 'Not successful',
   WITHDRAWN: 'Withdrawn',
@@ -40,7 +45,8 @@ interface Job {
   tenantId: string;
   company: string;
   title: string;
-  jobRole: string;
+  roleName: string | null;
+  formFields: FormField[];
   description: string;
   location: string | null;
   closesOn: string | null;
@@ -89,7 +95,8 @@ export function JobBoardPage() {
               >
                 <span className="block font-medium">{j.title}</span>
                 <span className="text-sm text-slate-600 dark:text-slate-400">
-                  {j.company} · {ROLE_LABEL[j.jobRole] ?? j.jobRole}
+                  {j.company}
+                  {j.roleName ? ` · ${j.roleName}` : ''}
                   {j.location ? ` · ${j.location}` : ''}
                   {j.closesOn ? ` · apply by ${j.closesOn}` : ''}
                 </span>
@@ -112,32 +119,75 @@ export function JobDetailPage() {
   const toast = useToast();
   const nav = useNavigate();
   const qc = useQueryClient();
+  const uploadsOn = useFileUploadsEnabled();
   const [form, setForm] = useState({
     fullName: user?.displayName ?? '',
-    phone: '',
+    phoneNumber: '',
+    yearsExperience: '',
     experience: '',
     licenceNumber: '',
   });
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [licence, setLicence] = useState<File | null>(null);
   const job = useQuery({
     queryKey: ['public-job', tenantId, id],
     retry: false,
     queryFn: ({ signal }) => api<Job>(`/public/jobs/${tenantId}/${id}`, { signal }),
   });
   const apply = useMutation({
-    mutationFn: () =>
-      api('/applicant/applications', {
+    mutationFn: async () => {
+      const qs = job.data?.formFields ?? [];
+      const created = await api<{ id: string }>('/applicant/applications', {
         method: 'POST',
         body: {
           tenantId,
           jobId: id,
           fullName: form.fullName.trim(),
-          phone: form.phone.trim(),
+          phoneNumber: form.phoneNumber.trim(),
+          yearsExperience: Number(form.yearsExperience),
           experience: form.experience.trim(),
           ...(form.licenceNumber.trim() ? { licenceNumber: form.licenceNumber.trim() } : {}),
+          answers: Object.fromEntries(
+            qs
+              .filter(
+                (f) => f.type !== 'file' && answers[f.id] !== undefined && answers[f.id] !== '',
+              )
+              .map((f) => [f.id, answers[f.id]!]),
+          ),
         },
-      }),
-    onSuccess: async () => {
-      toast('Application sent', 'success');
+      });
+      // The files follow once the application exists. One that fails does not undo the application.
+      const uploads: [string, string, File | null][] = [
+        ['picture', `/applicant/applications/${created.id}/files/photo`, photo],
+        ['licence photo', `/applicant/applications/${created.id}/files/licence`, licence],
+        ...qs
+          .filter((f) => f.type === 'file')
+          .map((f): [string, string, File | null] => [
+            f.label,
+            `/applicant/applications/${created.id}/form-files/${f.id}`,
+            files[f.id] ?? null,
+          ]),
+      ];
+      const failed: string[] = [];
+      for (const [label, path, file] of uploads) {
+        if (!file) continue;
+        try {
+          await api(path, { method: 'POST', file });
+        } catch {
+          failed.push(label);
+        }
+      }
+      return failed;
+    },
+    onSuccess: async (failed) => {
+      if (failed.length > 0) {
+        toast(
+          `Application sent, but these did not upload: ${failed.join(', ')}. Add them again from My applications.`,
+          'info',
+        );
+      } else toast('Application sent', 'success');
       await qc.invalidateQueries({ queryKey: ['my-applications'] });
       void nav(`${appRoot()}/applications`);
     },
@@ -154,10 +204,24 @@ export function JobDetailPage() {
     );
   }
   const j = job.data;
+  const qs = j.formFields ?? [];
+  const customProblem = answersProblem(
+    uploadsOn ? qs : qs.filter((f) => f.type !== 'file'),
+    answers,
+    files,
+  );
+  const years = Number(form.yearsExperience);
   const valid =
     form.fullName.trim().length >= 2 &&
-    form.phone.trim().length >= 6 &&
-    form.experience.trim().length >= 10;
+    form.phoneNumber.trim().length >= 6 &&
+    form.yearsExperience !== '' &&
+    Number.isInteger(years) &&
+    years >= 0 &&
+    years <= 70 &&
+    form.experience.trim().length >= 10 &&
+    customProblem === null &&
+    pictureProblem(photo) === null &&
+    pictureProblem(licence) === null;
   return (
     <div className="w-full space-y-5">
       <Link className="text-sm text-brand-700 font-medium dark:text-brand-500" to={jobsHome}>
@@ -166,7 +230,8 @@ export function JobDetailPage() {
       <div>
         <h1 className="text-2xl font-semibold">{j.title}</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          {j.company} · {ROLE_LABEL[j.jobRole] ?? j.jobRole}
+          {j.company}
+          {j.roleName ? ` · ${j.roleName}` : ''}
           {j.location ? ` · ${j.location}` : ''}
           {j.closesOn ? ` · apply by ${j.closesOn}` : ''}
         </p>
@@ -187,16 +252,44 @@ export function JobDetailPage() {
               onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
             />
             <Field
-              label="Phone"
+              label="Phone number"
               type="tel"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              value={form.phoneNumber}
+              onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
             />
-            {(j.jobRole === 'DRIVER' || j.jobRole === 'CONDUCTOR') && (
-              <Field
-                label="Licence number (if you have one)"
-                value={form.licenceNumber}
-                onChange={(e) => setForm((f) => ({ ...f, licenceNumber: e.target.value }))}
+            <Field
+              label="Years of experience"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={70}
+              step={1}
+              value={form.yearsExperience}
+              onChange={(e) => setForm((f) => ({ ...f, yearsExperience: e.target.value }))}
+            />
+            {uploadsOn && (
+              <PendingFile
+                label="Your picture"
+                hint="A clear photo of your face (PNG, JPEG or WebP, up to 5 MB)."
+                accept={IMAGE_ACCEPT}
+                file={photo}
+                onPick={setPhoto}
+                problem={pictureProblem(photo)}
+              />
+            )}
+            <Field
+              label="Licence number (if you have one)"
+              value={form.licenceNumber}
+              onChange={(e) => setForm((f) => ({ ...f, licenceNumber: e.target.value }))}
+            />
+            {uploadsOn && (
+              <PendingFile
+                label="Picture of your licence"
+                hint="Both sides if you can (PNG, JPEG or WebP, up to 5 MB). Leave empty if you have none."
+                accept={IMAGE_ACCEPT}
+                file={licence}
+                onPick={setLicence}
+                problem={pictureProblem(licence)}
               />
             )}
             <div>
@@ -212,8 +305,19 @@ export function JobDetailPage() {
                 className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm dark:border-slate-600 dark:bg-slate-900"
               />
             </div>
+            <ApplicationFields
+              fields={uploadsOn ? qs : qs.filter((f) => f.type !== 'file')}
+              answers={answers}
+              files={files}
+              onAnswer={(fid, v) => setAnswers((a) => ({ ...a, [fid]: v }))}
+              onFile={(fid, f) => setFiles((x) => ({ ...x, [fid]: f }))}
+            />
+            {customProblem && (
+              <p className="text-xs text-red-700 dark:text-red-400">{customProblem}</p>
+            )}
             <p className="text-xs text-slate-500">
-              {j.company} will see your name, phone, email and these answers. Nobody else can.
+              {j.company} will see your name, phone number, email, pictures and these answers.
+              Nobody else can.
             </p>
             {apply.error && <ErrorAlert error={apply.error} />}
             <Button
@@ -253,7 +357,24 @@ interface MyApplication {
   createdAt: string;
   canWithdraw: boolean;
   cv: string | null;
+  licencePhoto: string | null;
+  photo: string | null;
+  interview: {
+    date: string;
+    time: string;
+    mode: string;
+    location: string;
+    contactPerson?: string;
+    contactPhone?: string;
+    instructions?: string;
+  } | null;
 }
+
+const MODE_LABEL: Record<string, string> = {
+  IN_PERSON: 'In person',
+  PHONE: 'Phone call',
+  VIDEO: 'Video call',
+};
 
 export function MyApplicationsPage() {
   const { user } = useAuth();
@@ -303,7 +424,26 @@ export function MyApplicationsPage() {
                   {a.company} · applied {new Date(a.createdAt).toLocaleDateString()}
                 </span>
               </span>
-              <span className="flex items-center gap-3">
+              {a.interview && (
+                <div className="w-full rounded-xl bg-brand-50 p-3 text-sm dark:bg-slate-800">
+                  <p className="font-semibold">Your interview</p>
+                  <p>
+                    {a.interview.date} at {a.interview.time} ·{' '}
+                    {MODE_LABEL[a.interview.mode] ?? a.interview.mode}
+                  </p>
+                  <p>{a.interview.location}</p>
+                  {(a.interview.contactPerson || a.interview.contactPhone) && (
+                    <p>
+                      Contact: {a.interview.contactPerson}
+                      {a.interview.contactPhone ? ` (${a.interview.contactPhone})` : ''}
+                    </p>
+                  )}
+                  {a.interview.instructions && (
+                    <p className="mt-1 whitespace-pre-wrap">{a.interview.instructions}</p>
+                  )}
+                </div>
+              )}
+              <span className="flex flex-wrap items-center gap-3">
                 <StatusBadge
                   status={
                     a.status === 'HIRED'
@@ -314,6 +454,26 @@ export function MyApplicationsPage() {
                   }
                   label={STATUS_LABEL[a.status] ?? a.status}
                 />
+                {a.status !== 'WITHDRAWN' && (
+                  <SlotFileControl
+                    label="Picture"
+                    imageOnly
+                    uploadPath={`/applicant/applications/${a.id}/files/photo`}
+                    linkPath={`/applicant/applications/${a.id}/files/photo/link`}
+                    canUpload={a.canWithdraw}
+                    current={a.photo}
+                  />
+                )}
+                {a.status !== 'WITHDRAWN' && (
+                  <SlotFileControl
+                    label="Licence photo"
+                    imageOnly
+                    uploadPath={`/applicant/applications/${a.id}/files/licence`}
+                    linkPath={`/applicant/applications/${a.id}/files/licence/link`}
+                    canUpload={a.canWithdraw}
+                    current={a.licencePhoto}
+                  />
+                )}
                 {a.status !== 'WITHDRAWN' && (
                   <CvControl
                     uploadPath={`/applicant/applications/${a.id}/cv`}

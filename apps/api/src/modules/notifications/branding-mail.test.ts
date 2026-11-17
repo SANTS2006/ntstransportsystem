@@ -56,7 +56,7 @@ describe('branded e-mail', () => {
         name: 'Ada <b>Lovelace</b>',
         email: 'ada@example.com',
         phone: '+23276123456',
-        employeeNumber: 'E-12',
+        staffNumber: 'E-12',
         job: 'Driver',
         password: 'Temp-Pass-123',
         link: 'https://app.test/acme/login',

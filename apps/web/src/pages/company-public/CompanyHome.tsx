@@ -12,7 +12,7 @@ import { addDays, isoDay } from '../../lib/format';
 interface Job {
   id: string;
   title: string;
-  jobRole: string;
+  roleName: string | null;
   location: string | null;
   closesOn: string | null;
 }

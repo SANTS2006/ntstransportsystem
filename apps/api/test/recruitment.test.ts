@@ -48,7 +48,7 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
 
   const job = (extra: Record<string, unknown> = {}) => ({
     title: 'Long-distance bus driver',
-    jobRole: 'DRIVER',
+    roleKey: 'driver',
     description:
       'Drive our Freetown to Bo route. Valid licence and two years of experience required.',
     location: 'Freetown',
@@ -58,7 +58,8 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
     tenantId,
     jobId,
     fullName: 'Ibrahim Koroma',
-    phone: '+23276123456',
+    phoneNumber: '+23276123456',
+    yearsExperience: 8,
     experience: 'Eight years driving coaches between Freetown and Bo, no accidents.',
     licenceNumber: 'SL-123456',
     ...extra,
@@ -89,8 +90,12 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
       .expect(400);
     await hr
       .call('post', base)
-      .send(job({ jobRole: 'CEO' }))
-      .expect(400);
+      .send(job({ roleKey: 'ceo' }))
+      .expect(400); // not a role of this company
+    await hr
+      .call('post', base)
+      .send(job({ roleKey: 'owner' }))
+      .expect(400); // never the owner role
     await hr
       .call('post', base)
       .send(job({ status: 'OPEN' }))
@@ -178,7 +183,7 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
       .expect(404); // wrong company
     await a
       .call('post', '/applicant/applications')
-      .send(application(c.tenantId, open.id, { phone: 'abc' }))
+      .send(application(c.tenantId, open.id, { phoneNumber: 'abc' }))
       .expect(400);
     await a
       .call('post', '/applicant/applications')
@@ -219,7 +224,8 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
     const seen = await hr.call('get', `/tenants/${c.tenantId}/applications/${made.id}`).expect(200);
     expect(seen.body).toMatchObject({
       fullName: 'Ibrahim Koroma',
-      phone: '+23276123456',
+      phoneNumber: '+23276123456',
+      yearsExperience: 8,
       licenceNumber: 'SL-123456',
       status: 'SUBMITTED',
     });
@@ -244,7 +250,55 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
       .expect(409); // terminal
   }, 600_000);
 
-  it('moves applications through the pipeline, keeps an audit trail, and hires atomically into an employee record', async () => {
+  it('lists the roles a posting can recruit for (never the owner) and checks custom form answers', async () => {
+    const c = await company('rc-form');
+    const hr = await member(c.tenantId, 'hr_manager');
+    const roles = (await hr.call('get', `/tenants/${c.tenantId}/jobs/roles`).expect(200)).body
+      .roles as { key: string; name: string }[];
+    expect(roles.map((r) => r.key)).toEqual(
+      expect.arrayContaining(['driver', 'dispatcher', 'admin']),
+    );
+    expect(roles.map((r) => r.key)).not.toContain('owner');
+
+    const formFields = [
+      {
+        id: 'badge',
+        label: 'Do you hold a PSV badge?',
+        type: 'radio',
+        required: true,
+        options: ['Yes', 'No'],
+      },
+      { id: 'notes', label: 'Anything else?', type: 'textarea', required: false },
+    ];
+    await hr
+      .call('post', `/tenants/${c.tenantId}/jobs`)
+      .send(job({ formFields: [{ ...formFields[0], options: ['Only one'] }] }))
+      .expect(400); // a choice needs two options
+    const j = (
+      await hr.call('post', `/tenants/${c.tenantId}/jobs`).send(job({ formFields })).expect(201)
+    ).body as { id: string; formFields: unknown[] };
+    expect(j.formFields).toHaveLength(2);
+    await hr.call('post', `/tenants/${c.tenantId}/jobs/${j.id}/open`).expect(200);
+
+    const a = await newClient(ctx.app, db, 'rc-form-a');
+    const apply = (answers: Record<string, unknown>) =>
+      a.call('post', '/applicant/applications').send({ ...application(c.tenantId, j.id), answers });
+    await apply({}).expect(400); // the required question is unanswered
+    await apply({ badge: 'Maybe' }).expect(400); // not one of the options
+    await apply({ badge: 'Yes', stranger: 'x' }).expect(400); // not a question of this posting
+    const made = (await apply({ badge: 'Yes', notes: 'Available at once' }).expect(201)).body as {
+      id: string;
+    };
+    const seen = (
+      await hr.call('get', `/tenants/${c.tenantId}/applications/${made.id}`).expect(200)
+    ).body;
+    expect(seen.formAnswers).toEqual([
+      expect.objectContaining({ id: 'badge', value: 'Yes' }),
+      expect.objectContaining({ id: 'notes', value: 'Available at once' }),
+    ]);
+  }, 600_000);
+
+  it('moves applications through the pipeline, emails each decision, and hires atomically into a staff profile', async () => {
     const c = await company('rc-flow');
     const hr = await member(c.tenantId, 'hr_manager');
     const j = (await hr.call('post', `/tenants/${c.tenantId}/jobs`).send(job()).expect(201))
@@ -260,68 +314,129 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
     const url = `/tenants/${c.tenantId}/applications/${made.id}`;
     const move = (status: string, note?: string) =>
       hr.call('post', `${url}/status`).send({ status, ...(note ? { note } : {}) });
+    const details = {
+      jobTitle: 'Coach driver',
+      employmentType: 'FULL_TIME',
+      startDate: '2026-11-01',
+      reportingTo: 'Head of Operations',
+      workLocation: 'Freetown depot',
+    };
+    const interview = {
+      date: '2026-12-01',
+      time: '10:30',
+      mode: 'IN_PERSON',
+      location: 'Head office, Siaka Stevens Street',
+      contactPerson: 'Mariama',
+      instructions: 'Bring your licence',
+    };
 
-    await move('INTERVIEW').expect(409); // cannot skip a stage
-    await move('OFFERED').expect(409);
+    await move('INTERVIEW').expect(400); // interviews are arranged with the interview action
+    await move('OFFERED').expect(400); // there is no offer step any more
     await move('HIRED').expect(400); // only through the hire action
-    await hr.call('post', `${url}/hire`).send({ employeeNumber: 'EMP-1' }).expect(409); // no offer yet
-    await move('SHORTLISTED', 'Strong driving record').expect(204);
+    await hr.call('post', `${url}/interview`).send(interview).expect(409); // not shortlisted yet
+    await hr
+      .call('post', `${url}/hire`)
+      .send({ staffNumber: 'EMP-1', ...details })
+      .expect(409);
+    await move('SHORTLISTED', 'Strong driving record').expect(200);
     await hr.call('post', `${url}/notes`).send({ note: 'Called referee: positive' }).expect(201);
     await hr.call('post', `${url}/notes`).send({ note: '' }).expect(400);
-    await move('INTERVIEW').expect(204);
-    await move('OFFERED').expect(204);
-    expect((await hr.call('get', url).expect(200)).body.allowedNext).toEqual(['REJECTED']);
 
-    // The employee number is taken: nothing changes (no half-hired applicant).
+    // The invitation records the details and e-mails them to the applicant.
+    await hr
+      .call('post', `${url}/interview`)
+      .send({ ...interview, time: '25:00' })
+      .expect(400);
+    const invited = await hr.call('post', `${url}/interview`).send(interview).expect(200);
+    expect(invited.body.emailed).toBe(true);
+    const inviteMail = ctx.mailer.sent.find(
+      (m) => m.template === 'interview-invitation' && m.to === a.email,
+    );
+    expect(inviteMail?.data).toMatchObject({
+      date: '2026-12-01',
+      time: '10:30',
+      location: 'Head office, Siaka Stevens Street',
+      contactPerson: 'Mariama',
+    });
+    const after = (await hr.call('get', url).expect(200)).body;
+    expect(after.status).toBe('INTERVIEW');
+    expect(after.interview).toMatchObject({ date: '2026-12-01', location: interview.location });
+    expect(after.allowedNext).toEqual(['HIRED', 'REJECTED']);
+
+    // The staff number is taken: nothing changes (no half-hired applicant).
     await plat((tx) =>
-      tx.employee.create({
+      tx.staffProfile.create({
         data: {
           tenantId: c.tenantId,
-          employeeNumber: 'EMP-1',
+          staffNumber: 'EMP-1',
           fullName: 'Existing Person',
           role: 'DRIVER',
         },
       }),
     );
-    await hr.call('post', `${url}/hire`).send({ employeeNumber: 'EMP-1' }).expect(409);
+    await hr
+      .call('post', `${url}/hire`)
+      .send({ staffNumber: 'EMP-1', ...details })
+      .expect(409);
     expect((await hr.call('get', url).expect(200)).body).toMatchObject({
-      status: 'OFFERED',
-      employeeId: null,
+      status: 'INTERVIEW',
+      staffId: null,
     });
 
     const hired = await hr
       .call('post', `${url}/hire`)
-      .send({ employeeNumber: 'EMP-2', hiredOn: '2026-11-01' })
+      .send({ staffNumber: 'EMP-2', ...details, notes: 'Probation of three months' })
       .expect(201);
+    expect(hired.body.emailed).toBe(true);
     const emp = await plat((tx) =>
-      tx.employee.findUniqueOrThrow({ where: { id: hired.body.employeeId } }),
+      tx.staffProfile.findUniqueOrThrow({ where: { id: hired.body.staffId } }),
     );
     expect(emp).toMatchObject({
-      employeeNumber: 'EMP-2',
+      staffNumber: 'EMP-2',
       fullName: 'Ibrahim Koroma',
       role: 'DRIVER',
       userId: a.userId,
       phone: '+23276123456',
     });
+    expect(emp.employment).toMatchObject({ jobTitle: 'Coach driver', roleKey: 'driver' });
+
+    // They now work for the company in the posting's role, with a default password to change.
+    const m = await plat((tx) =>
+      tx.membership.findFirstOrThrow({
+        where: { tenantId: c.tenantId, userId: a.userId },
+        include: { role: true },
+      }),
+    );
+    expect(m).toMatchObject({ status: 'ACTIVE' });
+    expect(m.role.key).toBe('driver');
+    const user = await plat((tx) => tx.user.findUniqueOrThrow({ where: { id: a.userId } }));
+    expect(user.mustChangePassword).toBe(true);
+    const hireMail = ctx.mailer.sent.find(
+      (x) => x.template === 'application-hired' && x.to === a.email,
+    );
+    expect(hireMail?.data).toMatchObject({
+      staffNumber: 'EMP-2',
+      jobTitle: 'Coach driver',
+      startDate: '2026-11-01',
+      reportingTo: 'Head of Operations',
+    });
+    expect(hireMail?.data.password).toBeTruthy();
+
     const detail = (await hr.call('get', url).expect(200)).body;
     expect(detail).toMatchObject({
       status: 'HIRED',
-      employeeId: hired.body.employeeId,
+      staffId: hired.body.staffId,
       allowedNext: [],
     });
     expect(
       detail.events.map(
         (e: { to: string | null; note: string | null }) => e.to ?? `note:${e.note}`,
       ),
-    ).toEqual([
-      'SUBMITTED',
-      'SHORTLISTED',
-      'note:Called referee: positive',
-      'INTERVIEW',
-      'OFFERED',
-      'HIRED',
-    ]);
-    await hr.call('post', `${url}/hire`).send({ employeeNumber: 'EMP-3' }).expect(409); // only once
+    ).toEqual(['SUBMITTED', 'SHORTLISTED', 'note:Called referee: positive', 'INTERVIEW', 'HIRED']);
+    await hr
+      .call('post', `${url}/hire`)
+      .send({ staffNumber: 'EMP-3', ...details })
+      .expect(409); // only once
     await a.call('post', `/applicant/applications/${made.id}/withdraw`).expect(409);
 
     // Records are immutable at the database level.
@@ -340,11 +455,44 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
       plat((tx) => tx.jobApplication.deleteMany({ where: { id: made.id } })),
     ).rejects.toThrow();
     await expect(plat((tx) => tx.jobPosting.deleteMany({ where: { id: j.id } }))).rejects.toThrow();
-    await expect(
-      plat((tx) =>
-        tx.jobApplication.update({ where: { id: made.id }, data: { status: 'OFFERED' } }),
-      ),
-    ).rejects.toThrow(); // HIRED needs an employee, OFFERED must not have one
+  }, 600_000);
+
+  it('lets HR reject at every open step and emails the applicant', async () => {
+    const c = await company('rc-reject');
+    const hr = await member(c.tenantId, 'hr_manager');
+    const j = (await hr.call('post', `/tenants/${c.tenantId}/jobs`).send(job()).expect(201))
+      .body as { id: string };
+    await hr.call('post', `/tenants/${c.tenantId}/jobs/${j.id}/open`).expect(200);
+    const interview = {
+      date: '2026-12-01',
+      time: '09:00',
+      mode: 'PHONE',
+      location: '+23276000000',
+    };
+    for (const step of ['SUBMITTED', 'SHORTLISTED', 'INTERVIEW'] as const) {
+      const a = await newClient(ctx.app, db, `rc-reject-${step.toLowerCase()}`);
+      const made = (
+        await a
+          .call('post', '/applicant/applications')
+          .send(application(c.tenantId, j.id))
+          .expect(201)
+      ).body as { id: string };
+      const url = `/tenants/${c.tenantId}/applications/${made.id}`;
+      if (step !== 'SUBMITTED')
+        await hr.call('post', `${url}/status`).send({ status: 'SHORTLISTED' }).expect(200);
+      if (step === 'INTERVIEW')
+        await hr.call('post', `${url}/interview`).send(interview).expect(200);
+      const res = await hr
+        .call('post', `${url}/status`)
+        .send({ status: 'REJECTED', note: 'We found a closer match' })
+        .expect(200);
+      expect(res.body.emailed).toBe(true);
+      const mail = ctx.mailer.sent.find(
+        (m) => m.template === 'application-rejected' && m.to === a.email,
+      );
+      expect(mail?.data.message).toBe('We found a closer match');
+      expect((await hr.call('get', url).expect(200)).body.status).toBe('REJECTED');
+    }
   }, 600_000);
 
   it('emails HR about new applications and applicants about decisions, never leaking private notes', async () => {
@@ -365,11 +513,11 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
       .call('post', `${url}/notes`)
       .send({ note: 'Concerned about the licence class: secret HR view' })
       .expect(201);
-    await hr.call('post', `${url}/status`).send({ status: 'SHORTLISTED' }).expect(204);
+    await hr.call('post', `${url}/status`).send({ status: 'SHORTLISTED' }).expect(200);
     await hr
       .call('post', `${url}/status`)
       .send({ status: 'REJECTED', note: 'Not enough experience' })
-      .expect(204);
+      .expect(200);
 
     const mailer = new CaptureMailer();
     const proc = new OutboxProcessor(
@@ -383,7 +531,7 @@ describe.skipIf(!TEST_DB_URL)('recruitment (database)', () => {
     expect(toHr.map((m) => m.to).sort()).toEqual([c.ownerEmail, hr.email].sort());
     expect(toHr[0]!.data.link).toMatch(/^https:\/\/app\.test\/[a-z0-9-]+\/recruitment$/);
     const toApplicant = mailer.sent.filter((m) => m.template === 'application-update');
-    expect(toApplicant.map((m) => m.data.status).sort()).toEqual(['REJECTED', 'SHORTLISTED']);
+    expect(toApplicant.map((m) => m.data.status)).toEqual(['SHORTLISTED']); // the rejection is mailed by the action itself
     expect(toApplicant.every((m) => m.to === a.email)).toBe(true);
     const all = JSON.stringify(mailer.sent);
     expect(all).not.toContain('secret HR view');

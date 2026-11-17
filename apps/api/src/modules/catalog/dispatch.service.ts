@@ -29,7 +29,7 @@ export class DispatchService {
           vehicle: { select: { registration: true, seatingCapacity: true } },
           crew: {
             where: { releasedAt: null },
-            include: { employee: { select: { fullName: true } } },
+            include: { staff: { select: { fullName: true } } },
           },
         },
         orderBy: { departureAt: 'asc' },
@@ -76,8 +76,8 @@ export class DispatchService {
               }
             : null,
           crew: t.crew.map((c) => ({
-            employeeId: c.employeeId,
-            fullName: c.employee.fullName,
+            staffId: c.staffId,
+            fullName: c.staff.fullName,
             role: c.role,
           })),
           flags,

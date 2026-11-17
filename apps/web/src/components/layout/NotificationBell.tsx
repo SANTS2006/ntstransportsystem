@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../../lib/api';
+import { appRoot } from '../../lib/app-path';
 import { Button } from '../ui/Button';
 import { PageLoader } from '../ui/Spinner';
 
@@ -28,7 +29,8 @@ export const isAppPath = (link: string | null): link is string =>
   link !== null && /^\/[A-Za-z0-9]/.test(link);
 
 /** Bell with an unread count and a panel of the signed-in user's recent notifications. */
-export function NotificationBell() {
+export function NotificationBell({ base }: { base?: string } = {}) {
+  const root0 = base ?? appRoot();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -80,7 +82,8 @@ export function NotificationBell() {
   const choose = (n: Item) => {
     if (!n.read) markOne.mutate(n.id);
     setOpen(false);
-    if (isAppPath(n.link)) void navigate(n.link);
+    // Opens the notification's own page, which shows all of it and where it leads.
+    void navigate(`${root0}/notifications/${n.id}`);
   };
 
   return (
@@ -182,6 +185,18 @@ export function NotificationBell() {
                 </li>
               ))}
             </ul>
+          </div>
+          <div className="border-t border-slate-200 px-3 py-2 text-center dark:border-slate-700">
+            <button
+              type="button"
+              className="text-sm font-medium text-brand-700 dark:text-brand-500"
+              onClick={() => {
+                setOpen(false);
+                void navigate(`${root0}/notifications`);
+              }}
+            >
+              See all notifications
+            </button>
           </div>
         </div>
       )}

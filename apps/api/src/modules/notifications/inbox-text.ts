@@ -49,6 +49,57 @@ export function inboxText(template: MailTemplate, d: Record<string, string>): In
       return make('New job application', d.job ?? '');
     case 'application-update':
       return make('Update on your application', join(d.job, d.status));
+    case 'interview-invitation':
+      return {
+        title: clamp(`Interview invitation${d.job ? `: ${d.job}` : ''}`, 120),
+        body: clamp(
+          [
+            d.company ? `${d.company} would like to interview you.` : '',
+            d.date ? `Date: ${d.date}` : '',
+            d.time ? `Time: ${d.time}` : '',
+            d.mode ? `Format: ${d.mode}` : '',
+            d.location ? `Where: ${d.location}` : '',
+            d.contactPerson ? `Contact: ${d.contactPerson}` : '',
+            d.contactPhone ? `Phone: ${d.contactPhone}` : '',
+            d.instructions ? `Notes: ${d.instructions}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          3000,
+        ),
+      };
+    case 'application-rejected':
+      return {
+        title: clamp(`Update on your application${d.job ? `: ${d.job}` : ''}`, 120),
+        body: clamp(
+          [
+            `${d.company ?? 'The company'} has decided not to continue with your application.`,
+            d.message ?? '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          3000,
+        ),
+      };
+    case 'application-hired':
+      // The default password is never stored in the app: it is only in the e-mail.
+      return {
+        title: clamp(`You have been hired${d.jobTitle ? `: ${d.jobTitle}` : ''}`, 120),
+        body: clamp(
+          [
+            `${d.company ?? 'The company'} has created your staff profile.`,
+            d.staffNumber ? `Staff number: ${d.staffNumber}` : '',
+            d.employmentType ? `Employment type: ${d.employmentType}` : '',
+            d.startDate ? `Start date: ${d.startDate}` : '',
+            d.reportingTo ? `Reports to: ${d.reportingTo}` : '',
+            d.workLocation ? `Work location: ${d.workLocation}` : '',
+            d.notes ? `Notes: ${d.notes}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          3000,
+        ),
+      };
     default:
       return null;
   }

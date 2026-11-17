@@ -56,7 +56,7 @@ interface Alerts {
   }[];
   licences?: {
     id: string;
-    employee: string;
+    staff: string;
     licenceNumber: string;
     expiresOn: string;
     daysLeft: number;
@@ -219,8 +219,8 @@ export function MaintenancePage() {
               key={l.id}
               className={l.expired ? 'font-medium text-red-700 dark:text-red-400' : ''}
             >
-              {l.employee}: licence {l.licenceNumber} {l.expired ? 'expired' : 'expires'}{' '}
-              {l.expiresOn} ({dueText(l.daysLeft, l.expired)})
+              {l.staff}: licence {l.licenceNumber} {l.expired ? 'expired' : 'expires'} {l.expiresOn}{' '}
+              ({dueText(l.daysLeft, l.expired)})
             </li>
           ))}
         </ul>

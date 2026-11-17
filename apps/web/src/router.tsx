@@ -38,6 +38,18 @@ const ResetPasswordPage = lazy(() =>
 const SecurityPage = lazy(() =>
   import('./pages/app/AppPages').then((m) => ({ default: m.SecurityPage })),
 );
+const NotificationsPage = lazy(() =>
+  import('./pages/app/NotificationPages').then((m) => ({ default: m.NotificationsPage })),
+);
+const NotificationDetailPage = lazy(() =>
+  import('./pages/app/NotificationPages').then((m) => ({ default: m.NotificationDetailPage })),
+);
+const SalariesPage = lazy(() =>
+  import('./pages/company/SalaryPages').then((m) => ({ default: m.SalariesPage })),
+);
+const MySalaryPage = lazy(() =>
+  import('./pages/company/SalaryPages').then((m) => ({ default: m.MySalaryPage })),
+);
 const CompanyDashboard = lazy(() =>
   import('./pages/company/CompanyDashboard').then((m) => ({ default: m.CompanyDashboard })),
 );
@@ -258,6 +270,8 @@ export const router = createBrowserRouter([
       },
       { path: 'profile', element: s(<ProfilePage />) },
       { path: 'security', element: s(<SecurityPage />) },
+      { path: 'notifications', element: s(<NotificationsPage />) },
+      { path: 'notifications/:id', element: s(<NotificationDetailPage />) },
       // Passenger pages
       { path: 'bookings/:id', element: s(<MyTicketsPage />) },
       { path: 'bookings/:id/pay', element: s(<PayMethodPage />) },
@@ -288,6 +302,8 @@ export const router = createBrowserRouter([
       { path: 'boarding', element: s(<BoardingPage />) },
       { path: 'reports', element: s(<ReportsPage />) },
       { path: 'recruitment', element: s(<RecruitmentPage />) },
+      { path: 'salaries', element: s(<SalariesPage />) },
+      { path: 'my-salary', element: s(<MySalaryPage />) },
       { path: 'dispatch', element: s(<DispatchPage />) },
       { path: 'calendar', element: s(<CalendarPage />) },
       { path: 'seat-layouts', element: s(<SeatLayoutsPage />) },
@@ -301,6 +317,8 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: 'dashboard', element: s(<PlatformOverviewPage />) },
       { path: 'overview', element: <Navigate to="../dashboard" replace /> },
+      { path: 'notifications', element: s(<NotificationsPage />) },
+      { path: 'notifications/:id', element: s(<NotificationDetailPage />) },
       { path: 'companies', element: s(<PlatformTenantsPage />) },
       { path: 'audit', element: s(<PlatformAuditPage />) },
       { path: 'profile', element: s(<ProfilePage />) },

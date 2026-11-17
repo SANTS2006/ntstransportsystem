@@ -15,13 +15,22 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { can, useCompany } from './company-context';
 
-export interface StaffEmployee {
+export interface StaffRecord {
   id: string;
-  employeeNumber: string;
+  staffNumber: string;
   job: string;
   status: string;
   hiredOn: string | null;
   licenceExpiresOn: string | null;
+  /** Terms given when the person was hired through recruitment. */
+  employment?: {
+    jobTitle?: string | null;
+    employmentType?: string | null;
+    startDate?: string | null;
+    reportingTo?: string | null;
+    workLocation?: string | null;
+    notes?: string | null;
+  } | null;
 }
 export interface Member {
   id: string;
@@ -35,7 +44,7 @@ export interface Member {
   role: { id: string; key: string; name: string };
   roles: { id: string; key: string; name: string }[];
   passengerMode: boolean;
-  employee: StaffEmployee | null;
+  staff: StaffRecord | null;
 }
 
 const selectClass =
@@ -49,7 +58,7 @@ const DEFAULT_ROLE_OPTIONS = Object.entries(DEFAULT_TENANT_ROLES).map(([key, r])
 // ---- Add a staff member -------------------------------------------------------------------------
 
 const addSchema = z.object({
-  employeeNumber: z.string().trim().min(1, 'Enter the staff number').max(30),
+  staffNumber: z.string().trim().min(1, 'Enter the staff number').max(30),
   fullName: z.string().trim().min(2, 'Enter the full name').max(120),
   roleKey: z.string().min(1, 'Choose a role'),
   email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
@@ -78,11 +87,11 @@ export function AddStaffButton({ onAdded }: { onAdded: () => Promise<unknown> })
   const options = roles.data?.roles ?? DEFAULT_ROLE_OPTIONS;
   const form = useForm<AddValues>({
     resolver: zodResolver(addSchema),
-    defaultValues: { employeeNumber: '', fullName: '', roleKey: '', email: '', phone: '' },
+    defaultValues: { staffNumber: '', fullName: '', roleKey: '', email: '', phone: '' },
   });
   const create = useMutation({
     mutationFn: (v: AddValues) =>
-      api(`/tenants/${tenantId}/employees`, {
+      api(`/tenants/${tenantId}/staff`, {
         method: 'POST',
         body: { ...v, phone: v.phone.replace(/[ ()-]/g, '') || undefined },
       }),
@@ -108,8 +117,8 @@ export function AddStaffButton({ onAdded }: { onAdded: () => Promise<unknown> })
         <Field label="Full name" error={errors.fullName?.message} {...form.register('fullName')} />
         <Field
           label="Staff number"
-          error={errors.employeeNumber?.message}
-          {...form.register('employeeNumber')}
+          error={errors.staffNumber?.message}
+          {...form.register('staffNumber')}
         />
         <Field
           label="Email address"
@@ -200,7 +209,7 @@ export function StaffDetailsDialog({
   const qc = useQueryClient();
   const manage = can(access, 'hr.manage');
   const [licence, setLicence] = useState(false);
-  const e = member?.employee ?? null;
+  const e = member?.staff ?? null;
   const today = new Date().toISOString().slice(0, 10);
   const form = useForm<LicenceValues>({
     resolver: zodResolver(licenceSchema),
@@ -208,7 +217,7 @@ export function StaffDetailsDialog({
   });
   const setStatus = useMutation({
     mutationFn: (status: string) =>
-      api(`/tenants/${tenantId}/employees/${e!.id}`, { method: 'PATCH', body: { status } }),
+      api(`/tenants/${tenantId}/staff/${e!.id}`, { method: 'PATCH', body: { status } }),
     onSuccess: async () => {
       toast('Status updated', 'success');
       await onChanged();
@@ -218,7 +227,7 @@ export function StaffDetailsDialog({
   });
   const addLicence = useMutation({
     mutationFn: (v: LicenceValues) =>
-      api(`/tenants/${tenantId}/employees/${e!.id}/licences`, { method: 'POST', body: v }),
+      api(`/tenants/${tenantId}/staff/${e!.id}/licences`, { method: 'POST', body: v }),
     onSuccess: async () => {
       toast('Licence recorded', 'success');
       form.reset();
@@ -270,7 +279,7 @@ export function StaffDetailsDialog({
             <Row label="Joined">{new Date(member.createdAt).toLocaleDateString()}</Row>
             {e && (
               <>
-                <Row label="Staff number">{e.employeeNumber}</Row>
+                <Row label="Staff number">{e.staffNumber}</Row>
                 <Row label="Job">{title(e.job)}</Row>
                 <Row label="Employment">
                   {manage && e.status !== 'TERMINATED' ? (
@@ -290,6 +299,17 @@ export function StaffDetailsDialog({
                   )}
                 </Row>
                 <Row label="Hired on">{e.hiredOn ?? '—'}</Row>
+                {e.employment?.jobTitle && <Row label="Job title">{e.employment.jobTitle}</Row>}
+                {e.employment?.employmentType && (
+                  <Row label="Employment type">{title(e.employment.employmentType)}</Row>
+                )}
+                {e.employment?.reportingTo && (
+                  <Row label="Reports to">{e.employment.reportingTo}</Row>
+                )}
+                {e.employment?.workLocation && (
+                  <Row label="Work location">{e.employment.workLocation}</Row>
+                )}
+                {e.employment?.notes && <Row label="Notes">{e.employment.notes}</Row>}
                 {e.job === 'DRIVER' && (
                   <Row label="Licence">
                     {e.licenceExpiresOn

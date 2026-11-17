@@ -156,7 +156,7 @@ let tenantId = '';
 try {
   // ---- Company, people, staff records -------------------------------------------------------
   const users = new Map(PEOPLE.map((p) => [p.key, id()] as const));
-  const employees = new Map<string, string>();
+  const staffProfiles = new Map<string, string>();
   await step('company and people', async (tx) => {
     const t = await tx.tenant.create({
       data: { name: 'Sierra Express Coaches', slug: SLUG, status: 'ACTIVE', timezone: tz },
@@ -196,13 +196,13 @@ try {
       skipDuplicates: true,
     });
     const staff = PEOPLE.filter((p) => p.job);
-    staff.forEach((p) => employees.set(p.key, id()));
-    await tx.employee.createMany({
+    staff.forEach((p) => staffProfiles.set(p.key, id()));
+    await tx.staffProfile.createMany({
       data: staff.map((p, i) => ({
-        id: employees.get(p.key)!,
+        id: staffProfiles.get(p.key)!,
         tenantId,
         userId: users.get(p.key)!,
-        employeeNumber: `SE-${String(i + 1).padStart(3, '0')}`,
+        staffNumber: `SE-${String(i + 1).padStart(3, '0')}`,
         fullName: p.name,
         role: p.job!,
         phone: p.phone,
@@ -213,21 +213,21 @@ try {
       data: [
         {
           tenantId,
-          employeeId: employees.get('driver1')!,
+          staffId: staffProfiles.get('driver1')!,
           licenceNumber: 'SL-DL-204118',
           category: 'D',
           expiresOn: dateOnly(at(420, 0)),
         },
         {
           tenantId,
-          employeeId: employees.get('driver2')!,
+          staffId: staffProfiles.get('driver2')!,
           licenceNumber: 'SL-DL-198342',
           category: 'D',
           expiresOn: dateOnly(at(12, 0)),
         },
         {
           tenantId,
-          employeeId: employees.get('driver3')!,
+          staffId: staffProfiles.get('driver3')!,
           licenceNumber: 'SL-DL-177509',
           category: 'D',
           expiresOn: dateOnly(at(260, 0)),
@@ -632,7 +632,7 @@ try {
         crew.push({
           tenantId,
           tripId: t.id,
-          employeeId: employees.get(drivers[i]!)!,
+          staffId: staffProfiles.get(drivers[i]!)!,
           role: 'DRIVER' as const,
           startsAt: t.dep,
           endsAt: t.arr,
@@ -641,7 +641,7 @@ try {
           crew.push({
             tenantId,
             tripId: t.id,
-            employeeId: employees.get(conductors[i]!)!,
+            staffId: staffProfiles.get(conductors[i]!)!,
             role: 'CONDUCTOR' as const,
             startsAt: t.dep,
             endsAt: t.arr,
@@ -848,7 +848,7 @@ try {
           id: jDriver,
           tenantId,
           title: 'Long-distance coach driver',
-          jobRole: 'DRIVER',
+          roleKey: 'driver',
           description:
             'Drive our Freetown - Bo and Freetown - Kenema services. Class D licence and 3 years of coach experience required.',
           location: 'Freetown',
@@ -860,7 +860,7 @@ try {
           id: jMech,
           tenantId,
           title: 'Workshop mechanic',
-          jobRole: 'MECHANIC',
+          roleKey: 'dispatcher',
           description:
             'Service and repair Toyota Coaster and Nissan Civilian buses at our Wellington depot.',
           location: 'Freetown',
@@ -871,7 +871,7 @@ try {
         {
           tenantId,
           title: 'Bus conductor',
-          jobRole: 'CONDUCTOR',
+          roleKey: 'driver',
           description: 'Sell tickets on board and look after passengers on the Makeni route.',
           location: 'Makeni',
           status: 'CLOSED',

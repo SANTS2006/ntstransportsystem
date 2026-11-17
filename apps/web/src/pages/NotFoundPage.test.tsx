@@ -43,7 +43,7 @@ describe('not found page', () => {
 describe('dialog', () => {
   it('is forty percent of the screen wide on large screens, and closable', () => {
     render(
-      <Dialog open={false} title="Add an employee" onClose={() => undefined}>
+      <Dialog open={false} title="Add an staff" onClose={() => undefined}>
         <p>Body</p>
       </Dialog>,
     );

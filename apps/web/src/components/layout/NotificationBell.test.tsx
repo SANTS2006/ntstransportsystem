@@ -30,7 +30,7 @@ function setup(handler: (url: string, init?: RequestInit) => Response) {
   const router = createMemoryRouter(
     [
       { path: '/', element: <NotificationBell /> },
-      { path: '/app/bookings/:id', element: <p>BOOKING PAGE</p> },
+      { path: '/notifications/:id', element: <p>NOTIFICATION PAGE</p> },
     ],
     { initialEntries: ['/'] },
   );
@@ -61,7 +61,7 @@ describe('NotificationBell', () => {
     expect(await screen.findByRole('button', { name: 'Notifications, 3 unread' })).toBeTruthy();
   });
 
-  it('marks a notification read and follows its link', async () => {
+  it('marks a notification read and opens its own page', async () => {
     const user = userEvent.setup();
     const { calls } = setup((url, init) => {
       if (url.includes('unread-count')) return json({ unread: 1 });
@@ -70,7 +70,7 @@ describe('NotificationBell', () => {
     });
     await user.click(await screen.findByRole('button', { name: /Notifications/ }));
     await user.click(await screen.findByText('Booking confirmed'));
-    await waitFor(() => expect(screen.getByText('BOOKING PAGE')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('NOTIFICATION PAGE')).toBeTruthy());
     expect(
       calls.some(
         (c) =>

@@ -316,9 +316,9 @@ export class MaintenanceService {
             where: {
               tenantId: s.tenantId,
               expiresOn: { lte: horizon },
-              employee: { status: 'ACTIVE' },
+              staff: { status: 'ACTIVE' },
             },
-            include: { employee: { select: { fullName: true } } },
+            include: { staff: { select: { fullName: true } } },
             orderBy: { expiresOn: 'asc' },
             take: 200,
           })
@@ -349,7 +349,7 @@ export class MaintenanceService {
           ? {
               licences: licences.map((l) => ({
                 id: l.id,
-                employee: l.employee.fullName,
+                staff: l.staff.fullName,
                 licenceNumber: l.licenceNumber,
                 expiresOn: isoDate(l.expiresOn),
                 daysLeft: daysBetween(today, l.expiresOn),

@@ -26,16 +26,16 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
 
   const plat = <T>(fn: Parameters<typeof withDb<T>>[2]) => withDb(db, { platform: true }, fn);
 
-  it('adding an employee with an email makes their account and mails them the company welcome', async () => {
+  it('adding an staff with an email makes their account and mails them the company welcome', async () => {
     const t = await createTenantWithOwner(db, 'welcome');
     const owner = await loginClient(ctx.app, db, t.email, t.password);
     const email = `${uniq('driver')}@example.test`;
     const number = uniq('E');
 
     const res = await owner
-      .call('post', `/tenants/${t.tenant.id}/employees`)
+      .call('post', `/tenants/${t.tenant.id}/staff`)
       .send({
-        employeeNumber: number,
+        staffNumber: number,
         fullName: 'Aminata Kamara',
         role: 'DRIVER',
         email,
@@ -47,12 +47,14 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
     expect(mail?.tenantId).toBe(t.tenant.id);
     expect(mail?.data.password).toMatch(/^[\w-]{12,}$/);
     expect(mail?.data.link).toContain(`/${t.tenant.slug}/login`);
-    expect(mail?.data.employeeNumber).toBe(number);
+    expect(mail?.data.staffNumber).toBe(number);
 
     const user = await db.user.findUniqueOrThrow({ where: { email } });
     expect(user.mustChangePassword).toBe(true);
     expect(user.homeTenantId).toBe(t.tenant.id);
-    const emp = await plat((tx) => tx.employee.findUniqueOrThrow({ where: { id: res.body.id } }));
+    const emp = await plat((tx) =>
+      tx.staffProfile.findUniqueOrThrow({ where: { id: res.body.id } }),
+    );
     expect(emp.userId).toBe(user.id);
 
     // The first password works on the company's own page, then must be replaced.
@@ -63,16 +65,16 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
     expect(login.status).toBe(200);
   });
 
-  it('refuses an email that already belongs to a member and leaves no half-added employee', async () => {
+  it('refuses an email that already belongs to a member and leaves no half-added staff', async () => {
     const t = await createTenantWithOwner(db, 'dupe');
     const owner = await loginClient(ctx.app, db, t.email, t.password);
     const number = uniq('E');
     await owner
-      .call('post', `/tenants/${t.tenant.id}/employees`)
-      .send({ employeeNumber: number, fullName: 'Same Person', role: 'DRIVER', email: t.email })
+      .call('post', `/tenants/${t.tenant.id}/staff`)
+      .send({ staffNumber: number, fullName: 'Same Person', role: 'DRIVER', email: t.email })
       .expect(409);
     const left = await plat((tx) =>
-      tx.employee.count({ where: { tenantId: t.tenant.id, employeeNumber: number } }),
+      tx.staffProfile.count({ where: { tenantId: t.tenant.id, staffNumber: number } }),
     );
     expect(left).toBe(0);
   });
@@ -173,8 +175,8 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
     const owner = await loginClient(ctx.app, db, t.email, t.password);
     const email = `${uniq('disp')}@example.test`;
     await owner
-      .call('post', `/tenants/${t.tenant.id}/employees`)
-      .send({ employeeNumber: uniq('E'), fullName: 'Dina Patch', roleKey: 'dispatcher', email })
+      .call('post', `/tenants/${t.tenant.id}/staff`)
+      .send({ staffNumber: uniq('E'), fullName: 'Dina Patch', roleKey: 'dispatcher', email })
       .expect(201);
     const user = await db.user.findUniqueOrThrow({ where: { email } });
     const held = await plat((tx) =>
@@ -197,9 +199,9 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
     });
     const number = uniq('E');
     await admin
-      .call('post', `/tenants/${t.tenant.id}/employees`)
+      .call('post', `/tenants/${t.tenant.id}/staff`)
       .send({
-        employeeNumber: number,
+        staffNumber: number,
         fullName: 'Sneaky Owner',
         roleKey: 'owner',
         email: `${uniq('own')}@example.test`,
@@ -207,7 +209,7 @@ describe.skipIf(!TEST_DB_URL)('company and system e-mail (database)', () => {
       .expect((r) => expect([403, 404]).toContain(r.status));
     expect(
       await plat((tx) =>
-        tx.employee.count({ where: { tenantId: t.tenant.id, employeeNumber: number } }),
+        tx.staffProfile.count({ where: { tenantId: t.tenant.id, staffNumber: number } }),
       ),
     ).toBe(0);
   });

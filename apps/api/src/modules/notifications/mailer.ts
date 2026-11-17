@@ -15,7 +15,10 @@ export type MailTemplate =
   | 'complaint-received'
   | 'complaint-reply'
   | 'application-received'
-  | 'application-update';
+  | 'application-update'
+  | 'interview-invitation'
+  | 'application-rejected'
+  | 'application-hired';
 
 /** Who an e-mail is from: the company it belongs to, or the system itself. */
 export interface MailBrand {

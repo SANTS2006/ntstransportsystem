@@ -29,9 +29,9 @@ const dateStr = z.string().refine((v) => {
   }
 }, 'Use a valid YYYY-MM-DD date');
 
-const employeeCreate = z
+const staffCreate = z
   .object({
-    employeeNumber: trim.min(1).max(30),
+    staffNumber: trim.min(1).max(30),
     fullName: trim.min(2).max(120),
     role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']).optional(),
     /** The company role the person gets (and signs in as); the job on the record follows from it. */
@@ -44,7 +44,7 @@ const employeeCreate = z
     hiredOn: dateStr.optional(),
   })
   .strict();
-const employeePatch = z
+const staffPatch = z
   .object({
     fullName: trim.min(2).max(120).optional(),
     role: z.enum(['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER']).optional(),
@@ -55,7 +55,7 @@ const employeePatch = z
 const licenceBody = z
   .object({ licenceNumber: trim.min(3).max(40), category: trim.min(1).max(20), expiresOn: dateStr })
   .strict();
-const crewBody = z.object({ employeeId: uuid, role: z.enum(['DRIVER', 'CONDUCTOR']) }).strict();
+const crewBody = z.object({ staffId: uuid, role: z.enum(['DRIVER', 'CONDUCTOR']) }).strict();
 const maintenanceCreate = z
   .object({
     vehicleId: uuid,
@@ -113,35 +113,28 @@ export function crewRouter({ db, crew, maintenance }: CrewRouterDeps): ExpressRo
     return v as T;
   };
 
-  // Employees: full records need HR permissions (salary/personal data will live here later).
-  t.get('/employees', perm('hr.read'), async (req, res) => {
+  // Staff: full records need HR permissions (salary/personal data will live here later).
+  t.get('/staff', perm('hr.read'), async (req, res) => {
     const q = listQuery.parse(req.query);
     res.json({
-      employees: await crew.listEmployees(scope(req), pageQuery(req), {
+      staffProfiles: await crew.listStaff(scope(req), pageQuery(req), {
         role: enumOf(q.role, ['DRIVER', 'CONDUCTOR', 'DISPATCHER', 'MECHANIC', 'OTHER'] as const),
         status: enumOf(q.status, ['ACTIVE', 'ON_LEAVE', 'TERMINATED'] as const),
         q: q.q,
       }),
     });
   });
-  t.post('/employees', perm('hr.manage'), async (req, res) => {
-    res
-      .status(201)
-      .json(await crew.createEmployee(scope(req), employeeCreate.parse(req.body), req.id));
+  t.post('/staff', perm('hr.manage'), async (req, res) => {
+    res.status(201).json(await crew.createStaff(scope(req), staffCreate.parse(req.body), req.id));
   });
-  t.patch('/employees/:id', perm('hr.manage'), async (req, res) => {
-    await crew.updateEmployee(
-      scope(req),
-      uuidParam(req, 'id'),
-      employeePatch.parse(req.body),
-      req.id,
-    );
+  t.patch('/staff/:id', perm('hr.manage'), async (req, res) => {
+    await crew.updateStaff(scope(req), uuidParam(req, 'id'), staffPatch.parse(req.body), req.id);
     res.status(204).end();
   });
-  t.get('/employees/:id/licences', perm('hr.read'), async (req, res) => {
+  t.get('/staff/:id/licences', perm('hr.read'), async (req, res) => {
     res.json({ licences: await crew.listLicences(scope(req), uuidParam(req, 'id')) });
   });
-  t.post('/employees/:id/licences', perm('hr.manage'), async (req, res) => {
+  t.post('/staff/:id/licences', perm('hr.manage'), async (req, res) => {
     res
       .status(201)
       .json(
@@ -164,12 +157,12 @@ export function crewRouter({ db, crew, maintenance }: CrewRouterDeps): ExpressRo
   t.post('/trips/:id/crew', perm('trip.manage'), async (req, res) => {
     const b = crewBody.parse(req.body);
     await audit.guard(req, 'trips.crew_assign_denied', () =>
-      crew.assign(scope(req), uuidParam(req, 'id'), b.employeeId, b.role, req.id),
+      crew.assign(scope(req), uuidParam(req, 'id'), b.staffId, b.role, req.id),
     );
     res.status(204).end();
   });
-  t.delete('/trips/:id/crew/:employeeId', perm('trip.manage'), async (req, res) => {
-    await crew.release(scope(req), uuidParam(req, 'id'), uuidParam(req, 'employeeId'), req.id);
+  t.delete('/trips/:id/crew/:staffId', perm('trip.manage'), async (req, res) => {
+    await crew.release(scope(req), uuidParam(req, 'id'), uuidParam(req, 'staffId'), req.id);
     res.status(204).end();
   });
 
@@ -235,8 +228,8 @@ export function crewRouter({ db, crew, maintenance }: CrewRouterDeps): ExpressRo
 
 /** Exposed so the OpenAPI document is generated from the exact schemas used for validation. */
 export const requestSchemas = {
-  employeeCreate,
-  employeePatch,
+  staffCreate,
+  staffPatch,
   licenceBody,
   crewBody,
   maintenanceCreate,

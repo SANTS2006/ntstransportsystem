@@ -51,7 +51,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('CrewPanel', () => {
   it('lists current crew and offers only people not already on the trip', async () => {
-    setup([{ employeeId: 'e1', fullName: 'Aminata Kamara', role: 'DRIVER' }]);
+    setup([{ staffId: 'e1', fullName: 'Aminata Kamara', role: 'DRIVER' }]);
     expect(await screen.findByText('Aminata Kamara')).toBeInTheDocument();
     const options = await screen.findAllByRole('option');
     const names = options.map((o) => o.textContent);
@@ -69,7 +69,7 @@ describe('CrewPanel', () => {
       expect(spy.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true),
     );
     const post = spy.mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ employeeId: 'e3', role: 'CONDUCTOR' });
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ staffId: 'e3', role: 'CONDUCTOR' });
   });
 
   it("shows the server's reason when an assignment is refused", async () => {

@@ -25,6 +25,7 @@ export const PERMISSIONS = [
   'hr.manage',
   'recruitment.manage',
   'support.manage',
+  'salary.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -34,7 +35,9 @@ export const DEFAULT_TENANT_ROLES: Record<string, { name: string; permissions: P
   owner: { name: 'Company Owner', permissions: [...PERMISSIONS] },
   admin: {
     name: 'Company Administrator',
-    permissions: PERMISSIONS.filter((p) => p !== 'finance.report.read' && p !== 'hr.read'),
+    permissions: PERMISSIONS.filter(
+      (p) => p !== 'finance.report.read' && p !== 'hr.read' && p !== 'salary.manage',
+    ),
   },
   dispatcher: {
     name: 'Dispatcher',
@@ -47,7 +50,7 @@ export const DEFAULT_TENANT_ROLES: Record<string, { name: string; permissions: P
   driver: { name: 'Driver', permissions: ['trip.read', 'ticket.validate'] },
   finance_officer: {
     name: 'Finance Officer',
-    permissions: ['payment.read', 'finance.report.read', 'booking.read'],
+    permissions: ['payment.read', 'finance.report.read', 'booking.read', 'salary.manage'],
   },
   hr_manager: { name: 'HR Manager', permissions: ['hr.read', 'hr.manage', 'recruitment.manage'] },
   auditor: {

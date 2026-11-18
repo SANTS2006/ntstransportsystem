@@ -32,11 +32,6 @@ if (canvas) {
 }
 
 // ---- Scroll rail + scroll-linked effects ----------------------------------------------------------
-const rail = document.createElement('div');
-rail.className = 'rail';
-rail.innerHTML = '<i></i>';
-document.body.append(rail);
-const railBar = rail.firstElementChild;
 const header = document.querySelector('.nav');
 
 const parallax = [...document.querySelectorAll('[data-parallax]')];
@@ -59,7 +54,6 @@ function sizeHscroll(h) {
 function onScroll() {
   const max = document.documentElement.scrollHeight - window.innerHeight;
   const p = max > 0 ? clamp(window.scrollY / max) : 0;
-  railBar.style.transform = `scaleY(${p})`;
   header?.classList.toggle('nav--solid', window.scrollY > 24);
   scene?.setProgress(p);
 
@@ -80,7 +74,6 @@ function onScroll() {
       `translate3d(${(-q * h._extra).toFixed(1)}px,0,0)`;
     h.style.setProperty('--hp', q.toFixed(3));
   }
-  setActiveDot();
 }
 
 let ticking = false;
@@ -105,33 +98,6 @@ window.addEventListener('load', () => {
   hscrolls.forEach(sizeHscroll);
   onScroll();
 });
-
-// ---- Section dots (a custom scroll navigator) ------------------------------------------------------
-const dotSections = [...document.querySelectorAll('[data-dot]')];
-let dots = [];
-if (dotSections.length > 1) {
-  const nav = document.createElement('nav');
-  nav.className = 'dots';
-  nav.setAttribute('aria-label', 'Sections on this page');
-  dots = dotSections.map((s) => {
-    const a = document.createElement('a');
-    a.href = `#${s.id}`;
-    a.setAttribute('aria-label', s.dataset.dot);
-    a.dataset.label = s.dataset.dot;
-    nav.append(a);
-    return a;
-  });
-  document.body.append(nav);
-}
-function setActiveDot() {
-  if (!dots.length) return;
-  const mid = window.innerHeight * 0.5;
-  let active = 0;
-  dotSections.forEach((s, i) => {
-    if (s.getBoundingClientRect().top <= mid) active = i;
-  });
-  dots.forEach((d, i) => d.classList.toggle('on', i === active));
-}
 
 // ---- Words that rise one by one ---------------------------------------------------------------------
 document.querySelectorAll('[data-split]').forEach((el) => {

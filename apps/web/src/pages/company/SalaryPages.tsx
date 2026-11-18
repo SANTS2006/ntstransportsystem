@@ -147,7 +147,7 @@ export function MySalaryPage() {
       >(`/tenants/${tenantId}/salary/mine`, { signal }),
   });
   return (
-    <div className="w-full max-w-2xl space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-semibold">My salary</h1>
       {q.isPending && <PageLoader label="Loading your salary" />}
       {q.error && <ErrorAlert error={q.error} onRetry={() => void q.refetch()} />}

@@ -205,7 +205,7 @@ export const router = createBrowserRouter([
     path: '/pay/return',
     element: (
       <RequireAuth>
-        <main className="mx-auto w-full max-w-2xl p-4">{s(<PayReturnPage />)}</main>
+        <main className="w-full p-4">{s(<PayReturnPage />)}</main>
       </RequireAuth>
     ),
   },

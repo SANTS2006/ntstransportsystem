@@ -14,7 +14,7 @@ function Page({ title, children }: { title: string; children: ReactNode }) {
         </Link>
         <ThemeToggle />
       </header>
-      <main id="main" className="mx-auto w-full max-w-3xl px-4 pb-16 pt-4 sm:px-6">
+      <main id="main" className="w-full px-4 pb-16 pt-4 sm:px-6">
         <article className="space-y-6 rounded-3xl bg-white p-6 shadow-level3 sm:p-10 dark:bg-slate-900">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-brand-900 dark:text-white">

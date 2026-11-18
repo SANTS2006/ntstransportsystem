@@ -44,12 +44,16 @@ function Logo({ t }: { t: TenantRow }) {
   );
 }
 
-/** The two web pages a company has: where its staff and customers sign in and sign up. */
+/** The web pages a company has: its home page, and where its staff and customers sign in and sign up. */
 function PageLinks({ slug }: { slug: string }) {
   const link =
     'inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-500';
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <a className={link} href={`/${slug}`} target="_blank" rel="noreferrer">
+        Home page
+        <ExternalLink aria-hidden="true" className="size-3" strokeWidth={1.8} />
+      </a>
       <a className={link} href={`/${slug}/login`} target="_blank" rel="noreferrer">
         Sign-in page
         <ExternalLink aria-hidden="true" className="size-3" strokeWidth={1.8} />

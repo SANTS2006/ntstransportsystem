@@ -166,7 +166,7 @@ export function NotificationDetailPage() {
   }, [unread, id]);
   const n = q.data;
   return (
-    <div className="w-full max-w-3xl space-y-5">
+    <div className="w-full space-y-5">
       <Link
         to={`${here}/notifications`}
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 dark:text-brand-500"

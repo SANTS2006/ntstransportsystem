@@ -118,7 +118,7 @@ export function AuthLayout() {
       }`}
     >
       <MaintenanceBanner />
-      <div className="mx-auto grid min-h-dvh max-w-[1500px] lg:grid-cols-[1.05fr_1fr]">
+      <div className="grid min-h-dvh w-full lg:grid-cols-[1.05fr_1fr]">
         <HeroPanel company={company} />
         <main
           id="main"

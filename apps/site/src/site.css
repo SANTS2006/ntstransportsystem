@@ -12,7 +12,7 @@
   --glass: rgb(12 26 54 / 0.62);
   --radius: 22px;
   --wrap: 100%;
-  --pad: clamp(14px, 2.2vw, 28px);
+  --pad: clamp(20px, 4.5vw, 72px);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: dark;
 }
@@ -1222,8 +1222,7 @@ html:not(.has-scene) body {
 }
 .foot__in {
   width: 100%;
-  padding-inline: var(--pad);
-  padding: 64px 0 36px;
+  padding: 64px var(--pad) 36px;
   display: grid;
   gap: 36px;
 }
@@ -1264,8 +1263,7 @@ html:not(.has-scene) body {
 }
 .foot__bar {
   width: 100%;
-  padding-inline: var(--pad);
-  padding: 20px 0 30px;
+  padding: 20px var(--pad) 96px;
   border-top: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;

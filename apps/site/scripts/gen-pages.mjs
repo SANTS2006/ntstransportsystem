@@ -45,6 +45,9 @@ const ICONS = {
 const ico = (n) =>
   `<span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg></span>`;
 
+/** The address of a page: no .html, and the home page is just the site address. */
+const clean = (f) => (f === 'index.html' ? '' : f.replace(/\.html$/, ''));
+
 const ORG = {
   '@type': 'Organization',
   name: 'NTS Digital Solutions',
@@ -64,7 +67,7 @@ const ORG = {
 };
 
 const jsonLd = (p) => {
-  const url = `__SITE_URL__/${p.file === 'index.html' ? '' : p.file}`;
+  const url = `__SITE_URL__/${clean(p.file)}`;
   const graph = [
     ORG,
     {
@@ -117,7 +120,7 @@ const jsonLd = (p) => {
 
 const page = (p) => {
   const { file, title, desc, scene = 'full', body } = p;
-  const url = `__SITE_URL__/${file === 'index.html' ? '' : file}`;
+  const url = `__SITE_URL__/${clean(file)}`;
   const noindex = p.noindex
     ? '<meta name="robots" content="noindex, follow" />'
     : '<meta name="robots" content="index, follow, max-image-preview:large" />';
@@ -164,7 +167,6 @@ ${body}
 const head = (crumb, h1, lead) => `
     <section class="phead" id="top" data-dot="Top">
       <div class="wrap">
-        <p class="crumbs"><a href="/">Home</a> / ${crumb}</p>
         <h1 class="h1" style="font-size:clamp(36px,6vw,72px)" data-split>${h1}</h1>
         <p class="lead" data-reveal="up" data-delay="500">${lead}</p>
       </div>
@@ -918,7 +920,7 @@ const legal = (file, title, h, blocks) =>
     <section class="section" style="padding-top:0"><div class="wrap"><article class="card prose">${blocks}</article></div></section>`,
   });
 legal(
-  'privacy.html',
+  'privacy-policy.html',
   'Privacy policy',
   'How we handle personal data.',
   `<p>This page explains, in plain language, how NTS Digital Solutions handles personal information on this website and in the NTS Transport system.</p>
@@ -929,7 +931,7 @@ legal(
   <h2>Contact</h2><p>${EMAIL} · ${PHONE}</p>`,
 );
 legal(
-  'terms.html',
+  'terms-of-use.html',
   'Terms of use',
   'The ground rules for using this site.',
   `<p>By using this website you agree to these terms.</p>
@@ -957,7 +959,10 @@ const WA_PATH =
 for (const p of pages) {
   let html = page(p)
     .replaceAll('__WA__', WA)
-    .replace(/ data-dot="[^"]*"/g, '');
+    .replace(/ data-dot="[^"]*"/g, '')
+    .replace(/href="\/([a-z0-9-]+)\.html(#[^"]*)?"/g, 'href="/$1$2"')
+    .replace(/href="\/privacy\.html"/g, 'href="/privacy-policy"')
+    .replace(/href="\/terms\.html"/g, 'href="/terms-of-use"');
   html = html.replaceAll('<use />', `<path fill="currentColor" d="${WA_PATH}"/>`);
   fs.writeFileSync(OUT + p.file, html);
 }

@@ -50,6 +50,8 @@ export const RESERVED_SLUGS = new Set([
   'platform',
   'platform-admin',
   'platform-admin-login',
+  'privacy-policy',
+  'terms-of-use',
   'site-assets',
   'features',
   'solutions',

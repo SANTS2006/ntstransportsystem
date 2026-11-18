@@ -1,5 +1,5 @@
 import express, { type Express } from 'express';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /** Where private files are delivered from; images, audio and video shown in the app come from here. */
@@ -41,7 +41,7 @@ export const SITE_CSP = [
 const isApiPath = (p: string) => /^\/(api|health)(\/|$)/.test(p);
 
 /**
- * The public website is the home page of the system: "/" and its own pages (/features.html ...),
+ * The public website is the home page of the system: "/" and its own pages (/features ...),
  * its fingerprinted files under /site-assets, sitemap.xml and robots.txt. Everything else is the
  * web app. Company addresses never contain a dot, so the pages cannot be mistaken for one.
  */
@@ -54,6 +54,19 @@ function mountSite(app: Express, dir: string): void {
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(home);
   });
+  // Pages have clean addresses: /about serves about.html, and the old /about.html goes to /about.
+  const pages = readdirSync(root)
+    .filter((f) => f.endsWith('.html') && f !== 'index.html' && f !== '404.html')
+    .map((f) => f.slice(0, -5));
+  app.get(['/index.html', '/index'], (_req, res) => res.redirect(301, '/'));
+  for (const name of pages) {
+    app.get(`/${name}.html`, (_req, res) => res.redirect(301, `/${name}`));
+    app.get(`/${name}`, (_req, res) => {
+      res.setHeader('Content-Security-Policy', SITE_CSP);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(resolve(root, `${name}.html`));
+    });
+  }
   app.use(
     express.static(root, {
       index: false,

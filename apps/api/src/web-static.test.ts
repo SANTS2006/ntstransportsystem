@@ -143,9 +143,12 @@ describe('mountWeb with the public website', () => {
     const res = await request(app).get('/').expect(200);
     expect(res.text).toContain('WEBSITE');
     expect(res.headers['content-security-policy']).toBe(SITE_CSP);
-    const page = await request(app).get('/features.html').expect(200);
+    const page = await request(app).get('/features').expect(200);
     expect(page.text).toContain('FEATURES');
     expect(page.headers['content-security-policy']).toBe(SITE_CSP);
+    // The address has no .html: the old form leads to the clean one.
+    const old = await request(app).get('/features.html').expect(301);
+    expect(old.headers.location).toBe('/features');
   });
 
   it('keeps every other address for the web app, including the administrators’ sign-in', async () => {

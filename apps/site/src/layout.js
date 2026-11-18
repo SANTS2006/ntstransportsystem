@@ -2,18 +2,18 @@ import { SITE, whatsappLink } from './config.js';
 
 const NAV = [
   ['/', 'Home'],
-  ['/features.html', 'Features'],
-  ['/how-it-works.html', 'How it works'],
-  ['/solutions.html', 'Solutions'],
-  ['/security.html', 'Security'],
-  ['/about.html', 'About'],
-  ['/faq.html', 'FAQ'],
+  ['/features', 'Features'],
+  ['/how-it-works', 'How it works'],
+  ['/solutions', 'Solutions'],
+  ['/security', 'Security'],
+  ['/about', 'About'],
+  ['/faq', 'FAQ'],
 ];
 
 const WA_ICON = `<svg viewBox="0 0 32 32" aria-hidden="true" class="wa-ico"><path fill="currentColor" d="M16.04 3C9.4 3 4 8.4 4 15.04c0 2.12.55 4.18 1.6 6L4 29l8.14-1.56a12 12 0 0 0 3.9.65h.01C22.68 28.1 28 22.7 28 16.06 28 9.4 22.68 3 16.04 3Zm0 22.07h-.01a10 10 0 0 1-5.1-1.4l-.37-.22-4.83.93.96-4.7-.24-.38a9.98 9.98 0 0 1-1.53-5.3c0-5.52 4.5-10.02 10.04-10.02 5.52 0 10.02 4.5 10.02 10.04 0 5.53-4.5 10.05-10.04 10.05Zm5.5-7.5c-.3-.15-1.78-.88-2.06-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.95 1.18-.17.2-.35.22-.65.07-.3-.15-1.27-.47-2.42-1.5a9.1 9.1 0 0 1-1.68-2.08c-.18-.3-.02-.46.13-.6.13-.14.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.08-.8.38-.27.3-1.04 1.02-1.04 2.5s1.07 2.9 1.22 3.1c.15.2 2.1 3.2 5.08 4.5.7.3 1.26.48 1.7.62.72.23 1.37.2 1.88.12.57-.08 1.78-.73 2.03-1.43.25-.7.25-1.3.18-1.43-.08-.13-.28-.2-.58-.35Z"/></svg>`;
 
 const here = () => {
-  const p = location.pathname.replace(/index\.html$/, '');
+  const p = location.pathname.replace(/(index)?\.html$/, '').replace(/(.)\/$/, '$1');
   return p.endsWith('/') || p === '' ? '/' : p;
 };
 
@@ -21,7 +21,7 @@ export function mountLayout() {
   const path = here();
   const links = NAV.map(
     ([href, label]) =>
-      `<a href="${href}"${href === path || (href !== '/' && path.startsWith(href.replace('.html', ''))) ? ' aria-current="page"' : ''}>${label}</a>`,
+      `<a href="${href}"${href === path || (href !== '/' && path.startsWith(href)) ? ' aria-current="page"' : ''}>${label}</a>`,
   ).join('');
 
   const header = document.createElement('header');
@@ -34,8 +34,8 @@ export function mountLayout() {
       </a>
       <nav class="nav__links" id="site-nav" aria-label="Main">${links}</nav>
       <div class="nav__cta">
-        <a class="btn btn--ghost btn--sm" href="/contact.html">Contact</a>
-        <a class="btn btn--primary btn--sm" href="/demo.html">Request a demo</a>
+        <a class="btn btn--ghost btn--sm" href="/contact">Contact</a>
+        <a class="btn btn--primary btn--sm" href="/demo">Request a demo</a>
         <a class="btn btn--wa btn--sm" href="${whatsappLink()}" target="_blank" rel="noopener noreferrer">${WA_ICON}<span>WhatsApp</span></a>
         <button class="burger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav"><i></i><i></i><i></i></button>
       </div>
@@ -81,19 +81,19 @@ export function mountLayout() {
       </div>
       <div>
         <h4>Explore</h4>
-        <a href="/features.html">Features</a>
-        <a href="/how-it-works.html">How it works</a>
-        <a href="/solutions.html">Solutions</a>
-        <a href="/security.html">Security</a>
-        <a href="/demo.html">Request a demo</a>
+        <a href="/features">Features</a>
+        <a href="/how-it-works">How it works</a>
+        <a href="/solutions">Solutions</a>
+        <a href="/security">Security</a>
+        <a href="/demo">Request a demo</a>
       </div>
       <div>
         <h4>Company</h4>
-        <a href="/about.html">About us</a>
-        <a href="/faq.html">FAQ</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/privacy.html">Privacy policy</a>
-        <a href="/terms.html">Terms of use</a>
+        <a href="/about">About us</a>
+        <a href="/faq">FAQ</a>
+        <a href="/contact">Contact</a>
+        <a href="/privacy-policy">Privacy policy</a>
+        <a href="/terms-of-use">Terms of use</a>
       </div>
       <div>
         <h4>Talk to us</h4>

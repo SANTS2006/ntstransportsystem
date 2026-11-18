@@ -12,8 +12,8 @@ const PAGES = [
   ['about.html', 0.6, 'yearly'],
   ['faq.html', 0.7, 'monthly'],
   ['contact.html', 0.8, 'yearly'],
-  ['privacy.html', 0.3, 'yearly'],
-  ['terms.html', 0.3, 'yearly'],
+  ['privacy-policy.html', 0.3, 'yearly'],
+  ['terms-of-use.html', 0.3, 'yearly'],
 ];
 const INPUTS = [...PAGES.map(([p]) => p.replace(/\.html$/, '') || 'index'), '404'];
 
@@ -31,7 +31,7 @@ function seoFiles() {
       const day = new Date().toISOString().slice(0, 10);
       const urls = PAGES.map(
         ([p, priority, freq]) =>
-          `  <url><loc>${SITE_URL}/${p}</loc><lastmod>${day}</lastmod><changefreq>${freq}</changefreq><priority>${priority.toFixed(1)}</priority></url>`,
+          `  <url><loc>${SITE_URL}/${p.replace(/\.html$/, '')}</loc><lastmod>${day}</lastmod><changefreq>${freq}</changefreq><priority>${priority.toFixed(1)}</priority></url>`,
       ).join('\n');
       this.emitFile({
         type: 'asset',
@@ -57,8 +57,24 @@ function seoFiles() {
   };
 }
 
+/** Clean addresses while developing: /about is the file about.html, like on the live site. */
+function cleanUrls() {
+  const rewrite = (req, _res, next) => {
+    const [path, query = ''] = (req.url ?? '').split('?');
+    if (/^\/[a-z0-9-]+$/.test(path) && INPUTS.includes(path.slice(1))) {
+      req.url = `${path}.html${query ? `?${query}` : ''}`;
+    }
+    next();
+  };
+  return {
+    name: 'nts-clean-urls',
+    configureServer: (server) => server.middlewares.use(rewrite),
+    configurePreviewServer: (server) => server.middlewares.use(rewrite),
+  };
+}
+
 export default defineConfig({
-  plugins: [seoFiles()],
+  plugins: [seoFiles(), cleanUrls()],
   server: {
     port: 5180,
     // The forms post to the API; during development it runs on its own port.

@@ -53,7 +53,7 @@ export function mountLayout() {
     last = now;
     if (taps >= 5) {
       taps = 0;
-      location.assign('/platform-admin/login');
+      location.assign('/platform-admin-login');
     }
   });
 

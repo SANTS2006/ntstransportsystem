@@ -80,7 +80,7 @@ import type { Mailer } from './modules/notifications/mailer.js';
 import type { Db } from './platform/db.js';
 import type { RateLimitStoreFactory } from './platform/redis.js';
 import { healthRouter, type ReadinessCheck } from './modules/health/health.routes.js';
-import { mountWeb } from './web-static.js';
+import { mountWeb, siblingSiteDir } from './web-static.js';
 import { inquiryRouter } from './modules/inquiry/inquiry.routes.js';
 import { InquiryService } from './modules/inquiry/inquiry.service.js';
 import { errorHandler, notFoundHandler, requestId } from './platform/http.js';
@@ -350,7 +350,8 @@ export function createApp({
   // Further feature modules are mounted here phase by phase.
   if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') mountApiDocs(app, v1);
   app.use('/api/v1', v1);
-  if (env.WEB_DIST_DIR) mountWeb(app, env.WEB_DIST_DIR, env.SITE_DIST_DIR);
+  if (env.WEB_DIST_DIR)
+    mountWeb(app, env.WEB_DIST_DIR, env.SITE_DIST_DIR ?? siblingSiteDir(env.WEB_DIST_DIR));
   // Every registered route with its full path: the API documentation is generated from, and
   // tested against, this table so the two cannot drift apart.
   app.locals.routeTable = [

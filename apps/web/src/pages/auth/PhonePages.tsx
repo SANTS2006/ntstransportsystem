@@ -100,7 +100,7 @@ export function VerifyPhonePage() {
     return (
       <AuthCard title="Confirm your phone number">
         <Alert tone="error">This page needs your phone number. Please start again.</Alert>
-        <Link className={linkClass} to={base ? `${base}/register` : '/platform-admin/login'}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/platform-admin-login'}>
           Create an account
         </Link>
       </AuthCard>
@@ -130,7 +130,7 @@ export function VerifyPhonePage() {
         startNow
       />
       <div className="flex justify-between">
-        <Link className={linkClass} to={base ? `${base}/register` : '/platform-admin/login'}>
+        <Link className={linkClass} to={base ? `${base}/register` : '/platform-admin-login'}>
           Use a different number
         </Link>
         <Link className={linkClass} to={`${base}/login`}>

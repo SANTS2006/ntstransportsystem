@@ -31,7 +31,7 @@ function renderAt(
   );
   const router = createMemoryRouter(
     [
-      { path: '/platform-admin/login', element: <p>LOGIN</p> },
+      { path: '/platform-admin-login', element: <p>LOGIN</p> },
       { path: '/platform/dashboard', element: <p>PLATFORM AREA</p> },
       { path: '/:slug/dashboard', element: <p>COMPANY AREA</p> },
       {

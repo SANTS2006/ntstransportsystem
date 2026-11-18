@@ -890,6 +890,6 @@ export function LegacyRedirect() {
   return slugOf ? (
     <Navigate to={`/${slugOf}${target}`} replace />
   ) : (
-    <Navigate to="/platform-admin/login" replace />
+    <Navigate to="/platform-admin-login" replace />
   );
 }

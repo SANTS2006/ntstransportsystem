@@ -101,3 +101,12 @@ export function mountWeb(app: Express, dir: string, siteDir?: string): void {
     res.sendFile(index);
   });
 }
+
+/**
+ * The built website that sits beside the built web app (apps/site/dist next to apps/web/dist), so a
+ * deployment that builds both shows the website as the home page without any extra setting.
+ */
+export function siblingSiteDir(webDir: string): string | undefined {
+  const guess = resolve(webDir, '..', '..', 'site', 'dist');
+  return existsSync(resolve(guess, 'index.html')) ? guess : undefined;
+}

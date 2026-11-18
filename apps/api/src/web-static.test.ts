@@ -5,7 +5,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadEnv } from './config/env.js';
-import { SITE_CSP, WEB_CSP, mountWeb } from './web-static.js';
+import { SITE_CSP, WEB_CSP, mountWeb, siblingSiteDir } from './web-static.js';
 
 describe('mountWeb', () => {
   let dir: string;
@@ -149,7 +149,7 @@ describe('mountWeb with the public website', () => {
   });
 
   it('keeps every other address for the web app, including the administrators’ sign-in', async () => {
-    for (const path of ['/platform-admin/login', '/acme/login', '/platform/dashboard']) {
+    for (const path of ['/platform-admin-login', '/acme/login', '/platform/dashboard']) {
       const res = await request(app).get(path).expect(200);
       expect(res.text).toContain('<div id="root">');
       expect(res.headers['content-security-policy']).toBe(WEB_CSP);
@@ -159,5 +159,17 @@ describe('mountWeb with the public website', () => {
   it('caches the website’s fingerprinted files for a year', async () => {
     const res = await request(app).get('/site-assets/main-abc123.js').expect(200);
     expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+});
+
+describe('siblingSiteDir', () => {
+  it('finds the website built next to the web app, and nothing otherwise', () => {
+    const base = mkdtempSync(join(tmpdir(), 'nts-sib-'));
+    mkdirSync(join(base, 'web', 'dist'), { recursive: true });
+    expect(siblingSiteDir(join(base, 'web', 'dist'))).toBeUndefined();
+    mkdirSync(join(base, 'site', 'dist'), { recursive: true });
+    writeFileSync(join(base, 'site', 'dist', 'index.html'), '<h1>site</h1>');
+    expect(siblingSiteDir(join(base, 'web', 'dist'))).toBe(join(base, 'site', 'dist'));
+    rmSync(base, { recursive: true, force: true });
   });
 });

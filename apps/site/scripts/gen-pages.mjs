@@ -227,7 +227,6 @@ add({
           <div class="hero__cta" data-reveal="up" data-delay="760">
             <a class="btn btn--primary" href="/demo.html">Request a demo</a>
             <a class="btn btn--ghost" href="/features.html">Explore the features</a>
-            <a class="btn btn--wa" href="__WA__" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 32 32" class="wa-ico" aria-hidden="true"><use /></svg>Chat on WhatsApp</a>
           </div>
           <div class="hero__chips" data-reveal="up" data-delay="900">
             <span class="chip">Online + desk sales</span><span class="chip">QR &amp; barcode tickets</span><span class="chip">Your own web address</span><span class="chip">Works as an app</span>

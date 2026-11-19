@@ -68,8 +68,12 @@ function cleanUrls() {
   };
   return {
     name: 'nts-clean-urls',
-    configureServer: (server) => server.middlewares.use(rewrite),
-    configurePreviewServer: (server) => server.middlewares.use(rewrite),
+    configureServer(server) {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
+    },
   };
 }
 

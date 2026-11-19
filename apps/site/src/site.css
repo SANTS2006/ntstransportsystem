@@ -1369,3 +1369,141 @@ html:not(.has-scene) body {
 .btn--sm {
   white-space: nowrap;
 }
+
+/* ---- Navbar: links only, no overflow ------------------------------------------------------------- */
+.nav__in {
+  gap: 16px;
+  min-width: 0;
+}
+.brand {
+  flex: none;
+  white-space: nowrap;
+}
+.nav__links a {
+  padding: 8px 11px;
+}
+.nav__demo-link {
+  display: none;
+}
+@media (max-width: 1179px) {
+  .nav__demo {
+    display: none;
+  }
+  .nav__cta {
+    margin-left: auto;
+  }
+  .burger {
+    display: grid;
+  }
+  .nav__demo-link {
+    display: block;
+    margin-top: 8px;
+    text-align: center;
+    background: linear-gradient(135deg, var(--blue), #2b9bff);
+    color: #fff !important;
+    font-weight: 600;
+    border-radius: 14px;
+  }
+  .nav__links {
+    max-height: calc(100dvh - 68px);
+    overflow-y: auto;
+  }
+}
+@media (min-width: 1180px) and (max-width: 1360px) {
+  .nav__links a {
+    padding: 8px 8px;
+    font-size: 13.5px;
+  }
+}
+
+/* ---- Nothing wider than the screen ---------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+p,
+li,
+a,
+summary {
+  overflow-wrap: anywhere;
+}
+.card,
+.grid > *,
+.bento > *,
+.split2 > *,
+.contact > *,
+.cinfo > *,
+.stats > *,
+.hs__panel,
+.fan > * {
+  min-width: 0;
+}
+.h1 {
+  font-size: clamp(34px, 8.4vw, 88px);
+}
+.h2 {
+  font-size: clamp(26px, 6.2vw, 56px);
+}
+.cinfo strong,
+.foot a {
+  overflow-wrap: anywhere;
+}
+.hero__cta .btn,
+.form__btns .btn {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .hero__cta .btn,
+  .cta .hero__cta .btn,
+  .form__btns .btn {
+    width: 100%;
+  }
+  .card {
+    padding: 22px;
+  }
+  .hero__chips {
+    margin-top: 24px;
+  }
+  .phead {
+    padding: 120px 0 36px;
+  }
+  .wa-fab {
+    right: 14px;
+    bottom: 14px;
+    width: 54px;
+    height: 54px;
+  }
+  .wa-fab .wa-ico {
+    width: 30px;
+    height: 30px;
+  }
+  .wa-fab__tip {
+    display: none;
+  }
+}
+
+/* ---- "From route to revenue" cards on small screens -------------------------------------------------- */
+@media (max-width: 899px) {
+  .hs__sticky {
+    padding: 40px 0;
+  }
+  .hs__track {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: var(--pad);
+  }
+  .hs__panel {
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .hs__panel .num {
+    font-size: 44px;
+    margin-bottom: 8px;
+  }
+  .hs__panel h3 {
+    font-size: 21px;
+  }
+  .hs__panel p {
+    margin: 0;
+    font-size: 15px;
+  }
+}
